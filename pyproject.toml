@@ -1,0 +1,16 @@
+[project]
+name = "family-budget-ai"
+version = "0.1.0"
+description = "AI Telegram bot for family budget management"
+requires-python = ">=3.12"
+
+dependencies = [
+    "aiogram>=3.20",
+    "sqlalchemy>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.16",
+    "python-dotenv>=1.1",
+    "pydantic>=2.11",
+    "pydantic-settings>=2.10",
+    "loguru>=0.7",
+]
