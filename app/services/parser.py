@@ -1,55 +1,71 @@
 import re
 
-CATEGORIES = {
-    "кофе": "☕ Кафе",
-    "cafe": "☕ Кафе",
-    "lidl": "🛒 Продукты",
-    "aldi": "🛒 Продукты",
-    "rewe": "🛒 Продукты",
-    "edeka": "🛒 Продукты",
-    "kaufland": "🛒 Продукты",
-    "заправка": "⛽ Автомобиль",
-    "shell": "⛽ Автомобиль",
-    "aral": "⛽ Автомобиль",
-    "esso": "⛽ Автомобиль",
-}
+from app.data.categories import CATEGORIES
+from app.services.category_service import detect_category
 
 
-def detect_category(title: str):
+def is_income(title: str) -> bool:
+
     text = title.lower()
 
-    for key, category in CATEGORIES.items():
-        if key in text:
-            return category
+    for keyword in CATEGORIES["income"]["keywords"]:
+        if keyword in text:
+            return True
 
-    return "📦 Другое"
+    return False
 
 
 def parse_message(text: str):
-    text = text.strip()
 
-    income = re.match(r"^\+?\s*(\d+(?:[.,]\d+)?)\s+(.+)$", text)
-    if income:
-        amount = float(income.group(1).replace(",", "."))
-        title = income.group(2)
+    text = text.strip().replace(",", ".")
+
+    # --------------------------------------------------
+    # Доход
+    # --------------------------------------------------
+
+    match = re.match(r"^\+?(\d+(?:\.\d+)?)\s+(.+)$", text)
+
+    if match:
+
+        amount = float(match.group(1))
+        title = match.group(2).strip()
+
+        transaction_type = (
+            "income"
+            if is_income(title)
+            else "income"
+        )
+
+        icon, category = detect_category(
+            title,
+            transaction_type,
+        )
 
         return {
-            "type": "income",
+            "type": transaction_type,
             "title": title,
             "amount": amount,
-            "category": "💰 Доход",
+            "category": f"{icon} {category}",
         }
 
-    expense = re.match(r"^(.+?)\s+(\d+(?:[.,]\d+)?)$", text)
-    if expense:
-        title = expense.group(1)
-        amount = float(expense.group(2).replace(",", "."))
+    # --------------------------------------------------
+    # Расход
+    # --------------------------------------------------
+
+    match = re.match(r"^(.+?)\s+(\d+(?:\.\d+)?)$", text)
+
+    if match:
+
+        title = match.group(1).strip()
+        amount = float(match.group(2))
+
+        icon, category = detect_category(title)
 
         return {
             "type": "expense",
             "title": title,
             "amount": amount,
-            "category": detect_category(title),
+            "category": f"{icon} {category}",
         }
 
     return None
