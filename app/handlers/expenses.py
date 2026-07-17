@@ -22,9 +22,14 @@ async def add_transaction(message: Message):
     total_income = 0.0
     total_expense = 0.0
 
+    telegram_id = message.from_user.id
+
     for line in lines:
 
-        transaction = await save_transaction(line)
+        transaction = await save_transaction(
+            line,
+            telegram_id,
+        )
 
         if transaction is None:
             failed.append(line)

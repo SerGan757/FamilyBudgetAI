@@ -1,8 +1,15 @@
+from aiogram import F
 from aiogram import Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from app.keyboards.main_menu import main_menu
+from app.handlers.user_states import RegistrationState
+from app.services.user_service import (
+    create_user,
+    get_user_by_telegram_id,
+)
 
 router = Router()
 
@@ -42,13 +49,66 @@ Shell 65
 🤖 Автоматические категории
 
 ════════════════════
-
-Выберите действие кнопками ниже.
 """
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
+
+    telegram_id = message.from_user.id
+
+    user = await get_user_by_telegram_id(telegram_id)
+
+    if user:
+
+        await state.clear()
+
+        await message.answer(
+            f"👋 <b>С возвращением, {user.name}!</b>"
+        )
+
+        await message.answer(
+            WELCOME_TEXT,
+            reply_markup=main_menu,
+        )
+
+        return
+
+    await state.set_state(
+        RegistrationState.waiting_for_name
+    )
+
+    await message.answer(
+        "👋 Добро пожаловать!\n\n"
+        "Введите, пожалуйста, ваше имя."
+    )
+    
+
+@router.message(RegistrationState.waiting_for_name)
+async def registration_name(
+    message: Message,
+    state: FSMContext,
+):
+
+    name = message.text.strip()
+
+    if len(name) < 2:
+
+        await message.answer(
+            "Введите корректное имя."
+        )
+        return
+
+    await create_user(
+        telegram_id=message.from_user.id,
+        name=name,
+    )
+
+    await state.clear()
+
+    await message.answer(
+        f"✅ Приятно познакомиться, <b>{name}</b>!",
+    )
 
     await message.answer(
         WELCOME_TEXT,

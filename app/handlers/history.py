@@ -9,16 +9,24 @@ router = Router()
 
 def format_transaction(transaction):
 
-    if transaction.type == "income":
-        sign = "+"
-    else:
-        sign = "-"
+    sign = "+" if transaction.type == "income" else "-"
+
+    amount = (
+        f"{sign}{transaction.amount:.2f} €/мес"
+        if transaction.is_recurring
+        else f"{sign}{transaction.amount:.2f} €"
+    )
+
+    icon = transaction.category.split()[0]
+
+    title = transaction.title[:20]
+    user = transaction.user_name[:10]
 
     return (
-        f"{transaction.id:<4}"
-        f"{transaction.category:<18}"
-        f"{transaction.title[:22]:<22}"
-        f"{sign}{transaction.amount:>8.2f} €"
+        f"{icon} "
+        f"{title:<20}"
+        f"{amount:>12}"
+        f"  {user}"
     )
 
 
@@ -31,23 +39,11 @@ async def history(message: Message):
         await message.answer("📋 История пуста.")
         return
 
-    text = (
-        "<pre>"
-        "📋 ИСТОРИЯ ОПЕРАЦИЙ\n"
-        "══════════════════════════════════════════════\n"
-    )
+    text = "<pre>📋 ИСТОРИЯ\n\n"
 
     for transaction in transactions:
+        text += format_transaction(transaction) + "\n"
 
-        text += (
-            format_transaction(transaction)
-            + "\n"
-        )
-
-    text += (
-        "══════════════════════════════════════════════\n"
-        f"Всего показано: {len(transactions)}"
-        "</pre>"
-    )
+    text += "</pre>"
 
     await message.answer(text)

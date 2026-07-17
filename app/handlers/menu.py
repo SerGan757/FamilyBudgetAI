@@ -11,6 +11,7 @@ from app.handlers.statistics import (
     month,
     today,
 )
+from app.handlers.recurring import recurring_menu
 from app.keyboards.main_menu import main_menu
 
 router = Router()
@@ -81,13 +82,12 @@ async def analytics(message: Message):
     )
 
 
-@router.message(F.text == "👨‍👩‍👧 Семья")
-async def family(message: Message):
+@router.message(F.text == "🔁 Регулярные")
+async def recurring(message: Message):
 
-    await message.answer(
-        "🚧 Семейный бюджет появится в версии 0.6.",
-        reply_markup=main_menu,
-    )
+    print(repr(message.text))
+
+    await recurring_menu(message)
 
 
 @router.message(F.text == "⚙️ Еще")

@@ -20,7 +20,7 @@ main_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="📊 Аналитика"),
         ],
         [
-            KeyboardButton(text="👨‍👩‍👧 Семья"),
+            KeyboardButton(text="🔁 Регулярные"),
             KeyboardButton(text="⚙️ Еще"),
         ],
     ],

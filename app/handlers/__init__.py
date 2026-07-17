@@ -4,6 +4,7 @@ from .expenses import router as expenses_router
 from .history import router as history_router
 from .statistics import router as statistics_router
 from .delete import router as delete_router
+from .recurring import router as recurring_router
 
 routers = (
     start_router,
@@ -11,5 +12,6 @@ routers = (
     history_router,
     statistics_router,
     delete_router,
+    recurring_router,
     expenses_router,
 )

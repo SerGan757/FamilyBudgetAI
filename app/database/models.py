@@ -1,10 +1,123 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+)
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.database.db import Base
 
+
+# =====================================================
+# FAMILIES
+# =====================================================
+
+class Family(Base):
+    __tablename__ = "families"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    invite_code: Mapped[str] = mapped_column(
+        String(12),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    users = relationship(
+        "User",
+        back_populates="family",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self):
+        return (
+            f"<Family(id={self.id}, name='{self.name}')>"
+        )
+
+
+# =====================================================
+# USERS
+# =====================================================
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    telegram_id: Mapped[int] = mapped_column(
+        Integer,
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id"),
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    family = relationship(
+        "Family",
+        back_populates="users",
+    )
+
+    transactions = relationship(
+        "Transaction",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self):
+        return (
+            f"<User(id={self.id}, "
+            f"name='{self.name}', "
+            f"telegram_id={self.telegram_id})>"
+        )
+
+
+# =====================================================
+# TRANSACTIONS
+# =====================================================
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -13,6 +126,11 @@ class Transaction(Base):
         Integer,
         primary_key=True,
         autoincrement=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False,
     )
 
     title: Mapped[str] = mapped_column(
@@ -36,6 +154,101 @@ class Transaction(Base):
         default="📦 Прочее",
     )
 
+    is_recurring: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    recurring_payment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recurring_payments.id"),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    user = relationship(
+        "User",
+        back_populates="transactions",
+    )
+
+    def __repr__(self):
+        return (
+            f"<Transaction(id={self.id}, "
+            f"title='{self.title}', "
+            f"amount={self.amount})>"
+        )
+
+
+# =====================================================
+# RECURRING PAYMENTS
+# =====================================================
+
+class RecurringPayment(Base):
+    __tablename__ = "recurring_payments"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        autoincrement=True,
+    )
+
+    title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    amount: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="📦 Прочее",
+    )
+
+    frequency: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="monthly",
+    )
+
+    interval_value: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+    )
+
+    day_of_month: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+    )
+
+    month_of_year: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+    )
+
+    payer: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="Общий",
+    )
+
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
@@ -43,12 +256,8 @@ class Transaction(Base):
     )
 
     def __repr__(self):
-
         return (
-            f"<Transaction("
-            f"id={self.id}, "
+            f"<RecurringPayment(id={self.id}, "
             f"title='{self.title}', "
-            f"amount={self.amount}, "
-            f"type='{self.type}', "
-            f"category='{self.category}')>"
+            f"amount={self.amount})>"
         )

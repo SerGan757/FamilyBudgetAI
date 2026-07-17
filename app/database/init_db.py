@@ -1,7 +1,10 @@
 import asyncio
 
 from app.database.db import Base, engine
-from app.database.models import Transaction
+from app.database.models import (
+    Transaction,
+    RecurringPayment,
+)
 
 
 async def init_db():
