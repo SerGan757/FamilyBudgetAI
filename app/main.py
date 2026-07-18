@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from aiohttp import web
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -14,6 +15,23 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+async def health(request):
+    return web.Response(text="OK")
+
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", health)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    port = int(os.environ.get("PORT", 10000))
+
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+    print(f"Web server started on port {port}")
 
 async def main():
 
@@ -28,6 +46,7 @@ async def main():
         )
 
     await init_db()
+    await start_web_server()
 
     bot = Bot(
         token=BOT_TOKEN,
