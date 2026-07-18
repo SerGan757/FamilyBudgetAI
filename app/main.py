@@ -43,7 +43,7 @@ async def main():
     print("        Family Budget AI")
     print("           Version 1.0 RC1")
     print("=" * 50)
-    print("✅ Bot started")
+    print("Bot started")
     print("=" * 50)
     print()
 

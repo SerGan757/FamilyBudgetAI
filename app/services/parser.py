@@ -59,10 +59,15 @@ def parse_message(text: str):
         title = match.group(1).strip()
         amount = float(match.group(2))
 
-        icon, category = detect_category(title)
+        transaction_type = "income" if is_income(title) else "expense"
+
+        icon, category = detect_category(
+            title,
+            transaction_type,
+        )
 
         return {
-            "type": "expense",
+            "type": transaction_type,
             "title": title,
             "amount": amount,
             "category": f"{icon} {category}",

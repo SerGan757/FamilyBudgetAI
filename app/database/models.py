@@ -1,12 +1,14 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
     Integer,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -50,6 +52,12 @@ class Family(Base):
 
     users = relationship(
         "User",
+        back_populates="family",
+        cascade="all, delete-orphan",
+    )
+
+    recurring_payments = relationship(
+        "RecurringPayment",
         back_populates="family",
         cascade="all, delete-orphan",
     )
@@ -121,6 +129,13 @@ class User(Base):
 
 class Transaction(Base):
     __tablename__ = "transactions"
+    __table_args__ = (
+        UniqueConstraint(
+            "recurring_payment_id",
+            "recurring_period",
+            name="uq_transactions_recurring_payment_period",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -161,7 +176,12 @@ class Transaction(Base):
     )
 
     recurring_payment_id: Mapped[int | None] = mapped_column(
-        ForeignKey("recurring_payments.id"),
+        ForeignKey("recurring_payments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    recurring_period: Mapped[date | None] = mapped_column(
+        Date,
         nullable=True,
     )
 
@@ -173,6 +193,11 @@ class Transaction(Base):
 
     user = relationship(
         "User",
+        back_populates="transactions",
+    )
+
+    recurring_payment = relationship(
+        "RecurringPayment",
         back_populates="transactions",
     )
 
@@ -195,6 +220,12 @@ class RecurringPayment(Base):
         Integer,
         primary_key=True,
         autoincrement=True,
+    )
+
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id"),
+        nullable=False,
+        index=True,
     )
 
     title: Mapped[str] = mapped_column(
@@ -253,6 +284,16 @@ class RecurringPayment(Base):
         DateTime,
         default=datetime.utcnow,
         nullable=False,
+    )
+
+    family = relationship(
+        "Family",
+        back_populates="recurring_payments",
+    )
+
+    transactions = relationship(
+        "Transaction",
+        back_populates="recurring_payment",
     )
 
     def __repr__(self):

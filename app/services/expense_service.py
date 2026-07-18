@@ -2,6 +2,7 @@ from sqlalchemy import select
 
 from app.database.db import SessionLocal
 from app.database.models import Transaction
+from datetime import date
 from app.services.parser import parse_message
 from app.services.user_service import get_user_by_telegram_id
 
@@ -38,6 +39,7 @@ async def create_transaction(
     category: str = "📦 Прочее",
     is_recurring: bool = False,
     recurring_payment_id: int | None = None,
+    recurring_period: date | None = None,
 ):
 
     async with SessionLocal() as session:
@@ -50,6 +52,7 @@ async def create_transaction(
             category=category,
             is_recurring=is_recurring,
             recurring_payment_id=recurring_payment_id,
+            recurring_period=recurring_period,
         )
 
         session.add(transaction)
