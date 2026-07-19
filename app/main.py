@@ -68,7 +68,7 @@ async def main():
     print("Bot started")
     print("=" * 50)
     print()
-
+    print(">>> START POLLING <<<")
     await dp.start_polling(bot)
 
 
