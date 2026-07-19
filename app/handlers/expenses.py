@@ -9,6 +9,10 @@ router = Router()
 
 @router.message()
 async def add_transaction(message: Message):
+    
+    print(
+    f"EXPENSE: chat={message.chat.type}, text={message.text}"
+    )
 
     lines = [
         line.strip()
