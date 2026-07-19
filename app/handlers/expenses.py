@@ -9,9 +9,12 @@ router = Router()
 
 @router.message()
 async def add_transaction(message: Message):
-    
+
+    if message.text is None:
+        return
+
     print(
-    f"EXPENSE: chat={message.chat.type}, text={message.text}"
+        f"EXPENSE: chat={message.chat.type}, text={message.text}"
     )
 
     lines = [
