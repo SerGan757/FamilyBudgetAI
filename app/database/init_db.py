@@ -12,7 +12,7 @@ from app.database.models import (
 async def init_db():
 
     async with engine.begin() as conn:
-
+     
         # Пока проект в разработке —
         # пересоздаем таблицу автоматически.
         await conn.run_sync(Base.metadata.create_all)

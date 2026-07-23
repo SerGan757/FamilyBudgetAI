@@ -1,11 +1,10 @@
-from aiogram import F
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from app.keyboards.main_menu import main_menu
 from app.handlers.user_states import RegistrationState
+from app.keyboards.main_menu import main_menu
 from app.services.user_service import (
     create_user,
     get_user_by_telegram_id,
@@ -31,7 +30,7 @@ Shell 65
 
 <pre>
 2300 Зарплата
-150 Возврат долга
+150 Возврат
 </pre>
 
 ════════════════════
@@ -46,25 +45,30 @@ Shell 65
 
 📖 История
 
-🤖 Автоматические категории
+🔁 Регулярные платежи
 
-════════════════════
+🤖 Автоматические категории
 """
 
 
 @router.message(Command("start"))
-async def cmd_start(message: Message, state: FSMContext):
+async def cmd_start(
+    message: Message,
+    state: FSMContext,
+):
 
     telegram_id = message.from_user.id
 
-    user = await get_user_by_telegram_id(telegram_id)
+    user = await get_user_by_telegram_id(
+        telegram_id
+    )
 
     if user:
 
         await state.clear()
 
         await message.answer(
-            f"👋 <b>С возвращением, {user.name}!</b>"
+            f"👋 С возвращением, <b>{user.name}</b>!"
         )
 
         await message.answer(
@@ -80,15 +84,18 @@ async def cmd_start(message: Message, state: FSMContext):
 
     await message.answer(
         "👋 Добро пожаловать!\n\n"
-        "Введите, пожалуйста, ваше имя."
+        "Как тебя зовут?"
     )
-    
+
 
 @router.message(RegistrationState.waiting_for_name)
 async def registration_name(
     message: Message,
     state: FSMContext,
 ):
+
+    if message.text is None:
+        return
 
     name = message.text.strip()
 
@@ -107,7 +114,7 @@ async def registration_name(
     await state.clear()
 
     await message.answer(
-        f"✅ Приятно познакомиться, <b>{name}</b>!",
+        f"✅ Рад познакомиться, <b>{name}</b>!"
     )
 
     await message.answer(

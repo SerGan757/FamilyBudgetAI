@@ -1,8 +1,9 @@
+from datetime import date
+
 from sqlalchemy import select
 
 from app.database.db import SessionLocal
 from app.database.models import Transaction
-from datetime import date
 from app.services.parser import parse_message
 from app.services.user_service import get_user_by_telegram_id
 
@@ -15,20 +16,22 @@ async def save_transaction(
     parsed = parse_message(text)
 
     if parsed is None:
-        return None
+        return "PARSE_ERROR"
 
     user = await get_user_by_telegram_id(telegram_id)
 
     if user is None:
-        return None
+        return "USER_NOT_FOUND"
 
-    return await create_transaction(
+    transaction = await create_transaction(
         user_id=user.id,
         title=parsed["title"],
         amount=parsed["amount"],
         transaction_type=parsed["type"],
         category=parsed["category"],
     )
+
+    return transaction
 
 
 async def create_transaction(
@@ -62,6 +65,33 @@ async def create_transaction(
         await session.refresh(transaction)
 
         return transaction
+
+
+async def update_recurring_transaction(
+    transaction: Transaction,
+    title: str,
+    amount: float,
+    category: str,
+):
+
+    async with SessionLocal() as session:
+
+        db_transaction = await session.get(
+            Transaction,
+            transaction.id,
+        )
+
+        if db_transaction is None:
+            return None
+
+        db_transaction.title = title
+        db_transaction.amount = amount
+        db_transaction.category = category
+
+        await session.commit()
+        await session.refresh(db_transaction)
+
+        return db_transaction        
 
 
 async def get_transaction(transaction_id: int):

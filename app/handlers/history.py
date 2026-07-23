@@ -7,26 +7,31 @@ from app.services.history_service import get_last_transactions
 router = Router()
 
 
-def format_transaction(transaction):
+def format_transaction(transaction) -> str:
 
     sign = "+" if transaction.type == "income" else "-"
 
     amount = (
-        f"{sign}{transaction.amount:.2f} €/мес"
+        f"{sign}{transaction.amount:.2f}€/м"
         if transaction.is_recurring
-        else f"{sign}{transaction.amount:.2f} €"
+        else f"{sign}{transaction.amount:.2f}€"
     )
 
-    icon = transaction.category.split()[0]
+    if transaction.type == "income":
+        icon = "💰"
+    else:
+        icon = transaction.category.split()[0]
 
-    title = transaction.title[:20]
+    title = transaction.title[:18]
     user = transaction.user_name[:10]
 
     return (
-        f"{icon} "
-        f"{title:<20}"
-        f"{amount:>12}"
-        f"  {user}"
+        "<code>"
+        f"{transaction.id:>4} │ "
+        f"{icon} {title:<18} │ "
+        f"{amount:>13} │ "
+        f"{user:<10}"
+        "</code>"
     )
 
 
@@ -39,11 +44,34 @@ async def history(message: Message):
         await message.answer("📋 История пуста.")
         return
 
-    text = "<pre>📋 ИСТОРИЯ\n\n"
+    text = (
+    "<b>📋 Последние 20 операций</b>\n\n"
+    )
+
+    text += (
+        "<code>"
+        " ID │ Операция            │        Сумма │ Пользователь\n"
+        "────┼─────────────────────┼──────────────┼────────────"
+        "</code>\n"
+   )
 
     for transaction in transactions:
-        text += format_transaction(transaction) + "\n"
+        text += (
+    format_transaction(transaction)
+    + "\n"
+    )
 
-    text += "</pre>"
+    text += (
+        "\n"
+        "<b>Введите ID операции для удаления.</b>\n\n"
+        "Можно указать несколько ID.\n\n"
+        "<pre>"
+        "154\n"
+        "154 152\n"
+        "154,152,150"
+        "</pre>"
+    )
 
-    await message.answer(text)
+    await message.answer(
+        text
+    )

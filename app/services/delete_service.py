@@ -4,6 +4,21 @@ from app.database.db import SessionLocal
 from app.database.models import Transaction
 
 
+async def delete_transactions_by_ids(ids: list[int]):
+
+    deleted = []
+
+    for transaction_id in ids:
+
+        transaction = await delete_transaction_by_id(
+            transaction_id
+        )
+
+        if transaction:
+            deleted.append(transaction)
+
+    return deleted
+
 async def delete_last_transaction():
 
     async with SessionLocal() as session:

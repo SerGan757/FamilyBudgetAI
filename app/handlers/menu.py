@@ -1,12 +1,10 @@
 from aiogram import F, Router
 from aiogram.types import Message
 
-from app.handlers.delete import (
-    undo,
-    waiting_for_delete_id,
-)
+from app.handlers.delete import delete
 from app.handlers.history import history
 from app.handlers.statistics import (
+    analytics,
     balance,
     month,
     today,
@@ -56,30 +54,22 @@ async def history_menu(message: Message):
 
 @router.message(F.text == "↩️ Отменить")
 async def undo_menu(message: Message):
-    await undo(message)
+
+    await message.answer(
+        "Действие отменено.",
+        reply_markup=main_menu,
+    )
 
 
 @router.message(F.text == "🗑️ Удалить")
 async def delete_menu(message: Message):
-
-    waiting_for_delete_id.add(message.from_user.id)
-
-    await message.answer(
-        "<b>Удаление операции</b>\n\n"
-        "Введите только ID.\n\n"
-        "Например:\n\n"
-        "<pre>125</pre>",
-        reply_markup=main_menu,
-    )
+    await delete(message)
 
 
 @router.message(F.text == "📊 Аналитика")
-async def analytics(message: Message):
+async def analytics_menu(message: Message):
 
-    await message.answer(
-        "🚧 Аналитика появится в версии 0.5.",
-        reply_markup=main_menu,
-    )
+    await analytics(message)
 
 
 @router.message(F.text == "🔁 Регулярные")

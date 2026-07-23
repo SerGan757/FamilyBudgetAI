@@ -11,6 +11,7 @@ from app.services.recurring_manager import (
     create_month_transactions,
     remove_payment,
     update_payment,
+    get_month_recurring_transactions,
 )
 from app.utils.fsm import cancel_state
 
@@ -21,11 +22,11 @@ recurring_keyboard = ReplyKeyboardMarkup(
     keyboard=[
         [
             KeyboardButton(text="➕ Добавить шаблон"),
-            KeyboardButton(text="📋 Список"),
+            KeyboardButton(text="✏️ Изменить"),
         ],
         [
             KeyboardButton(text="🗑 Удалить"),
-            KeyboardButton(text="✏️ Изменить"),
+            KeyboardButton(text="📅 Платежи"),
         ],
         [
             KeyboardButton(text="📅 Создать расходы месяца"),
@@ -38,7 +39,6 @@ recurring_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True,
     is_persistent=True,
 )
-
 
 async def recurring_menu(message: Message):
 
@@ -76,21 +76,63 @@ async def add_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
 
-    await state.set_state(RecurringState.waiting_for_payment)
+    payments = await list_payments(message.from_user.id)
+
+    text = "<b>🔁 Текущие шаблоны</b>\n\n"
+
+    total = 0
+
+    if payments:
+
+        for i, payment in enumerate(payments, start=1):
+
+            total += payment.amount
+
+            text += (
+                f"{i}. {payment.title}"
+                f" — {payment.amount:.2f} €/мес\n"
+            )
+
+        text += (
+            f"\n━━━━━━━━━━━━━━━━━━\n"
+            f"<b>Всего: {total:.2f} €/мес</b>\n\n"
+        )
+
+    else:
+
+        text += "Пока шаблонов нет.\n\n"
+
+    text += (
+        "<b>Введите новый шаблон:</b>\n\n"
+        "<pre>Интернет 50</pre>\n"
+        "<pre>Netflix 15</pre>\n"
+        "<pre>Аренда 1300</pre>"
+    )
+
+    await state.set_state(
+        RecurringState.waiting_for_payment
+    )
 
     await message.answer(
-        "<b>Новый шаблон</b>\n\n"
-        "Введите одной строкой.\n\n"
-        "<pre>Интернет 50</pre>\n"
-        "<pre>Аренда 1150</pre>\n"
-        "<pre>YouTube 24</pre>",
+        text,
         reply_markup=recurring_keyboard,
+        parse_mode="HTML",
     )
 
 
 @router.message(
     RecurringState.waiting_for_payment,
-    F.text.regexp(r".*\d+([.,]\d+)?$")
+    ~F.text.in_(
+        {
+            "➕ Добавить шаблон",
+            "✏️ Изменить",
+            "🗑 Удалить",
+            "📅 Платежи",
+            "📅 Создать расходы месяца",
+            "❌ Отмена",
+            "⬅️ Главное меню",
+        }
+    ),
 )
 async def save_template(message: Message, state: FSMContext):
 
@@ -100,10 +142,12 @@ async def save_template(message: Message, state: FSMContext):
     )
 
     if payment is None:
-
         await message.answer(
-            "❌ Не удалось распознать.\nПопробуйте еще раз.",
+            "❌ Не удалось распознать.\n"
+            "Введите шаблон в формате:\n\n"
+            "<pre>Интернет 50</pre>",
             reply_markup=recurring_keyboard,
+            parse_mode="HTML",
         )
         return
 
@@ -111,46 +155,93 @@ async def save_template(message: Message, state: FSMContext):
 
     await message.answer(
         "✅ Шаблон сохранён.\n\n"
-        f"{payment.title} — {payment.amount:.2f} €",
+        f"{payment.title} — {payment.amount:.2f} €/мес",
         reply_markup=recurring_keyboard,
     )
 
 
-@router.message(F.text == "📋 Список")
-async def payment_list(message: Message, state: FSMContext):
+@router.message(F.text == "📅 Платежи")
+async def month_recurring(message: Message, state: FSMContext):
+
+    from datetime import date
 
     await cancel_state(state)
 
-    payments = await list_payments(message.from_user.id)
+    transactions = await get_month_recurring_transactions(
+        message.from_user.id
+    )
 
-    if not payments:
+    months = [
+        "",
+        "Январь",
+        "Февраль",
+        "Март",
+        "Апрель",
+        "Май",
+        "Июнь",
+        "Июль",
+        "Август",
+        "Сентябрь",
+        "Октябрь",
+        "Ноябрь",
+        "Декабрь",
+    ]
+
+    today = date.today()
+
+    text = (
+        f"<b>📅 Регулярные платежи</b>\n"
+        f"{months[today.month]} {today.year}\n\n"
+    )
+
+    if not transactions:
+
+        text += (
+            "Регулярные платежи "
+            "за этот месяц отсутствуют."
+        )
 
         await message.answer(
-            "Пока нет ни одного шаблона.",
+            text,
             reply_markup=recurring_keyboard,
+            parse_mode="HTML",
         )
         return
 
-    text = "<b>🔁 Регулярные платежи</b>\n\n"
-
     total = 0
 
-    for i, payment in enumerate(payments, start=1):
+    for transaction in transactions:
 
-        total += payment.amount
+        total += transaction.amount
 
-        text += (
-            f"{i}. {payment.title}"
-            f" — {payment.amount:.2f} €\n"
+        author = (
+            transaction.user.name
+            if getattr(transaction, "user", None)
+            else ""
         )
 
-    text += "\n"
-    text += f"💰 Всего шаблонов: {len(payments)}\n"
-    text += f"💶 Сумма: {total:.2f} €"
+        text += (
+            f"<b>"
+            f"🔁 {transaction.title} "
+            f"-{transaction.amount:.2f} €/мес "
+            f"{author}"
+            f"</b>\n"
+        )
+
+    text += "\n━━━━━━━━━━━━━━━━━━\n\n"
+
+    text += (
+        f"<b>"
+        f"🔁 Регулярные: "
+        f"{total:.2f} €/мес "
+        f"({len(transactions)})"
+        f"</b>"
+    )
 
     await message.answer(
         text,
         reply_markup=recurring_keyboard,
+        parse_mode="HTML",
     )
 
 
@@ -170,7 +261,7 @@ async def delete_template(message: Message, state: FSMContext):
 
     for payment in payments:
         await message.answer(
-            f"{payment.title} — {payment.amount:.2f} €",
+            f"{payment.title} — {payment.amount:.2f} €/мес",
             reply_markup=delete_keyboard(payment.id),
         )
 
@@ -208,7 +299,7 @@ async def edit_template(message: Message, state: FSMContext):
     for payment in payments:
         text += (
             f"ID {payment.id}: {payment.title}"
-            f" — {payment.amount:.2f} €\n"
+            f" — {payment.amount:.2f} €/мес\n"
         )
 
     text += "\nВведите ID и новые данные.\n\n<pre>12 Интернет 55</pre>"
@@ -250,7 +341,7 @@ async def save_edited_template(message: Message, state: FSMContext):
 
     await message.answer(
         "✅ Шаблон изменён.\n\n"
-        f"{payment.title} — {payment.amount:.2f} €",
+        f"{payment.title} — {payment.amount:.2f} €/мес",
         reply_markup=recurring_keyboard,
     )
 
@@ -258,12 +349,58 @@ async def save_edited_template(message: Message, state: FSMContext):
 @router.message(F.text == "📅 Создать расходы месяца")
 async def create_month(message: Message, state: FSMContext):
 
+    from datetime import date
+
     await cancel_state(state)
 
-    created = await create_month_transactions(message.from_user.id)
+    result = await create_month_transactions(message.from_user.id)
+
+    months = [
+        "",
+        "Январь",
+        "Февраль",
+        "Март",
+        "Апрель",
+        "Май",
+        "Июнь",
+        "Июль",
+        "Август",
+        "Сентябрь",
+        "Октябрь",
+        "Ноябрь",
+        "Декабрь",
+    ]
+
+    today = date.today()
+
+    text = (
+        f"✅ <b>Регулярные расходы — "
+        f"{months[today.month]} {today.year}</b>\n\n"
+        f"➕ Создано: {result['created']}\n"
+        f"✏️ Обновлено: {result['updated']}\n"
+        f"✓ Без изменений: {result['unchanged']}"
+    )
+
+    if result["details"]:
+
+        text += "\n\n"
+
+        for item in result["details"]:
+
+            if item["status"] == "created":
+                icon = "➕"
+            elif item["status"] == "updated":
+                icon = "✏️"
+            else:
+                icon = "✓"
+
+            text += (
+                f"{icon} {item['title']} — "
+                f"{item['amount']:.2f} €/мес\n"
+            )
 
     await message.answer(
-        "✅ Регулярные расходы созданы.\n\n"
-        f"Добавлено операций: {created}",
+        text,
         reply_markup=recurring_keyboard,
+        parse_mode="HTML",
     )

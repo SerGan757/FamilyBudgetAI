@@ -1,21 +1,23 @@
 from aiogram import Router
+from aiogram.filters import StateFilter
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from app.handlers.user_states import RegistrationState
 from app.keyboards.main_menu import main_menu
 from app.services.expense_service import save_transaction
 
 router = Router()
 
 
-@router.message()
-async def add_transaction(message: Message):
+@router.message(StateFilter(None))
+async def add_transaction(
+    message: Message,
+    state: FSMContext,
+):
 
     if message.text is None:
         return
-
-    print(
-        f"EXPENSE: chat={message.chat.type}, text={message.text}"
-    )
 
     lines = [
         line.strip()
@@ -23,31 +25,51 @@ async def add_transaction(message: Message):
         if line.strip()
     ]
 
+    if not lines:
+        return
+
+    telegram_id = message.from_user.id
+
     saved = []
     failed = []
 
     total_income = 0.0
     total_expense = 0.0
 
-    telegram_id = message.from_user.id
-
     for line in lines:
 
-        transaction = await save_transaction(
+        result = await save_transaction(
             line,
             telegram_id,
         )
 
-        if transaction is None:
+        if result == "USER_NOT_FOUND":
+
+            await state.set_state(
+                RegistrationState.waiting_for_group_name
+            )
+
+            await state.update_data(
+                original_text=message.text,
+            )
+
+            await message.answer(
+                "👋 Похоже, мы ещё не знакомы.\n\n"
+                "Как тебя зовут?"
+            )
+
+            return
+
+        if result == "PARSE_ERROR":
             failed.append(line)
             continue
 
-        saved.append(transaction)
+        saved.append(result)
 
-        if transaction.type == "income":
-            total_income += transaction.amount
+        if result.type == "income":
+            total_income += result.amount
         else:
-            total_expense += transaction.amount
+            total_expense += result.amount
 
     if not saved and not failed:
         return

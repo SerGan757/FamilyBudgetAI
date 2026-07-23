@@ -4,7 +4,7 @@ from app.database.db import SessionLocal
 from app.database.models import Transaction, User
 
 
-async def get_last_transactions(limit: int = 10):
+async def get_last_transactions(limit: int = 20):
 
     async with SessionLocal() as session:
 
@@ -22,7 +22,7 @@ async def get_last_transactions(limit: int = 10):
         for transaction, user in rows:
 
             if transaction.is_recurring:
-                transaction.title = f"🔁 {transaction.title}"
+                transaction.title = f"🔁 <b>{transaction.title}</b>"
 
             transaction.user_name = user.name
 
@@ -49,7 +49,7 @@ async def get_transactions_by_category(category: str):
         for transaction, user in rows:
 
             if transaction.is_recurring:
-                transaction.title = f"🔁 {transaction.title}"
+                transaction.title = f"🔁 <b>{transaction.title}</b>"
 
             transaction.user_name = user.name
 
@@ -76,7 +76,7 @@ async def get_transactions_by_type(transaction_type: str):
         for transaction, user in rows:
 
             if transaction.is_recurring:
-                transaction.title = f"🔁 {transaction.title}"
+                transaction.title = f"🔁 <b>{transaction.title}</b>"
 
             transaction.user_name = user.name
 
