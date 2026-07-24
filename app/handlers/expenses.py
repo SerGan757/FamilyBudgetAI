@@ -6,6 +6,7 @@ from aiogram.types import Message
 from app.handlers.user_states import RegistrationState
 from app.keyboards.main_menu import main_menu
 from app.services.expense_service import save_transaction
+from app.services.user_service import get_user_by_telegram_id
 
 router = Router()
 
@@ -29,6 +30,26 @@ async def add_transaction(
         return
 
     telegram_id = message.from_user.id
+    user = await get_user_by_telegram_id(
+        telegram_id
+    )
+
+    if user is None:
+
+        await state.set_state(
+            RegistrationState.waiting_for_group_name
+        )
+
+        await state.update_data(
+            original_text=message.text,
+        )
+
+        await message.answer(
+            "👋 Похоже, мы ещё не знакомы.\n\n"
+            "Как тебя зовут?"
+        )
+
+        return
 
     saved = []
     failed = []
@@ -42,23 +63,6 @@ async def add_transaction(
             line,
             telegram_id,
         )
-
-        if result == "USER_NOT_FOUND":
-
-            await state.set_state(
-                RegistrationState.waiting_for_group_name
-            )
-
-            await state.update_data(
-                original_text=message.text,
-            )
-
-            await message.answer(
-                "👋 Похоже, мы ещё не знакомы.\n\n"
-                "Как тебя зовут?"
-            )
-
-            return
 
         if result == "PARSE_ERROR":
             failed.append(line)

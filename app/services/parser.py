@@ -4,7 +4,7 @@ from app.data.categories import CATEGORIES
 from app.services.category_service import detect_category
 
 
-def is_income(title: str) -> bool:
+def is_income(title: str):
 
     text = title.lower()
 
@@ -15,51 +15,83 @@ def is_income(title: str) -> bool:
     return False
 
 
+def normalize(text: str) -> str:
+
+    text = text.strip()
+
+    text = text.replace(",", ".")
+
+    text = re.sub(r"\s+", " ", text)
+
+    return text
+
+
 def parse_message(text: str):
 
-    text = text.strip().replace(",", ".")
+    text = normalize(text)
 
     # --------------------------------------------------
-    # Доход
+    # ДОХОД
     # --------------------------------------------------
 
-    match = re.match(r"^\+?(\d+(?:\.\d+)?)\s+(.+)$", text)
+    income = re.match(
+        r"^\+(\d+(?:\.\d+)?)(?:\s*(?:€|Є|eur|EUR|евро)?)?(?:\s+(.*))?$",
+        text,
+        flags=re.IGNORECASE,
+    )
 
-    if match:
+    if income:
 
-        amount = float(match.group(1))
-        title = match.group(2).strip()
+        amount = float(income.group(1))
 
-        transaction_type = (
-            "income"
-            if is_income(title)
-            else "income"
-        )
+        title = income.group(2) or "Доход"
+
+        title = title.strip()
 
         icon, category = detect_category(
             title,
-            transaction_type,
+            "income",
         )
 
         return {
-            "type": transaction_type,
+            "type": "income",
             "title": title,
             "amount": amount,
             "category": f"{icon} {category}",
         }
 
     # --------------------------------------------------
-    # Расход
+    # РАСХОД
     # --------------------------------------------------
 
-    match = re.match(r"^(.+?)\s+(\d+(?:\.\d+)?)$", text)
+    expense = re.search(
+        r"(\d+(?:\.\d+)?)",
+        text,
+    )
 
-    if match:
+    if expense:
 
-        title = match.group(1).strip()
-        amount = float(match.group(2))
+        amount = float(expense.group(1))
 
-        transaction_type = "income" if is_income(title) else "expense"
+        start = expense.start()
+
+        title = text[:start].strip()
+
+        if not title:
+            return None
+
+        title = re.sub(
+            r"(€|Є|eur|EUR|евро)\s*$",
+            "",
+            title,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        transaction_type = (
+            "income"
+            if is_income(title)
+            else "expense"
+        )
 
         icon, category = detect_category(
             title,

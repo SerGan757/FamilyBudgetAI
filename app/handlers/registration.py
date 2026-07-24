@@ -45,6 +45,24 @@ async def finish_group_registration(
     income = 0
     expense = 0
 
+    if original_text:
+
+        test = original_text.strip()
+
+        result = await save_transaction(
+            test,
+            telegram_id,
+        )
+
+    if result == "PARSE_ERROR":
+
+        await message.answer(
+            f"✅ Добро пожаловать, <b>{name}</b>!",
+            reply_markup=main_menu,
+        )
+
+        return
+
     for line in original_text.splitlines():
 
         line = line.strip()

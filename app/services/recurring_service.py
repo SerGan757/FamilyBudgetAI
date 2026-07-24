@@ -1,9 +1,12 @@
 from datetime import date
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.database.db import SessionLocal
-from app.database.models import RecurringPayment, Transaction
+from app.database.models import (
+    RecurringPayment,
+    Transaction,
+)
 
 
 async def add_payment(
@@ -35,7 +38,6 @@ async def add_payment(
         session.add(payment)
 
         await session.commit()
-
         await session.refresh(payment)
 
         return payment
@@ -48,12 +50,17 @@ async def get_payments(
 
     async with SessionLocal() as session:
 
-        query = select(RecurringPayment).where(
-            RecurringPayment.family_id == family_id
+        query = (
+            select(RecurringPayment)
+            .where(
+                RecurringPayment.family_id == family_id
+            )
         )
 
         if active_only:
-            query = query.where(RecurringPayment.active.is_(True))
+            query = query.where(
+                RecurringPayment.active.is_(True)
+            )
 
         result = await session.execute(
             query.order_by(
@@ -65,7 +72,10 @@ async def get_payments(
         return result.scalars().all()
 
 
-async def get_payment(payment_id: int, family_id: int):
+async def get_payment(
+    payment_id: int,
+    family_id: int,
+):
 
     async with SessionLocal() as session:
 
@@ -79,20 +89,38 @@ async def get_payment(payment_id: int, family_id: int):
         return result.scalar_one_or_none()
 
 
-async def delete_payment(payment_id: int, family_id: int):
+async def delete_payment(
+    payment_id: int,
+    family_id: int,
+):
+
+    current_period = date.today().replace(day=1)
 
     async with SessionLocal() as session:
 
         result = await session.execute(
-            delete(RecurringPayment).where(
+            select(RecurringPayment).where(
                 RecurringPayment.id == payment_id,
                 RecurringPayment.family_id == family_id,
             )
         )
 
+        payment = result.scalar_one_or_none()
+
+        if payment is None:
+            return False
+        await session.execute(
+            delete(Transaction).where(
+                Transaction.recurring_payment_id == payment.id,
+                Transaction.recurring_period == current_period,
+            )
+        )
+
+        await session.delete(payment)
+
         await session.commit()
 
-        return result.rowcount > 0
+        return True
 
 
 async def update_payment(
@@ -102,13 +130,18 @@ async def update_payment(
     amount: float,
     category: str,
 ):
+
+    current_period = date.today().replace(day=1)
+
     async with SessionLocal() as session:
+
         result = await session.execute(
             select(RecurringPayment).where(
                 RecurringPayment.id == payment_id,
                 RecurringPayment.family_id == family_id,
             )
         )
+
         payment = result.scalar_one_or_none()
 
         if payment is None:
@@ -118,7 +151,21 @@ async def update_payment(
         payment.amount = amount
         payment.category = category
 
+        await session.execute(
+            update(Transaction)
+            .where(
+                Transaction.recurring_payment_id == payment.id,
+                Transaction.recurring_period == current_period,
+            )
+            .values(
+                title=title,
+                amount=amount,
+                category=category,
+            )
+        )
+
         await session.commit()
+
         await session.refresh(payment)
 
         return payment
@@ -129,6 +176,7 @@ async def get_generated_payment_ids(
     period: date,
 ) -> set[int]:
     async with SessionLocal() as session:
+
         result = await session.execute(
             select(Transaction.recurring_payment_id)
             .join(RecurringPayment)
