@@ -65,6 +65,14 @@ async def add_transaction(
         )
 
         if result == "PARSE_ERROR":
+
+            # Если в строке нет цифр — считаем это обычным разговором
+            # и полностью игнорируем.
+            if not re.search(r"\d", line):
+                continue
+
+            # Если цифры есть, но операция не распознана —
+            # показываем пользователю ошибку.
             failed.append(line)
             continue
 

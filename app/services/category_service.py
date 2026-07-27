@@ -113,4 +113,118 @@ def detect_subcategory(title: str):
     if "владик" in text:
         return "Владик"
 
+
+# ---------- Животные ----------
+
+    if "животн" in text:
+        return "Животные"
+
+    if "питом" in text:
+        return "Животные"
+
+    if "кот" in text:
+        return "Животные"
+
+    if "кошка" in text:
+        return "Животные"
+
+    if "пёс" in text or "пес" in text:
+        return "Животные"
+
+    if "собак" in text:
+        return "Животные"
+
+    if "щенок" in text:
+        return "Животные"
+
+    if "корм" in text:
+        return "Животные"
+
+    if "purina" in text:
+        return "Животные"
+
+    if "whiskas" in text:
+        return "Животные"
+
+    if "felix" in text:
+        return "Животные"
+
+    if "sheba" in text:
+        return "Животные"
+
+    if "royal canin" in text:
+        return "Животные"
+
+    if "brit" in text:
+        return "Животные"
+
+    if "pro plan" in text:
+        return "Животные"
+
+    if "perfect fit" in text:
+        return "Животные"
+
+    if "наполнитель" in text:
+        return "Животные"
+
+    if "песок" in text:
+        return "Животные"
+
+    if "лоток" in text:
+        return "Животные"
+
+    if "вет" in text:
+        return "Животные"
+
+    if "ветеринар" in text:
+        return "Животные"
+
+    if "ветклиника" in text:
+        return "Животные"
+
+    if "привив" in text:
+        return "Животные"
+
+    if "вакцин" in text:
+        return "Животные"
+
+    if "блох" in text:
+        return "Животные"
+
+    if "клещ" in text:
+        return "Животные"
+
+    if "глист" in text:
+        return "Животные"
+
+    if "ошейник" in text:
+        return "Животные"
+
+    if "поводок" in text:
+        return "Животные"
+
+    if "намордник" in text:
+        return "Животные"
+
+    if "миска" in text:
+        return "Животные"
+
+    if "игрушк" in text:
+        return "Животные"
+
+    if "когтеточка" in text:
+        return "Животные"
+
+    if "лежанка" in text:
+        return "Животные"
+
+    if "переноска" in text:
+        return "Животные"
+
+    if "стерилизац" in text:
+        return "Животные"
+
+    if "кастрац" in text:
+        return "Животные"
+
     return None

@@ -69,7 +69,10 @@ async def _sum(
             )
         )
 
-async def get_today_statistics():
+async def get_today_statistics(
+    offset: int = 0,
+    limit: int = 20,
+):
 
     today = datetime.combine(
         date.today(),
@@ -100,6 +103,18 @@ async def get_today_statistics():
 
     async with SessionLocal() as session:
 
+        count_result = await session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .where(
+                Transaction.created_at >= today,
+                Transaction.created_at < tomorrow,
+                Transaction.is_recurring.is_(False),
+            )
+        )
+
+        total = count_result.scalar() or 0
+
         result = await session.execute(
             select(Transaction)
             .options(
@@ -108,36 +123,41 @@ async def get_today_statistics():
             .where(
                 Transaction.created_at >= today,
                 Transaction.created_at < tomorrow,
+                Transaction.is_recurring.is_(False),
             )
             .order_by(
-                Transaction.is_recurring.desc(),
                 Transaction.created_at.desc(),
                 Transaction.id.desc(),
             )
-            .limit(20)
+            .offset(offset)
+            .limit(limit)
         )
 
         transactions = result.unique().scalars().all()
 
-    return {
-        "income": income,
-        "expense": expense,
-        "recurring": recurring,
-        "recurring_count": len(
-            {
-                t.recurring_payment_id or t.title
-                for t in transactions
-                if t.is_recurring
-            }
-        ),
-        "balance": income - expense - recurring,
-        "transactions": transactions,
-    }
+        return {
+            "income": income,
+            "expense": expense,
+            "recurring": recurring,
+            "recurring_count": len(
+                {
+                    t.recurring_payment_id or t.title
+                    for t in transactions
+                    if t.is_recurring
+                }
+            ),
+            "balance": income - expense - recurring,
+            "transactions": transactions,
+            "total": total,
+        }
+    
 
-async def get_month_statistics():
+async def get_month_statistics(
+    offset: int = 0,
+    limit: int = 20,
+):
 
     today = date.today()
-
     month_start = datetime(
         today.year,
         today.month,
@@ -178,6 +198,17 @@ async def get_month_statistics():
     )
 
     async with SessionLocal() as session:
+        count_result = await session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .where(
+                Transaction.created_at >= month_start,
+                Transaction.created_at < next_month,
+                Transaction.is_recurring.is_(False),
+            )
+        )
+
+        total = count_result.scalar() or 0
 
         result = await session.execute(
             select(Transaction)
@@ -187,13 +218,14 @@ async def get_month_statistics():
             .where(
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
+                Transaction.is_recurring.is_(False),
             )
             .order_by(
-                Transaction.is_recurring.desc(),
                 Transaction.created_at.desc(),
                 Transaction.id.desc(),
             )
-            .limit(20)
+            .offset(offset)
+            .limit(limit)
         )
 
         transactions = result.unique().scalars().all()
@@ -211,6 +243,7 @@ async def get_month_statistics():
         ),
         "balance": income - expense - recurring,
         "transactions": transactions,
+        "total": total,
     }
 
 async def get_balance():

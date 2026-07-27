@@ -1,9 +1,10 @@
 from datetime import date
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, Message
 
+from app.keyboards.pagination_keyboard import pagination_keyboard
 from app.services.statistics_service import (
     get_analytics,
     get_balance,
@@ -12,6 +13,8 @@ from app.services.statistics_service import (
 )
 
 router = Router()
+
+LIMIT = 20
 
 
 def money(value: float) -> str:
@@ -22,38 +25,47 @@ def format_transaction(transaction):
 
     sign = "+" if transaction.type == "income" else "-"
 
-    amount = f"{sign}{transaction.amount:.2f} €"
+    amount = abs(transaction.amount)
+
+    if amount.is_integer():
+        amount_text = f"{sign}{int(amount)} €"
+    else:
+        amount_text = f"{sign}{amount:.2f} €"
 
     if transaction.is_recurring:
-        amount += "/мес"
+        amount_text += "/мес"
+
+    if transaction.type == "income":
+        icon = "💰"
+    elif transaction.is_recurring:
+        icon = "🔁"
+    else:
+        icon = transaction.category.split()[0]
 
     author = (
         transaction.user.name
         if getattr(transaction, "user", None)
         else ""
-    )
+    )[:3]
 
-    if transaction.is_recurring:
+    title = transaction.title
 
-        return (
-            f'{transaction.id:>4} '
-            f'🔁 <b>{transaction.title}</b> '
-            f'{amount} '
-            f'{author}'
-        )
-
-    icon = "💰" if transaction.type == "income" else "💸"
+    if len(title) > 18:
+        title = title[:17] + "…"
 
     return (
-        f'{transaction.id:>4} '
-        f'{icon} '
-        f'{transaction.title} '
-        f'{amount} '
-        f'{author}'
+        f"{transaction.id} "
+        f"{icon} "
+        f"{title} "
+        f"{amount_text} "
+        f"{author}"
     )
 
 
-def format_today(data):
+def format_today(
+    data,
+    offset: int = 0,
+):
 
     text = (
         f"📅 <b>{date.today().strftime('%d.%m.%Y')}</b>\n\n"
@@ -64,25 +76,39 @@ def format_today(data):
 
     if data["recurring_count"] > 0:
 
-        text += (
-            f"\n<b>🔁 Регулярные: "
-            f"{data['recurring']:.2f} €/мес "
-            f"({data['recurring_count']})</b>\n"
-        )
+        text += "\n📋 <b>Операции</b>\n\n"
 
-    text += "\n📋 <b>Операции</b>\n\n"
+    text += (
+        "\n📋 <b>Операции</b>\n\n"
+        "<code>"
+        "ID  Операция             Сумма      Имя"
+        "</code>\n\n"
+    )
 
-    regular = [
-        t
-        for t in data["transactions"]
-        if not t.is_recurring
-    ]
+    regular = data["transactions"]
 
+    total = data["total"]
     if not regular:
-        text += "Обычных операций нет."
+
+        text += "Операций нет."
+
     else:
+
         for transaction in regular:
-            text += format_transaction(transaction) + "\n"
+
+            text += (
+                format_transaction(transaction)
+                + "\n"
+            )
+
+    shown = min(
+        offset + LIMIT,
+        total,
+    )
+
+    text += (
+        f"\n<b>Показано: {shown} из {total}</b>"
+    )
 
     return text
 
@@ -90,18 +116,68 @@ def format_today(data):
 @router.message(Command("today"))
 async def today(message: Message):
 
-    data = await get_today_statistics()
-
-    await message.answer(
-        format_today(data),
-        parse_mode="HTML",
+    data = await get_today_statistics(
+        offset=0,
+        limit=LIMIT,
     )
 
+    total = data["total"]
 
-@router.message(Command("month"))
-async def month(message: Message):
+    await message.answer(
+        format_today(
+            data,
+            offset=0,
+        ),
+        parse_mode="HTML",
+        reply_markup=pagination_keyboard(
+            prefix="today",
+            offset=0,
+            total=total,
+            limit=LIMIT,
+        ),
+    )  
 
-    data = await get_month_statistics()
+
+@router.callback_query(
+    F.data.startswith("today:")
+)
+async def today_page(
+    callback: CallbackQuery,
+):
+
+    offset = int(
+        callback.data.split(":")[1]
+    )
+
+    data = await get_today_statistics(
+    offset=offset,
+    limit=LIMIT,
+    )
+
+    total = data["total"]
+   
+
+    await callback.message.edit_text(
+        format_today(
+            data,
+            offset=offset,
+        ),
+        parse_mode="HTML",
+        reply_markup=pagination_keyboard(
+            offset=offset,
+            total=total,
+            limit=LIMIT,
+            prefix="today"
+        ),
+    )
+
+    await callback.answer()
+
+
+def format_month(
+    data,
+    offset: int = 0,
+):
 
     months = [
         "",
@@ -138,22 +214,94 @@ async def month(message: Message):
 
     text += "\n📋 <b>Операции</b>\n\n"
 
-    regular = [
-        t
-        for t in data["transactions"]
-        if not t.is_recurring
-    ]
+    regular = data["transactions"]
+
+    total = data["total"]
 
     if not regular:
-        text += "Обычных операций нет."
+
+        text += "Операций нет."
+
     else:
+
         for transaction in regular:
-            text += format_transaction(transaction) + "\n"
+
+            text += (
+                format_transaction(transaction)
+                + "\n"
+            )
+
+    shown = min(
+        offset + LIMIT,
+        total,
+    )
+
+    text += (
+        f"\n<b>Показано: {shown} из {total}</b>"
+    )
+
+    return text
+
+
+@router.message(Command("month"))
+async def month(message: Message):
+
+    data = await get_month_statistics(
+        offset=0,
+        limit=LIMIT,
+    )
+
+    total = data["total"]
+   
 
     await message.answer(
-        text,
+        format_month(
+            data,
+            offset=0,
+        ),
         parse_mode="HTML",
+        reply_markup=pagination_keyboard(
+            prefix="month",
+            offset=0,
+            total=total,
+            limit=LIMIT,
+        ),
     )
+
+
+@router.callback_query(
+    F.data.startswith("month:")
+)
+async def month_page(
+    callback: CallbackQuery,
+):
+
+    offset = int(
+        callback.data.split(":")[1]
+    )
+
+    data = await get_month_statistics(
+        offset=offset,
+        limit=LIMIT,
+    )
+
+    total = data["total"]
+
+    await callback.message.edit_text(
+        format_month(
+            data,
+            offset=offset,
+        ),
+        parse_mode="HTML",
+        reply_markup=pagination_keyboard(
+            offset=offset,
+            total=total,
+            limit=LIMIT,
+            prefix="month"
+        ),
+    )
+
+    await callback.answer()
 
 
 @router.message(Command("balance"))
@@ -212,7 +360,6 @@ async def analytics(message: Message):
         f"🧾 Средний чек: <b>{money(data['average_check'])}</b>\n"
         f"📅 В день: <b>{money(data['average_day'])}</b>\n"
     )
-
     if data["users"]:
 
         text += "\n👨 <b>Расходы участников</b>\n"

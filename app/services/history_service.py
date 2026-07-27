@@ -1,17 +1,37 @@
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 
 from app.database.db import SessionLocal
 from app.database.models import Transaction, User
 
 
-async def get_last_transactions(limit: int = 20):
+async def get_transactions_count():
+
+    async with SessionLocal() as session:
+
+        result = await session.execute(
+            select(func.count(Transaction.id))
+        )
+
+        return result.scalar() or 0
+
+
+async def get_last_transactions(
+    limit: int = 20,
+    offset: int = 0,
+):
 
     async with SessionLocal() as session:
 
         result = await session.execute(
             select(Transaction, User)
-            .join(User, Transaction.user_id == User.id)
-            .order_by(desc(Transaction.id))
+            .join(
+                User,
+                Transaction.user_id == User.id,
+            )
+            .order_by(
+                desc(Transaction.id)
+            )
+            .offset(offset)
             .limit(limit)
         )
 
@@ -22,7 +42,9 @@ async def get_last_transactions(limit: int = 20):
         for transaction, user in rows:
 
             if transaction.is_recurring:
-                transaction.title = f"🔁 <b>{transaction.title}</b>"
+                transaction.title = (
+                    f"🔁 <b>{transaction.title}</b>"
+                )
 
             transaction.user_name = user.name
 
@@ -31,15 +53,28 @@ async def get_last_transactions(limit: int = 20):
         return transactions
 
 
-async def get_transactions_by_category(category: str):
+async def get_transactions_by_category(
+    category: str,
+    limit: int = 20,
+    offset: int = 0,
+):
 
     async with SessionLocal() as session:
 
         result = await session.execute(
             select(Transaction, User)
-            .join(User, Transaction.user_id == User.id)
-            .where(Transaction.category == category)
-            .order_by(desc(Transaction.id))
+            .join(
+                User,
+                Transaction.user_id == User.id,
+            )
+            .where(
+                Transaction.category == category
+            )
+            .order_by(
+                desc(Transaction.id)
+            )
+            .offset(offset)
+            .limit(limit)
         )
 
         rows = result.all()
@@ -49,7 +84,9 @@ async def get_transactions_by_category(category: str):
         for transaction, user in rows:
 
             if transaction.is_recurring:
-                transaction.title = f"🔁 <b>{transaction.title}</b>"
+                transaction.title = (
+                    f"🔁 <b>{transaction.title}</b>"
+                )
 
             transaction.user_name = user.name
 
@@ -58,15 +95,28 @@ async def get_transactions_by_category(category: str):
         return transactions
 
 
-async def get_transactions_by_type(transaction_type: str):
+async def get_transactions_by_type(
+    transaction_type: str,
+    limit: int = 20,
+    offset: int = 0,
+):
 
     async with SessionLocal() as session:
 
         result = await session.execute(
             select(Transaction, User)
-            .join(User, Transaction.user_id == User.id)
-            .where(Transaction.type == transaction_type)
-            .order_by(desc(Transaction.id))
+            .join(
+                User,
+                Transaction.user_id == User.id,
+            )
+            .where(
+                Transaction.type == transaction_type
+            )
+            .order_by(
+                desc(Transaction.id)
+            )
+            .offset(offset)
+            .limit(limit)
         )
 
         rows = result.all()
@@ -76,7 +126,9 @@ async def get_transactions_by_type(transaction_type: str):
         for transaction, user in rows:
 
             if transaction.is_recurring:
-                transaction.title = f"🔁 <b>{transaction.title}</b>"
+                transaction.title = (
+                    f"🔁 <b>{transaction.title}</b>"
+                )
 
             transaction.user_name = user.name
 
