@@ -454,23 +454,23 @@ async def create_month(message: Message, state: FSMContext):
 
     if result["details"]:
 
-    text += "\n\n"
+        text += "\n\n"
 
-    for item in result["details"]:
+        for item in result["details"]:
 
-        if item["status"] == "created":
-            icon = "➕"
-        elif item["status"] == "updated":
-            icon = "✏️"
-        else:
-            icon = "✓"
+            if item["status"] == "created":
+                icon = "➕"
+            elif item["status"] == "updated":
+                icon = "✏️"
+            else:
+                icon = "✓"
 
-        sign = "+" if item.get("type") == "income" else "-"
+            sign = "+" if item.get("type") == "income" else "-"
 
-        text += (
-            f"{icon} {item['title']} — "
-            f"{sign}{item['amount']:.2f} €/мес\n"
-        )
+            text += (
+                f"{icon} {item['title']} — "
+                f"{sign}{item['amount']:.2f} €/мес\n"
+            )
 
     await message.answer(
         text,
