@@ -1,4 +1,5 @@
 from aiogram import F, Router
+from html import escape
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, KeyboardButton, Message, ReplyKeyboardMarkup
 
@@ -102,7 +103,7 @@ async def add_template(message: Message, state: FSMContext):
                 income_count += 1
 
                 income_text += (
-                    f"{inc}. {payment.title}"
+                    f"{inc}. {escape(payment.title)}"
                     f" — +{payment.amount:.2f} €/мес\n"
                 )
 
@@ -114,7 +115,7 @@ async def add_template(message: Message, state: FSMContext):
                 expense_count += 1
 
                 expense_text += (
-                    f"{exp}. {payment.title}"
+                    f"{exp}. {escape(payment.title)}"
                     f" — {payment.amount:.2f} €/мес\n"
                 )
 
@@ -170,7 +171,7 @@ async def add_template(message: Message, state: FSMContext):
             "✏️ Изменить",
             "🗑 Удалить",
             "📅 Платежи",
-            "📅 Создать расходы месяца",
+            "📅 Создать операции месяца",
             "❌ Отмена",
             "⬅️ Главное меню",
         }
@@ -197,7 +198,7 @@ async def save_template(message: Message, state: FSMContext):
 
     await message.answer(
         "✅ Шаблон сохранён.\n\n"
-        f"{payment.title} — {payment.amount:.2f} €/мес",
+        f"{escape(payment.title)} — {payment.amount:.2f} €/мес",
         reply_markup=recurring_keyboard,
     )
 
@@ -262,7 +263,7 @@ async def month_recurring(message: Message, state: FSMContext):
     for transaction in transactions:
 
         author = (
-            transaction.user.name
+            escape(transaction.user.name)
             if getattr(transaction, "user", None)
             else ""
         )
@@ -273,7 +274,7 @@ async def month_recurring(message: Message, state: FSMContext):
             income_count += 1
 
             income_text += (
-                f"💰 {transaction.title} "
+                f"🔁 💰 {escape(transaction.title)} "
                 f"+{transaction.amount:.2f} €/мес "
                 f"{author}\n"
             )
@@ -284,7 +285,7 @@ async def month_recurring(message: Message, state: FSMContext):
             expense_count += 1
 
             expense_text += (
-                f"🔁 {transaction.title} "
+                f"🔁 {escape(transaction.title)} "
                 f"-{transaction.amount:.2f} €/мес "
                 f"{author}\n"
             )
@@ -369,7 +370,7 @@ async def edit_template(message: Message, state: FSMContext):
 
     for payment in payments:
         text += (
-            f"ID {payment.id}: {payment.title}"
+            f"ID {payment.id}: {escape(payment.title)}"
             f" — {payment.amount:.2f} €/мес\n"
         )
 
@@ -412,7 +413,7 @@ async def save_edited_template(message: Message, state: FSMContext):
 
     await message.answer(
         "✅ Шаблон изменён.\n\n"
-        f"{payment.title} — {payment.amount:.2f} €/мес",
+        f"{escape(payment.title)} — {payment.amount:.2f} €/мес",
         reply_markup=recurring_keyboard,
     )
 
@@ -468,7 +469,7 @@ async def create_month(message: Message, state: FSMContext):
             sign = "+" if item.get("type") == "income" else "-"
 
             text += (
-                f"{icon} {item['title']} — "
+                f"{icon} {escape(item['title'])} — "
                 f"{sign}{item['amount']:.2f} €/мес\n"
             )
 

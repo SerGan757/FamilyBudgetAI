@@ -1,4 +1,5 @@
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from app.handlers.delete import delete
@@ -62,8 +63,8 @@ async def undo_menu(message: Message):
 
 
 @router.message(F.text == "🗑️ Удалить")
-async def delete_menu(message: Message):
-    await delete(message)
+async def delete_menu(message: Message, state: FSMContext):
+    await delete(message, state)
 
 
 @router.message(F.text == "📊 Аналитика")

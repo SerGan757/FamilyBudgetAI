@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
@@ -7,6 +9,7 @@ from app.services.history_service import (
     get_last_transactions,
     get_transactions_count,
 )
+from app.services.user_service import get_user_by_telegram_id
 
 router = Router()
 
@@ -30,7 +33,7 @@ def format_transaction(transaction) -> str:
     base_icon = (
         "💰"
         if transaction.type == "income"
-        else transaction.category.split()[0]
+        else escape(transaction.category.split()[0])
     )
 
     icon = (
@@ -39,13 +42,13 @@ def format_transaction(transaction) -> str:
         else base_icon
     )
 
-    title = transaction.title
+    title = escape(transaction.title)
 
     if len(title) > 18:
         title = title[:17] + "…"
 
     user = (
-        transaction.user_name[:3]
+        escape(transaction.user_name[:3])
         if transaction.user_name
         else ""
     )
@@ -55,11 +58,12 @@ def format_transaction(transaction) -> str:
     )
 
 
-async def build_history_text(offset: int = 0):
+async def build_history_text(family_id: int, offset: int = 0):
 
-    total = await get_transactions_count()
+    total = await get_transactions_count(family_id)
 
     transactions = await get_last_transactions(
+        family_id=family_id,
         limit=LIMIT,
         offset=offset,
     )
@@ -90,11 +94,14 @@ async def build_history_text(offset: int = 0):
 
 @router.message(Command("history"))
 async def history(message: Message):
+    user = await get_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        return
 
-    total = await get_transactions_count()
+    total = await get_transactions_count(user.family_id)
 
     await message.answer(
-        await build_history_text(0),
+        await build_history_text(user.family_id, 0),
         reply_markup=pagination_keyboard(
             prefix="history",
             offset=0,
@@ -115,10 +122,15 @@ async def history_page(
         callback.data.split(":")[1]
     )
 
-    total = await get_transactions_count()
+    user = await get_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+
+    total = await get_transactions_count(user.family_id)
 
     await callback.message.edit_text(
-        await build_history_text(offset),
+        await build_history_text(user.family_id, offset),
         reply_markup=pagination_keyboard(
             prefix="history",
             offset=offset,

@@ -71,6 +71,7 @@ async def update_recurring_transaction(
     transaction: Transaction,
     title: str,
     amount: float,
+    transaction_type: str,
     category: str,
 ):
 
@@ -86,6 +87,7 @@ async def update_recurring_transaction(
 
         db_transaction.title = title
         db_transaction.amount = amount
+        db_transaction.type = transaction_type
         db_transaction.category = category
 
         await session.commit()

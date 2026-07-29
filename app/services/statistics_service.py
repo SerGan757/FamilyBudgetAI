@@ -3,11 +3,20 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 
 from app.database.db import SessionLocal
-from app.database.models import Transaction
+from app.database.models import Transaction, User
 from sqlalchemy.orm import selectinload
 
 
+def _month_bounds() -> tuple[datetime, datetime]:
+    today = date.today()
+    month_start = datetime(today.year, today.month, 1)
+    if today.month == 12:
+        return month_start, datetime(today.year + 1, 1, 1)
+    return month_start, datetime(today.year, today.month + 1, 1)
+
+
 async def _sum(
+    family_id: int,
     transaction_type: str,
     start=None,
     end=None,
@@ -19,6 +28,7 @@ async def _sum(
         query = (
             select(Transaction)
             .where(
+                Transaction.user.has(User.family_id == family_id),
                 Transaction.type == transaction_type
             )
         )
@@ -47,21 +57,6 @@ async def _sum(
 
         transactions = result.scalars().all()
 
-        if recurring:
-
-            unique = {}
-
-            for transaction in transactions:
-
-                key = (
-                    transaction.recurring_payment_id
-                    or transaction.title
-                )
-
-                unique[key] = transaction.amount
-
-            return float(sum(unique.values()))
-
         return float(
             sum(
                 transaction.amount
@@ -70,6 +65,7 @@ async def _sum(
         )
 
 async def get_today_statistics(
+    family_id: int,
     offset: int = 0,
     limit: int = 20,
 ):
@@ -82,19 +78,21 @@ async def get_today_statistics(
     tomorrow = today + timedelta(days=1)
 
     income = await _sum(
+        family_id,
         "income",
         today,
         tomorrow,
     )
 
     expense = await _sum(
+        family_id,
         "expense",
         today,
         tomorrow,
-        recurring=False,
     )
 
     recurring = await _sum(
+        family_id,
         "expense",
         today,
         tomorrow,
@@ -107,13 +105,25 @@ async def get_today_statistics(
             select(func.count())
             .select_from(Transaction)
             .where(
+                Transaction.user.has(User.family_id == family_id),
                 Transaction.created_at >= today,
                 Transaction.created_at < tomorrow,
-                Transaction.is_recurring.is_(False),
             )
         )
 
         total = count_result.scalar() or 0
+
+        recurring_count_result = await session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .where(
+                Transaction.user.has(User.family_id == family_id),
+                Transaction.created_at >= today,
+                Transaction.created_at < tomorrow,
+                Transaction.is_recurring.is_(True),
+            )
+        )
+        recurring_count = recurring_count_result.scalar() or 0
 
         result = await session.execute(
             select(Transaction)
@@ -121,9 +131,9 @@ async def get_today_statistics(
                 selectinload(Transaction.user)
             )
             .where(
+                Transaction.user.has(User.family_id == family_id),
                 Transaction.created_at >= today,
                 Transaction.created_at < tomorrow,
-                Transaction.is_recurring.is_(False),
             )
             .order_by(
                 Transaction.created_at.desc(),
@@ -139,20 +149,15 @@ async def get_today_statistics(
             "income": income,
             "expense": expense,
             "recurring": recurring,
-            "recurring_count": len(
-                {
-                    t.recurring_payment_id or t.title
-                    for t in transactions
-                    if t.is_recurring
-                }
-            ),
-            "balance": income - expense - recurring,
+            "recurring_count": recurring_count,
+            "balance": income - expense,
             "transactions": transactions,
             "total": total,
         }
     
 
 async def get_month_statistics(
+    family_id: int,
     offset: int = 0,
     limit: int = 20,
 ):
@@ -178,19 +183,21 @@ async def get_month_statistics(
         )
 
     income = await _sum(
+        family_id,
         "income",
         month_start,
         next_month,
     )
 
     expense = await _sum(
+        family_id,
         "expense",
         month_start,
         next_month,
-        recurring=False,
     )
 
     recurring = await _sum(
+        family_id,
         "expense",
         month_start,
         next_month,
@@ -202,13 +209,25 @@ async def get_month_statistics(
             select(func.count())
             .select_from(Transaction)
             .where(
+                Transaction.user.has(User.family_id == family_id),
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
-                Transaction.is_recurring.is_(False),
             )
         )
 
         total = count_result.scalar() or 0
+
+        recurring_count_result = await session.execute(
+            select(func.count())
+            .select_from(Transaction)
+            .where(
+                Transaction.user.has(User.family_id == family_id),
+                Transaction.created_at >= month_start,
+                Transaction.created_at < next_month,
+                Transaction.is_recurring.is_(True),
+            )
+        )
+        recurring_count = recurring_count_result.scalar() or 0
 
         result = await session.execute(
             select(Transaction)
@@ -216,9 +235,9 @@ async def get_month_statistics(
                 selectinload(Transaction.user)
             )
             .where(
+                Transaction.user.has(User.family_id == family_id),
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
-                Transaction.is_recurring.is_(False),
             )
             .order_by(
                 Transaction.created_at.desc(),
@@ -234,38 +253,34 @@ async def get_month_statistics(
         "income": income,
         "expense": expense,
         "recurring": recurring,
-        "recurring_count": len(
-            {
-                t.recurring_payment_id or t.title
-                for t in transactions
-                if t.is_recurring
-            }
-        ),
-        "balance": income - expense - recurring,
+        "recurring_count": recurring_count,
+        "balance": income - expense,
         "transactions": transactions,
         "total": total,
     }
 
-async def get_balance():
+async def get_balance(family_id: int):
 
     income = await _sum(
+        family_id,
         "income",
     )
 
     expense = await _sum(
+        family_id,
         "expense",
-        recurring=False,
     )
 
-    recurring = await _sum(
-        "expense",
-        recurring=True,
-    )
+    month_start, next_month = _month_bounds()
+    recurring = await _sum(family_id, "expense", month_start, next_month, recurring=True)
 
     async with SessionLocal() as session:
 
         result = await session.execute(
             select(Transaction).where(
+                Transaction.user.has(User.family_id == family_id),
+                Transaction.created_at >= month_start,
+                Transaction.created_at < next_month,
                 Transaction.is_recurring.is_(True)
             )
         )
@@ -277,7 +292,7 @@ async def get_balance():
         "expense": expense,
         "recurring": recurring,
         "recurring_count": recurring_count,
-        "balance": income - expense - recurring,
+        "balance": income - expense,
     }
 
 
@@ -307,7 +322,7 @@ async def get_category_statistics():
 # ANALYTICS
 # =====================================================
 
-async def get_month_transactions():
+async def get_month_transactions(family_id: int):
 
     today = date.today()
 
@@ -338,6 +353,7 @@ async def get_month_transactions():
                 selectinload(Transaction.user)
             )
             .where(
+                Transaction.user.has(User.family_id == family_id),
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
             )
@@ -349,9 +365,9 @@ async def get_month_transactions():
         return result.unique().scalars().all()
 
 
-async def get_users_statistics():
+async def get_users_statistics(family_id: int):
 
-    transactions = await get_month_transactions()
+    transactions = await get_month_transactions(family_id)
 
     users = {}
 
@@ -381,9 +397,9 @@ async def get_users_statistics():
     )
 
 
-async def get_categories_statistics():
+async def get_categories_statistics(family_id: int):
 
-    transactions = await get_month_transactions()
+    transactions = await get_month_transactions(family_id)
 
     categories = {}
 
@@ -410,9 +426,9 @@ async def get_categories_statistics():
     )
 
 
-async def get_biggest_purchase():
+async def get_biggest_purchase(family_id: int):
 
-    transactions = await get_month_transactions()
+    transactions = await get_month_transactions(family_id)
 
     expense = [
         t
@@ -432,9 +448,9 @@ async def get_biggest_purchase():
     )
 
 
-async def get_average_check():
+async def get_average_check(family_id: int):
 
-    transactions = await get_month_transactions()
+    transactions = await get_month_transactions(family_id)
 
     expenses = [
         t.amount
@@ -454,9 +470,9 @@ async def get_average_check():
     )
 
 
-async def get_average_day_expense():
+async def get_average_day_expense(family_id: int):
 
-    transactions = await get_month_transactions()
+    transactions = await get_month_transactions(family_id)
 
     by_day = {}
 
@@ -484,28 +500,28 @@ async def get_average_day_expense():
     )
 
 
-async def get_month_operations():
+async def get_month_operations(family_id: int):
 
-    transactions = await get_month_transactions()
+    transactions = await get_month_transactions(family_id)
 
     return len(transactions)
 
 
-async def get_analytics():
+async def get_analytics(family_id: int):
 
-    stats = await get_month_statistics()
+    stats = await get_month_statistics(family_id)
 
-    users = await get_users_statistics()
+    users = await get_users_statistics(family_id)
 
-    categories = await get_categories_statistics()
+    categories = await get_categories_statistics(family_id)
 
-    biggest = await get_biggest_purchase()
+    biggest = await get_biggest_purchase(family_id)
 
-    average_check = await get_average_check()
+    average_check = await get_average_check(family_id)
 
-    average_day = await get_average_day_expense()
+    average_day = await get_average_day_expense(family_id)
 
-    operations = await get_month_operations()
+    operations = await get_month_operations(family_id)
 
     return {
 

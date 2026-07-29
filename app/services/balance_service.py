@@ -1,15 +1,15 @@
 from sqlalchemy import select
 
 from app.database.db import SessionLocal
-from app.database.models import Transaction
+from app.database.models import Transaction, User
 
 
-async def get_balance():
+async def get_balance(family_id: int):
 
     async with SessionLocal() as session:
 
         result = await session.execute(
-            select(Transaction)
+            select(Transaction).where(Transaction.user.has(User.family_id == family_id))
         )
 
         transactions = result.scalars().all()

@@ -11,10 +11,10 @@ from .recurring import router as recurring_router
 routers = (
     start_router,
     registration_router,
+    recurring_router,
+    delete_router,
     menu_router,
     history_router,
     statistics_router,
-    delete_router,
-    recurring_router,
     expenses_router,
 )

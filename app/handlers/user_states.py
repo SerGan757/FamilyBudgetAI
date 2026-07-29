@@ -8,3 +8,7 @@ class RegistrationState(StatesGroup):
 
     # Регистрация нового пользователя прямо в группе
     waiting_for_group_name = State()
+
+
+class DeleteState(StatesGroup):
+    waiting_for_ids = State()

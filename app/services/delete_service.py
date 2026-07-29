@@ -1,17 +1,17 @@
 from sqlalchemy import delete, desc, select
 
 from app.database.db import SessionLocal
-from app.database.models import Transaction
+from app.database.models import Transaction, User
 
 
-async def delete_transactions_by_ids(ids: list[int]):
+async def delete_transactions_by_ids(ids: list[int], family_id: int):
 
     deleted = []
 
     for transaction_id in ids:
 
         transaction = await delete_transaction_by_id(
-            transaction_id
+            transaction_id, family_id
         )
 
         if transaction:
@@ -19,12 +19,12 @@ async def delete_transactions_by_ids(ids: list[int]):
 
     return deleted
 
-async def delete_last_transaction():
+async def delete_last_transaction(family_id: int):
 
     async with SessionLocal() as session:
 
         result = await session.execute(
-            select(Transaction)
+            select(Transaction).where(Transaction.user.has(User.family_id == family_id))
             .order_by(desc(Transaction.id))
             .limit(1)
         )
@@ -40,13 +40,14 @@ async def delete_last_transaction():
         return transaction
 
 
-async def delete_transaction_by_id(transaction_id: int):
+async def delete_transaction_by_id(transaction_id: int, family_id: int):
 
     async with SessionLocal() as session:
 
         result = await session.execute(
             select(Transaction).where(
-                Transaction.id == transaction_id
+                Transaction.id == transaction_id,
+                Transaction.user.has(User.family_id == family_id),
             )
         )
 

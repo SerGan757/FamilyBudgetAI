@@ -1,4 +1,5 @@
 from datetime import date
+from html import escape
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -11,6 +12,7 @@ from app.services.statistics_service import (
     get_month_statistics,
     get_today_statistics,
 )
+from app.services.user_service import get_user_by_telegram_id
 
 router = Router()
 
@@ -35,20 +37,16 @@ def format_transaction(transaction):
     if transaction.is_recurring:
         amount_text += "/мес"
 
-    if transaction.type == "income":
-        icon = "💰"
-    elif transaction.is_recurring:
-        icon = "🔁"
-    else:
-        icon = transaction.category.split()[0]
+    base_icon = "💰" if transaction.type == "income" else escape(transaction.category.split()[0])
+    icon = f"🔁 {base_icon}" if transaction.is_recurring else base_icon
 
     author = (
-        transaction.user.name
+        escape(transaction.user.name)
         if getattr(transaction, "user", None)
         else ""
     )[:3]
 
-    title = transaction.title
+    title = escape(transaction.title)
 
     if len(title) > 18:
         title = title[:17] + "…"
@@ -115,8 +113,12 @@ def format_today(
 
 @router.message(Command("today"))
 async def today(message: Message):
+    user = await get_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        return
 
     data = await get_today_statistics(
+        user.family_id,
         offset=0,
         limit=LIMIT,
     )
@@ -149,9 +151,15 @@ async def today_page(
         callback.data.split(":")[1]
     )
 
+    user = await get_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+
     data = await get_today_statistics(
-    offset=offset,
-    limit=LIMIT,
+        user.family_id,
+        offset=offset,
+        limit=LIMIT,
     )
 
     total = data["total"]
@@ -245,8 +253,12 @@ def format_month(
 
 @router.message(Command("month"))
 async def month(message: Message):
+    user = await get_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        return
 
     data = await get_month_statistics(
+        user.family_id,
         offset=0,
         limit=LIMIT,
     )
@@ -280,7 +292,13 @@ async def month_page(
         callback.data.split(":")[1]
     )
 
+    user = await get_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+
     data = await get_month_statistics(
+        user.family_id,
         offset=offset,
         limit=LIMIT,
     )
@@ -306,8 +324,11 @@ async def month_page(
 
 @router.message(Command("balance"))
 async def balance(message: Message):
+    user = await get_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        return
 
-    data = await get_balance()
+    data = await get_balance(user.family_id)
 
     text = (
         f"<b>💰 ОБЩИЙ БАЛАНС</b>\n"
@@ -327,8 +348,11 @@ async def balance(message: Message):
 
 @router.message(Command("analytics"))
 async def analytics(message: Message):
+    user = await get_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        return
 
-    data = await get_analytics()
+    data = await get_analytics(user.family_id)
 
     months = [
         "",

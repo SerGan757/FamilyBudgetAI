@@ -1,4 +1,6 @@
 from aiogram import F, Router
+from html import escape
+from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
@@ -9,15 +11,14 @@ from app.services.delete_service import (
     delete_transactions_by_ids,
 )
 from app.services.history_service import get_last_transactions
+from app.handlers.user_states import DeleteState
+from app.services.user_service import get_user_by_telegram_id
 
 router = Router()
 
 # -------------------------------------------------------------------
 # Старый режим удаления по ID (временно оставляем)
 # -------------------------------------------------------------------
-
-waiting_for_delete_id = set()
-waiting_for_multiple_delete = set()
 
 
 def operation_card(transaction) -> str:
@@ -27,13 +28,13 @@ def operation_card(transaction) -> str:
     if transaction.type == "income":
         icon = "💰"
     else:
-        icon = transaction.category.split()[0]
+        icon = escape(transaction.category.split()[0])
 
     return (
         "<pre>"
         "🗑️ Операция удалена\n"
         "────────────────────────────\n\n"
-        f"{icon} {transaction.title}\n"
+        f"{icon} {escape(transaction.title)}\n"
         f"{sign}{transaction.amount:.2f} €"
         "</pre>"
     )
@@ -51,14 +52,14 @@ def format_history_line(transaction) -> str:
     icon = (
         "💰"
         if transaction.type == "income"
-        else transaction.category.split()[0]
+        else escape(transaction.category.split()[0])
     )
 
     return (
         f"<code>{transaction.id:>4}</code> │ "
-        f"{icon} {transaction.title[:18]:<18} │ "
+        f"{icon} {escape(transaction.title[:18]):<18} │ "
         f"{amount:<10} │ "
-        f"{transaction.user_name}"
+        f"{escape(transaction.user_name)}"
     )
 
 # -------------------------------------------------------------------
@@ -66,11 +67,9 @@ def format_history_line(transaction) -> str:
 # -------------------------------------------------------------------
 
 @router.message(F.text == "🗑️ Удалить")
-async def delete(message: Message):
+async def delete(message: Message, state: FSMContext):
 
-    waiting_for_multiple_delete.add(
-        message.from_user.id
-    )
+    await state.set_state(DeleteState.waiting_for_ids)
 
     await message.answer(
         "<b>🗑 Удаление операций</b>\n\n"
@@ -88,15 +87,15 @@ async def delete(message: Message):
 # Старое удаление через меню
 # -------------------------------------------------------------------
 
-@router.message(F.text.regexp(r"^[\d,\s]+$"))
-async def delete_multiple(message: Message):
+@router.message(DeleteState.waiting_for_ids, F.text.regexp(r"^[\d,\s]+$"))
+async def delete_multiple(message: Message, state: FSMContext):
 
-    if message.from_user.id not in waiting_for_multiple_delete:
+    user = await get_user_by_telegram_id(message.from_user.id)
+    if user is None:
+        await state.clear()
         return
 
-    waiting_for_multiple_delete.remove(
-        message.from_user.id
-    )
+    await state.clear()
 
     text = (
         message.text
@@ -115,7 +114,7 @@ async def delete_multiple(message: Message):
     if not ids:
         return
 
-    deleted = await delete_transactions_by_ids(ids)
+    deleted = await delete_transactions_by_ids(ids, user.family_id)
 
     if not deleted:
         await message.answer(
@@ -131,7 +130,7 @@ async def delete_multiple(message: Message):
 
         result += (
             f"✅ ID {transaction.id} "
-            f"{transaction.title} "
+            f"{escape(transaction.title)} "
             f"{sign}{transaction.amount:.2f} €\n"
         )
 
@@ -140,7 +139,7 @@ async def delete_multiple(message: Message):
         reply_markup=main_menu,
     )
 
-    transactions = await get_last_transactions()
+    transactions = await get_last_transactions(user.family_id)
 
     if transactions:
 
@@ -171,9 +170,12 @@ async def history_delete_callback(
         callback.data.split(":")[1]
     )
 
-    transaction = await delete_transaction_by_id(
-        transaction_id
-    )
+    user = await get_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+
+    transaction = await delete_transaction_by_id(transaction_id, user.family_id)
 
     if transaction is None:
 

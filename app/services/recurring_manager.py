@@ -109,82 +109,49 @@ async def create_month_transactions(telegram_id: int):
     unchanged = 0
     details = []
 
-    async with SessionLocal() as session:
-
-        for payment in payments:
-
+    for payment in payments:
+        async with SessionLocal() as session:
             result = await session.execute(
                 select(Transaction).where(
                     Transaction.recurring_payment_id == payment.id,
                     Transaction.recurring_period == period,
                 )
             )
-
             transaction = result.scalar_one_or_none()
 
-            if transaction is None:
+        if transaction is None:
+            await create_transaction(
+                user_id=user.id,
+                title=payment.title,
+                amount=payment.amount,
+                transaction_type=payment.type,
+                category=payment.category,
+                is_recurring=True,
+                recurring_payment_id=payment.id,
+                recurring_period=period,
+            )
+            created += 1
+            details.append({"title": payment.title, "amount": payment.amount, "type": payment.type, "status": "created"})
+            continue
 
-                await create_transaction(
-                    user_id=user.id,
-                    title=payment.title,
-                    amount=payment.amount,
-                    transaction_type=payment.type,
-                    category=payment.category,
-                    is_recurring=True,
-                    recurring_payment_id=payment.id,
-                    recurring_period=period,
-                )
-
-                created += 1
-
-                ddetails.append(
-                    {
-                        "title": payment.title,
-                        "amount": payment.amount,
-                        "type": payment.type,
-                        "status": "created",
-                    }
-                )
-
-
-                continue
-
-            if (
-                transaction.title != payment.title
-                or transaction.amount != payment.amount
-                or transaction.category != payment.category
-            ):
-
-                await update_recurring_transaction(
-                    transaction=transaction,
-                    title=payment.title,
-                    amount=payment.amount,
-                    category=payment.category,
-                )
-
-                updated += 1
-
-                details.append(
-                    {
-                        "title": payment.title,
-                        "amount": payment.amount,
-                        "type": payment.type,
-                        "status": "updated",
-                    }
-                )
-
-            else:
-
-                unchanged += 1
-
-                details.append(
-                    {
-                        "title": payment.title,
-                        "amount": payment.amount,
-                        "type": payment.type,
-                        "status": "unchanged",
-                    }
-                )
+        if (
+            transaction.title != payment.title
+            or transaction.amount != payment.amount
+            or transaction.type != payment.type
+            or transaction.category != payment.category
+        ):
+            await update_recurring_transaction(
+                transaction=transaction,
+                title=payment.title,
+                amount=payment.amount,
+                transaction_type=payment.type,
+                category=payment.category,
+            )
+            updated += 1
+            details.append({"title": payment.title, "amount": payment.amount, "type": payment.type, "status": "updated"})
+        else:
+            unchanged += 1
+            details.append({"title": payment.title, "amount": payment.amount, "type": payment.type, "status": "unchanged"})
 
     return {
         "created": created,
