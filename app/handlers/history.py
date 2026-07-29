@@ -27,10 +27,16 @@ def format_transaction(transaction) -> str:
     if transaction.is_recurring:
         amount_text += "/мес"
 
-    icon = (
+    base_icon = (
         "💰"
         if transaction.type == "income"
         else transaction.category.split()[0]
+    )
+
+    icon = (
+        f"🔁 {base_icon}"
+        if transaction.is_recurring
+        else base_icon
     )
 
     title = transaction.title
@@ -38,7 +44,11 @@ def format_transaction(transaction) -> str:
     if len(title) > 18:
         title = title[:17] + "…"
 
-    user = transaction.user_name[:3]
+    user = (
+        transaction.user_name[:3]
+        if transaction.user_name
+        else ""
+    )
 
     return (
         f"{transaction.id} {icon} {title} {amount_text} {user}"
