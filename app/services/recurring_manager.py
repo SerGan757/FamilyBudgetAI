@@ -137,13 +137,15 @@ async def create_month_transactions(telegram_id: int):
 
                 created += 1
 
-                details.append(
+                ddetails.append(
                     {
                         "title": payment.title,
                         "amount": payment.amount,
+                        "type": payment.type,
                         "status": "created",
                     }
                 )
+
 
                 continue
 
@@ -166,6 +168,7 @@ async def create_month_transactions(telegram_id: int):
                     {
                         "title": payment.title,
                         "amount": payment.amount,
+                        "type": payment.type,
                         "status": "updated",
                     }
                 )
@@ -178,6 +181,7 @@ async def create_month_transactions(telegram_id: int):
                     {
                         "title": payment.title,
                         "amount": payment.amount,
+                        "type": payment.type,
                         "status": "unchanged",
                     }
                 )
