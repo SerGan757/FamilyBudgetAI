@@ -41,11 +41,6 @@ async def get_last_transactions(
 
         for transaction, user in rows:
 
-            if transaction.is_recurring:
-                transaction.title = (
-                    f"🔁 <b>{transaction.title}</b>"
-                )
-
             transaction.user_name = user.name
 
             transactions.append(transaction)
@@ -83,11 +78,6 @@ async def get_transactions_by_category(
 
         for transaction, user in rows:
 
-            if transaction.is_recurring:
-                transaction.title = (
-                    f"🔁 <b>{transaction.title}</b>"
-                )
-
             transaction.user_name = user.name
 
             transactions.append(transaction)
@@ -124,11 +114,6 @@ async def get_transactions_by_type(
         transactions = []
 
         for transaction, user in rows:
-
-            if transaction.is_recurring:
-                transaction.title = (
-                    f"🔁 <b>{transaction.title}</b>"
-                )
 
             transaction.user_name = user.name
 
