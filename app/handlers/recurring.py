@@ -345,7 +345,7 @@ async def delete_template_callback(callback: CallbackQuery):
     deleted = await remove_payment(payment_id, callback.from_user.id)
 
     if deleted:
-        await callback.message.edit_reply_markup(reply_markup=None)
+        await callback.message.edit_text("✅ Шаблон удалён")
         await callback.answer("Шаблон удалён")
         return
 

@@ -7,7 +7,7 @@ def delete_keyboard(recurring_id: int) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="🗑 Удалить",
-                    callback_data=f"delete_recurring:{recurring_id}",
+                    callback_data=f"rec_delete:{recurring_id}",
                 )
             ]
         ]

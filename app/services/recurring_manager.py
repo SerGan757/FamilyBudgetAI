@@ -10,7 +10,7 @@ from app.services.recurring_service import (
 )
 from app.services.expense_service import create_transaction
 from app.services.user_service import get_user_by_telegram_id
-from app.database.models import Transaction
+from app.database.models import Transaction, User
 
 
 async def create_payment(text: str, telegram_id: int):
@@ -40,7 +40,7 @@ async def list_payments(telegram_id: int):
     if user is None:
         return []
 
-    return await get_payments(user.family_id)
+    return await get_payments(user.family_id, active_only=True)
 
 
 async def remove_payment(payment_id: int, telegram_id: int):
@@ -78,10 +78,10 @@ async def update_payment(
 
 
 async def create_month_transactions(telegram_id: int):
-    from sqlalchemy import select, extract
+    from sqlalchemy import select
 
     from app.database.db import SessionLocal
-    from app.database.models import Transaction
+    from app.database.models import Transaction, User
     from app.services.expense_service import (
         create_transaction,
         update_recurring_transaction,
@@ -166,7 +166,7 @@ from sqlalchemy import extract, select
 from sqlalchemy.orm import selectinload
 
 from app.database.db import SessionLocal
-from app.database.models import Transaction
+from app.database.models import Transaction, User
 
 
 async def get_month_recurring_transactions(telegram_id: int):
@@ -190,24 +190,16 @@ async def get_month_recurring_transactions(telegram_id: int):
             .options(
                 selectinload(Transaction.user)
             )
+            .join(Transaction.user)
             .where(
                 Transaction.is_recurring.is_(True),
                 Transaction.recurring_period == period,
                 Transaction.recurring_payment_id.is_not(None),
-                Transaction.user.has(
-                    family_id=user.family_id
-                ),
+                User.family_id == user.family_id,
             )
             .order_by(
                 Transaction.title
             )
         )
 
-        transactions = result.scalars().all()
-
-        unique = {}
-
-        for transaction in transactions:
-            unique[transaction.recurring_payment_id] = transaction
-
-        return list(unique.values())
+        return result.scalars().all()

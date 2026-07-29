@@ -122,6 +122,19 @@ def parse_message(text: str):
 
     text = normalize(text)
 
+    # Explicit plus sign is the only income marker.  This also accepts
+    # "+ Зарплата 1500" while keeping "Зарплата 1500" an expense.
+    income = re.search(
+        r"^\+\s*(.*?)(?:\s+)(\d+(?:\.\d+)?)(?:\s*(?:€|₽|eur|EUR|евро)?)?$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if income:
+        title = income.group(1).strip() or "Доход"
+        amount = float(income.group(2))
+        icon, category = detect_category(title, "income")
+        return {"type": "income", "title": title, "amount": amount, "category": f"{icon} {category}"}
+
     # -----------------------------
     # ДОХОД
     # -----------------------------

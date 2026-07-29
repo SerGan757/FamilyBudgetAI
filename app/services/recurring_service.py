@@ -115,6 +115,7 @@ async def delete_payment(
             delete(Transaction).where(
                 Transaction.recurring_payment_id == payment.id,
                 Transaction.recurring_period == current_period,
+                Transaction.is_recurring.is_(True),
             )
         )
 
