@@ -16,21 +16,20 @@ router = Router()
 WELCOME_TEXT = """
 👋 <b>Добро пожаловать в Family Budget AI</b>
 
-Ваш персональный помощник по учету финансов.
+Ваш семейный помощник по учету финансов.
 
 <b>Как добавить расход</b>
 
 <pre>
 Кофе 3.50
 Lidl 42.80
-Shell 65
 </pre>
 
 <b>Как добавить доход</b>
 
 <pre>
-2300 Зарплата
-150 Возврат
+ Зарплата +2300
++150 Возврат
 </pre>
 
 ════════════════════
@@ -38,16 +37,10 @@ Shell 65
 <b>Возможности</b>
 
 🛒 Расходы
-
 💰 Доходы
-
 📊 Статистика
-
 📖 История
-
 🔁 Регулярные платежи
-
-🤖 Автоматические категории
 """
 
 
@@ -56,6 +49,7 @@ async def cmd_start(
     message: Message,
     state: FSMContext,
 ):
+    print("START:", message.from_user.id, message.text)
 
     telegram_id = message.from_user.id
 

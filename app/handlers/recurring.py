@@ -77,25 +77,67 @@ async def add_template(message: Message, state: FSMContext):
     await cancel_state(state)
 
     payments = await list_payments(message.from_user.id)
+    expense_text = ""
+    income_text = ""
+
+    expense_total = 0
+    income_total = 0
+
+    expense_count = 0
+    income_count = 0
 
     text = "<b>🔁 Текущие шаблоны</b>\n\n"
 
-    total = 0
-
+    
     if payments:
 
-        for i, payment in enumerate(payments, start=1):
+        exp = 1
+        inc = 1
 
-            total += payment.amount
+        for payment in payments:
 
-            text += (
-                f"{i}. {payment.title}"
-                f" — {payment.amount:.2f} €/мес\n"
-            )
+            if payment.type == "income":
+
+                income_total += payment.amount
+                income_count += 1
+
+                income_text += (
+                    f"{inc}. {payment.title}"
+                    f" — +{payment.amount:.2f} €/мес\n"
+                )
+
+                inc += 1
+
+            else:
+
+                expense_total += payment.amount
+                expense_count += 1
+
+                expense_text += (
+                    f"{exp}. {payment.title}"
+                    f" — {payment.amount:.2f} €/мес\n"
+                )
+
+                exp += 1
+
+        if expense_text:
+
+            text += "<b>💸 Расходы</b>\n\n"
+            text += expense_text
+
+        if income_text:
+
+            text += "\n━━━━━━━━━━━━━━━━━━\n\n"
+            text += "<b>💰 Доходы</b>\n\n"
+            text += income_text
 
         text += (
-            f"\n━━━━━━━━━━━━━━━━━━\n"
-            f"<b>Всего: {total:.2f} €/мес</b>\n\n"
+            "\n━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>💸 Расходы: {expense_total:.2f} €/мес ({expense_count})</b>\n"
+            f"<b>💰 Доходы: {income_total:.2f} €/мес ({income_count})</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>💶 Баланс: "
+            f"{income_total-expense_total:+.2f} €/мес</b>\n\n"
         )
 
     else:

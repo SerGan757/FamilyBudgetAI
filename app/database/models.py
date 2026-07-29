@@ -238,6 +238,18 @@ class RecurringPayment(Base):
         nullable=False,
     )
 
+    type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="expense",
+    )
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="📦 Прочее",
+    )
+
     category: Mapped[str] = mapped_column(
         String(100),
         nullable=False,

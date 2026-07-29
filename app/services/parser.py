@@ -202,11 +202,7 @@ def parse_message(text: str):
             title,
         ).strip()
 
-        transaction_type = (
-            "income"
-            if is_income(title)
-            else "expense"
-        )
+        transaction_type = "expense"
 
         icon, category = detect_category(
             title,

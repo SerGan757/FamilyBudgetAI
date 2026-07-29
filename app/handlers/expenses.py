@@ -1,3 +1,5 @@
+import re
+
 from aiogram import Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
@@ -16,6 +18,7 @@ async def add_transaction(
     message: Message,
     state: FSMContext,
 ):
+    print("EXPENSE:", message.from_user.id, message.text)
 
     if message.text is None:
         return

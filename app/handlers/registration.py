@@ -15,6 +15,7 @@ async def finish_group_registration(
     message: Message,
     state: FSMContext,
 ):
+    print("REGISTER:", message.from_user.id, message.text)
 
     name = message.text.strip()
 

@@ -13,6 +13,7 @@ async def add_payment(
     family_id: int,
     title: str,
     amount: float,
+    transaction_type: str,
     category: str,
     frequency: str = "monthly",
     interval_value: int = 1,
@@ -27,6 +28,7 @@ async def add_payment(
             family_id=family_id,
             title=title,
             amount=amount,
+            type=transaction_type,
             category=category,
             frequency=frequency,
             interval_value=interval_value,
@@ -128,6 +130,7 @@ async def update_payment(
     family_id: int,
     title: str,
     amount: float,
+    transaction_type: str,
     category: str,
 ):
 
@@ -149,6 +152,7 @@ async def update_payment(
 
         payment.title = title
         payment.amount = amount
+        payment.type = transaction_type
         payment.category = category
 
         await session.execute(
@@ -160,6 +164,7 @@ async def update_payment(
             .values(
                 title=title,
                 amount=amount,
+                type=transaction_type,
                 category=category,
             )
         )

@@ -29,6 +29,7 @@ async def create_payment(text: str, telegram_id: int):
         family_id=user.family_id,
         title=parsed["title"],
         amount=parsed["amount"],
+        transaction_type=parsed["type"],
         category=parsed["category"],
     )
 
@@ -71,6 +72,7 @@ async def update_payment(
         family_id=user.family_id,
         title=parsed["title"],
         amount=parsed["amount"],
+        transaction_type=parsed["type"],
         category=parsed["category"],
     )
 
@@ -126,7 +128,7 @@ async def create_month_transactions(telegram_id: int):
                     user_id=user.id,
                     title=payment.title,
                     amount=payment.amount,
-                    transaction_type="expense",
+                    transaction_type=payment.type,
                     category=payment.category,
                     is_recurring=True,
                     recurring_payment_id=payment.id,
