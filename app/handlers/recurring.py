@@ -29,7 +29,7 @@ recurring_keyboard = ReplyKeyboardMarkup(
             KeyboardButton(text="📅 Платежи"),
         ],
         [
-            KeyboardButton(text="📅 Создать расходы месяца"),
+            KeyboardButton(text="📅 Создать операции месяца"),
         ],
         [
             KeyboardButton(text="❌ Отмена"),
@@ -250,11 +250,16 @@ async def month_recurring(message: Message, state: FSMContext):
         )
         return
 
-    total = 0
+    expense_text = ""
+    income_text = ""
+
+    expense_total = 0
+    income_total = 0
+
+    expense_count = 0
+    income_count = 0
 
     for transaction in transactions:
-
-        total += transaction.amount
 
         author = (
             transaction.user.name
@@ -262,22 +267,46 @@ async def month_recurring(message: Message, state: FSMContext):
             else ""
         )
 
-        text += (
-            f"<b>"
-            f"🔁 {transaction.title} "
-            f"-{transaction.amount:.2f} €/мес "
-            f"{author}"
-            f"</b>\n"
-        )
+        if transaction.type == "income":
 
-    text += "\n━━━━━━━━━━━━━━━━━━\n\n"
+            income_total += transaction.amount
+            income_count += 1
+
+            income_text += (
+                f"💰 {transaction.title} "
+                f"+{transaction.amount:.2f} €/мес "
+                f"{author}\n"
+            )
+
+        else:
+
+            expense_total += transaction.amount
+            expense_count += 1
+
+            expense_text += (
+                f"🔁 {transaction.title} "
+                f"-{transaction.amount:.2f} €/мес "
+                f"{author}\n"
+            )
+
+    if expense_text:
+
+        text += "<b>💸 Расходы</b>\n\n"
+        text += expense_text
+
+    if income_text:
+
+        text += "\n━━━━━━━━━━━━━━━━━━\n\n"
+        text += "<b>💰 Доходы</b>\n\n"
+        text += income_text
 
     text += (
-        f"<b>"
-        f"🔁 Регулярные: "
-        f"{total:.2f} €/мес "
-        f"({len(transactions)})"
-        f"</b>"
+        "\n━━━━━━━━━━━━━━━━━━\n\n"
+        f"<b>💸 Расходы: {expense_total:.2f} €/мес ({expense_count})</b>\n"
+        f"<b>💰 Доходы: {income_total:.2f} €/мес ({income_count})</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+        f"<b>💶 Баланс: "
+        f"{income_total-expense_total:+.2f} €/мес</b>"
     )
 
     await message.answer(
@@ -388,7 +417,7 @@ async def save_edited_template(message: Message, state: FSMContext):
     )
 
 
-@router.message(F.text == "📅 Создать расходы месяца")
+@router.message(F.text == "📅 Создать операции месяца")
 async def create_month(message: Message, state: FSMContext):
 
     from datetime import date
@@ -416,7 +445,7 @@ async def create_month(message: Message, state: FSMContext):
     today = date.today()
 
     text = (
-        f"✅ <b>Регулярные расходы — "
+        f"✅ <b>Регулярные операции — "
         f"{months[today.month]} {today.year}</b>\n\n"
         f"➕ Создано: {result['created']}\n"
         f"✏️ Обновлено: {result['updated']}\n"
@@ -425,21 +454,23 @@ async def create_month(message: Message, state: FSMContext):
 
     if result["details"]:
 
-        text += "\n\n"
+    text += "\n\n"
 
-        for item in result["details"]:
+    for item in result["details"]:
 
-            if item["status"] == "created":
-                icon = "➕"
-            elif item["status"] == "updated":
-                icon = "✏️"
-            else:
-                icon = "✓"
+        if item["status"] == "created":
+            icon = "➕"
+        elif item["status"] == "updated":
+            icon = "✏️"
+        else:
+            icon = "✓"
 
-            text += (
-                f"{icon} {item['title']} — "
-                f"{item['amount']:.2f} €/мес\n"
-            )
+        sign = "+" if item.get("type") == "income" else "-"
+
+        text += (
+            f"{icon} {item['title']} — "
+            f"{sign}{item['amount']:.2f} €/мес\n"
+        )
 
     await message.answer(
         text,
