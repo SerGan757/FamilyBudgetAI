@@ -3,10 +3,9 @@ import re
 from aiogram import Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 
 from app.handlers.user_states import RegistrationState
-from app.keyboards.main_menu import main_menu
 from app.services.expense_service import save_transaction
 from app.services.user_service import get_user_by_telegram_id
 
@@ -128,5 +127,5 @@ async def add_transaction(
 
     await message.answer(
         text,
-        reply_markup=main_menu,
+        reply_markup=ReplyKeyboardRemove(),
     )

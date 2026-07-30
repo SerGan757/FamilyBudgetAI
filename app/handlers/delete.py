@@ -2,9 +2,8 @@ from aiogram import F, Router
 from html import escape
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 
-from app.keyboards.main_menu import main_menu
 from app.services.delete_service import (
     delete_last_transaction,
     delete_transaction_by_id,
@@ -79,7 +78,7 @@ async def delete(message: Message, state: FSMContext):
         "125\n"
         "125 126 130"
         "</pre>",
-        reply_markup=main_menu,
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
@@ -119,7 +118,7 @@ async def delete_multiple(message: Message, state: FSMContext):
     if not deleted:
         await message.answer(
             "Ни одной операции не найдено.",
-            reply_markup=main_menu,
+            reply_markup=ReplyKeyboardRemove(),
         )
         return
 
@@ -136,7 +135,7 @@ async def delete_multiple(message: Message, state: FSMContext):
 
     await message.answer(
         result,
-        reply_markup=main_menu,
+        reply_markup=ReplyKeyboardRemove(),
     )
 
     transactions = await get_last_transactions(user.family_id)
@@ -153,7 +152,7 @@ async def delete_multiple(message: Message, state: FSMContext):
 
         await message.answer(
             history_text,
-            reply_markup=main_menu,
+            reply_markup=ReplyKeyboardRemove(),
         )
 # -------------------------------------------------------------------
 # Новое удаление из истории
