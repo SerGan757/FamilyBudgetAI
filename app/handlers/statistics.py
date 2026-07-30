@@ -14,6 +14,7 @@ from app.services.statistics_service import (
 )
 from app.services.user_service import get_user_by_telegram_id
 from app.keyboards.main_menu import back_to_main_menu_keyboard
+from app.utils.navigation import show_back_keyboard
 
 router = Router()
 
@@ -129,6 +130,7 @@ async def today(message: Message):
         parse_mode="HTML",
         reply_markup=day_keyboard(selected_date, 0, total),
     )  
+    await show_back_keyboard(message)
 
 
 @router.callback_query(F.data.startswith("today:") | F.data.startswith("day:"))
@@ -170,6 +172,7 @@ async def today_page(
         parse_mode="HTML",
         reply_markup=day_keyboard(selected_date, offset, total),
     )
+    await show_back_keyboard(callback.message)
 
     await callback.answer()
 
@@ -300,6 +303,7 @@ async def month(message: Message):
         parse_mode="HTML",
         reply_markup=month_keyboard(today.year, today.month, 0, total),
     )
+    await show_back_keyboard(message)
 
 
 @router.callback_query(
@@ -344,6 +348,7 @@ async def month_page(
         parse_mode="HTML",
         reply_markup=month_keyboard(year, month, offset, total),
     )
+    await show_back_keyboard(callback.message)
 
     await callback.answer()
 

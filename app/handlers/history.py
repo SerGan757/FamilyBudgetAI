@@ -10,6 +10,7 @@ from app.services.history_service import (
     get_transactions_count,
 )
 from app.services.user_service import get_user_by_telegram_id
+from app.utils.navigation import show_back_keyboard
 
 router = Router()
 
@@ -109,6 +110,7 @@ async def history(message: Message):
             limit=LIMIT,
         ),
     )
+    await show_back_keyboard(message)
 
 
 @router.callback_query(
