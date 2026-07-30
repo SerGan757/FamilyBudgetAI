@@ -1,6 +1,7 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.filters import Command
+from aiogram.types import Message, ReplyKeyboardRemove
 
 from app.handlers.delete import delete
 from app.handlers.history import history
@@ -16,6 +17,11 @@ from app.keyboards.main_menu import main_menu
 router = Router()
 
 
+@router.message(Command("menu"))
+async def show_menu(message: Message):
+    await message.answer("Главное меню", reply_markup=main_menu)
+
+
 @router.message(F.text == "➕ Добавить")
 async def add(message: Message):
 
@@ -29,7 +35,7 @@ async def add(message: Message):
         "или\n\n"
         "2300 Зарплата"
         "</pre>",
-        reply_markup=main_menu,
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
@@ -58,7 +64,7 @@ async def undo_menu(message: Message):
 
     await message.answer(
         "Действие отменено.",
-        reply_markup=main_menu,
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
@@ -90,5 +96,5 @@ async def more(message: Message):
         "<b>База данных:</b> PostgreSQL\n"
         "<b>AI Parser:</b> В разработке\n\n"
         "Спасибо, что тестируете проект ❤️",
-        reply_markup=main_menu,
+        reply_markup=ReplyKeyboardRemove(),
     )

@@ -3,7 +3,7 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove
 
 from app.keyboards.pagination_keyboard import pagination_keyboard
 from app.services.statistics_service import (
@@ -367,6 +367,7 @@ async def balance(message: Message):
     await message.answer(
         text,
         parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
     )
 
 
@@ -452,4 +453,5 @@ async def analytics(message: Message):
     await message.answer(
         text,
         parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove(),
     )
