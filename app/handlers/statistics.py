@@ -399,10 +399,11 @@ async def analytics(message: Message):
     text = (
         f"📊 <b>Аналитика • {months[today.month]} {today.year}</b>\n\n"
 
-        f"💰 Доходы: <b>{money(data['income'])}</b>\n"
-        f"💸 Расходы: <b>{money(data['expense'])}</b>\n"
-        f"🔁 Регулярные: <b>{money(data['recurring'])}/мес</b>\n"
-        f"💎 Остаток: <b>{money(data['balance'])}</b>\n\n"
+        f"💰 Обычные доходы: <b>{money(data['ordinary_income'])}</b>\n"
+        f"💸 Обычные расходы: <b>{money(data['ordinary_expense'])}</b>\n\n"
+        f"🔁 Регулярные доходы: <b>{money(data['recurring_income'])}/мес ({data['recurring_income_count']})</b>\n"
+        f"🔁 Регулярные расходы: <b>{money(data['recurring_expense'])}/мес ({data['recurring_expense_count']})</b>\n\n"
+        f"💎 Остаток месяца: <b>{money(data['balance'])}</b>\n\n"
 
         f"📋 Операций: <b>{data['operations']}</b>\n"
         f"🧾 Средний чек: <b>{money(data['average_check'])}</b>\n"
@@ -418,22 +419,22 @@ async def analytics(message: Message):
             "🥉",
         ]
 
-        for i, (name, amount) in enumerate(data["users"]):
+        for i, (name, amount) in enumerate(data["users"][:5]):
 
             medal = medals[i] if i < len(medals) else "▪️"
 
             text += (
-                f"{medal} {name} — <b>{money(amount)}</b>\n"
+                f"{medal} {escape(name)} — <b>{money(amount)}</b>\n"
             )
 
     if data["categories"]:
 
         text += "\n🏆 <b>Категории</b>\n"
 
-        for category, amount in data["categories"]:
+        for i, (category, amount) in enumerate(data["categories"][:5], 1):
 
             text += (
-                f"📦 {category} — <b>{money(amount)}</b>\n"
+                f"{i}. {escape(category)} — <b>{money(amount)}</b>\n"
             )
 
     if data["biggest"]:
@@ -444,7 +445,7 @@ async def analytics(message: Message):
 
         text += (
             "\n🔥 <b>Крупнейшая покупка</b>\n"
-            f"{purchase_date} • {purchase.title}\n"
+            f"{purchase_date} • {escape(purchase.title)}\n"
             f"<b>{money(purchase.amount)}</b>"
         )
 

@@ -321,26 +321,28 @@ async def get_category_statistics():
 # ANALYTICS
 # =====================================================
 
-async def get_month_transactions(family_id: int):
+async def get_month_transactions(family_id: int, year: int | None = None, month: int | None = None):
 
     today = date.today()
+    year = year or today.year
+    month = month or today.month
 
     month_start = datetime(
-        today.year,
-        today.month,
+        year,
+        month,
         1,
     )
 
-    if today.month == 12:
+    if month == 12:
         next_month = datetime(
-            today.year + 1,
+            year + 1,
             1,
             1,
         )
     else:
         next_month = datetime(
-            today.year,
-            today.month + 1,
+            year,
+            month + 1,
             1,
         )
 
@@ -506,44 +508,28 @@ async def get_month_operations(family_id: int):
     return len(transactions)
 
 
-async def get_analytics(family_id: int):
-
-    stats = await get_month_statistics(family_id)
-
-    users = await get_users_statistics(family_id)
-
-    categories = await get_categories_statistics(family_id)
-
-    biggest = await get_biggest_purchase(family_id)
-
-    average_check = await get_average_check(family_id)
-
-    average_day = await get_average_day_expense(family_id)
-
-    operations = await get_month_operations(family_id)
-
-    return {
-
-        "income": stats["income"],
-
-        "expense": stats["expense"],
-
-        "recurring": stats["recurring"],
-
-        "balance": stats["balance"],
-
-        "recurring_count": stats["recurring_count"],
-
-        "users": users,
-
-        "categories": categories,
-
-        "biggest": biggest,
-
-        "average_check": average_check,
-
-        "average_day": average_day,
-
-        "operations": operations,
-
-    }
+async def get_analytics(family_id: int, year: int | None = None, month: int | None = None):
+    stats = await get_month_statistics(family_id, year, month)
+    transactions = await get_month_transactions(family_id, year, month)
+    expenses = [t for t in transactions if t.type == "expense"]
+    incomes = [t for t in transactions if t.type == "income"]
+    users, categories, by_day_expense, by_day_income = {}, {}, {}, {}
+    for t in expenses:
+        name = t.user.name if t.user else "Неизвестно"
+        users[name] = users.get(name, 0) + t.amount
+        categories[t.category] = categories.get(t.category, 0) + t.amount
+        by_day_expense[t.created_at.date()] = by_day_expense.get(t.created_at.date(), 0) + t.amount
+    for t in incomes:
+        by_day_income[t.created_at.date()] = by_day_income.get(t.created_at.date(), 0) + t.amount
+    biggest_expense = max(expenses, key=lambda t: t.amount) if expenses else None
+    biggest_income = max(incomes, key=lambda t: t.amount) if incomes else None
+    return {**stats, "operations": len(transactions), "income_operations": len(incomes),
+            "expense_operations": len(expenses), "ordinary_operations": len([t for t in transactions if not t.is_recurring]),
+            "recurring_operations": len([t for t in transactions if t.is_recurring]),
+            "average_check": round(sum(t.amount for t in expenses) / len(expenses), 2) if expenses else 0,
+            "average_day": round(sum(by_day_expense.values()) / len(by_day_expense), 2) if by_day_expense else 0,
+            "users": sorted(users.items(), key=lambda x: x[1], reverse=True),
+            "categories": sorted(categories.items(), key=lambda x: x[1], reverse=True),
+            "biggest": biggest_expense, "biggest_income": biggest_income,
+            "costliest_day": max(by_day_expense.items(), key=lambda x: x[1]) if by_day_expense else None,
+            "best_income_day": max(by_day_income.items(), key=lambda x: x[1]) if by_day_income else None}
