@@ -66,12 +66,13 @@ async def _sum(
 
 async def get_today_statistics(
     family_id: int,
+    selected_date: date | None = None,
     offset: int = 0,
     limit: int = 20,
 ):
 
     today = datetime.combine(
-        date.today(),
+        selected_date or date.today(),
         datetime.min.time(),
     )
 

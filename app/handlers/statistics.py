@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from html import escape
 
 from aiogram import F, Router
@@ -62,11 +62,12 @@ def format_transaction(transaction):
 
 def format_today(
     data,
+    selected_date: date,
     offset: int = 0,
 ):
 
     text = (
-        f"📅 <b>{date.today().strftime('%d.%m.%Y')}</b>\n\n"
+        f"📅 <b>{selected_date.strftime('%d.%m.%Y')}</b>\n\n"
         f"💰 Доходы     {money(data['income'])}\n"
         f"💸 Расходы    {money(data['expense'])}\n"
         f"📈 Баланс     {money(data['balance'])}\n"
@@ -108,8 +109,10 @@ async def today(message: Message):
     if user is None:
         return
 
+    selected_date = date.today()
     data = await get_today_statistics(
         user.family_id,
+        selected_date=selected_date,
         offset=0,
         limit=LIMIT,
     )
@@ -119,28 +122,28 @@ async def today(message: Message):
     await message.answer(
         format_today(
             data,
+            selected_date,
             offset=0,
         ),
         parse_mode="HTML",
-        reply_markup=pagination_keyboard(
-            prefix="today",
-            offset=0,
-            total=total,
-            limit=LIMIT,
-        ),
+        reply_markup=day_keyboard(selected_date, 0, total),
     )  
 
 
-@router.callback_query(
-    F.data.startswith("today:")
-)
+@router.callback_query(F.data.startswith("today:") | F.data.startswith("day:"))
 async def today_page(
     callback: CallbackQuery,
 ):
 
-    offset = int(
-        callback.data.split(":")[1]
-    )
+    parts = callback.data.split(":")
+    try:
+        if parts[0] == "day":
+            selected_date, offset = date.fromisoformat(parts[1]), 0
+        else:
+            selected_date, offset = date.fromisoformat(parts[1]), int(parts[3])
+    except (IndexError, ValueError):
+        await callback.answer("Некорректная дата", show_alert=True)
+        return
 
     user = await get_user_by_telegram_id(callback.from_user.id)
     if user is None:
@@ -149,6 +152,7 @@ async def today_page(
 
     data = await get_today_statistics(
         user.family_id,
+        selected_date=selected_date,
         offset=offset,
         limit=LIMIT,
     )
@@ -159,15 +163,11 @@ async def today_page(
     await callback.message.edit_text(
         format_today(
             data,
+            selected_date,
             offset=offset,
         ),
         parse_mode="HTML",
-        reply_markup=pagination_keyboard(
-            offset=offset,
-            total=total,
-            limit=LIMIT,
-            prefix="today"
-        ),
+        reply_markup=day_keyboard(selected_date, offset, total),
     )
 
     await callback.answer()
@@ -232,6 +232,21 @@ def format_month(
     )
 
     return text
+
+
+def day_keyboard(selected_date: date, offset: int, total: int) -> InlineKeyboardMarkup:
+    rows = [[
+        InlineKeyboardButton(text="⬅️ Предыдущий день", callback_data=f"day:{(selected_date - timedelta(days=1)).isoformat()}"),
+        InlineKeyboardButton(text="➡️ Следующий день", callback_data=f"day:{(selected_date + timedelta(days=1)).isoformat()}"),
+    ]]
+    page = []
+    if offset > 0:
+        page.append(InlineKeyboardButton(text="⬅️ Предыдущие 20", callback_data=f"today:{selected_date.isoformat()}:page:{max(0, offset-LIMIT)}"))
+    if offset + LIMIT < total:
+        page.append(InlineKeyboardButton(text="➡️ Следующие 20", callback_data=f"today:{selected_date.isoformat()}:page:{offset+LIMIT}"))
+    if page:
+        rows.append(page)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
