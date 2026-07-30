@@ -158,51 +158,38 @@ async def get_today_statistics(
 
 async def get_month_statistics(
     family_id: int,
+    year: int | None = None,
+    month: int | None = None,
     offset: int = 0,
     limit: int = 20,
 ):
 
     today = date.today()
+    year = year or today.year
+    month = month or today.month
     month_start = datetime(
-        today.year,
-        today.month,
+        year,
+        month,
         1,
     )
 
-    if today.month == 12:
+    if month == 12:
         next_month = datetime(
-            today.year + 1,
+            year + 1,
             1,
             1,
         )
     else:
         next_month = datetime(
-            today.year,
-            today.month + 1,
+            year,
+            month + 1,
             1,
         )
 
-    income = await _sum(
-        family_id,
-        "income",
-        month_start,
-        next_month,
-    )
-
-    expense = await _sum(
-        family_id,
-        "expense",
-        month_start,
-        next_month,
-    )
-
-    recurring = await _sum(
-        family_id,
-        "expense",
-        month_start,
-        next_month,
-        recurring=True,
-    )
+    ordinary_income = await _sum(family_id, "income", month_start, next_month, recurring=False)
+    ordinary_expense = await _sum(family_id, "expense", month_start, next_month, recurring=False)
+    recurring_income = await _sum(family_id, "income", month_start, next_month, recurring=True)
+    recurring_expense = await _sum(family_id, "expense", month_start, next_month, recurring=True)
 
     async with SessionLocal() as session:
         count_result = await session.execute(
@@ -217,7 +204,7 @@ async def get_month_statistics(
 
         total = count_result.scalar() or 0
 
-        recurring_count_result = await session.execute(
+        recurring_income_count_result = await session.execute(
             select(func.count())
             .select_from(Transaction)
             .where(
@@ -225,9 +212,20 @@ async def get_month_statistics(
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
                 Transaction.is_recurring.is_(True),
+                Transaction.type == "income",
             )
         )
-        recurring_count = recurring_count_result.scalar() or 0
+        recurring_income_count = recurring_income_count_result.scalar() or 0
+        recurring_expense_count_result = await session.execute(
+            select(func.count()).select_from(Transaction).where(
+                Transaction.user.has(User.family_id == family_id),
+                Transaction.created_at >= month_start,
+                Transaction.created_at < next_month,
+                Transaction.is_recurring.is_(True),
+                Transaction.type == "expense",
+            )
+        )
+        recurring_expense_count = recurring_expense_count_result.scalar() or 0
 
         result = await session.execute(
             select(Transaction)
@@ -250,11 +248,13 @@ async def get_month_statistics(
         transactions = result.unique().scalars().all()
 
     return {
-        "income": income,
-        "expense": expense,
-        "recurring": recurring,
-        "recurring_count": recurring_count,
-        "balance": income - expense,
+        "ordinary_income": ordinary_income,
+        "ordinary_expense": ordinary_expense,
+        "recurring_income": recurring_income,
+        "recurring_expense": recurring_expense,
+        "recurring_income_count": recurring_income_count,
+        "recurring_expense_count": recurring_expense_count,
+        "balance": ordinary_income + recurring_income - ordinary_expense - recurring_expense,
         "transactions": transactions,
         "total": total,
     }

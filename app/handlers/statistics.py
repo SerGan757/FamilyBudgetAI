@@ -3,7 +3,7 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.keyboards.pagination_keyboard import pagination_keyboard
 from app.services.statistics_service import (
@@ -175,6 +175,8 @@ async def today_page(
 
 def format_month(
     data,
+    year: int,
+    month: int,
     offset: int = 0,
 ):
 
@@ -194,24 +196,14 @@ def format_month(
         "Декабрь",
     ]
 
-    today = date.today()
-
     text = (
-        f"📅 <b>{months[today.month]} {today.year}</b>\n\n"
-        f"💰 Доходы     {money(data['income'])}\n"
-        f"💸 Расходы    {money(data['expense'])}\n"
-        f"📈 Баланс     {money(data['balance'])}\n"
+        f"📅 <b>{months[month]} {year}</b>\n\n"
+        f"💰 Доходы: {money(data['ordinary_income'])}\n"
+        f"💸 Расходы: {money(data['ordinary_expense'])}\n\n"
+        f"🔁 Регулярные расходы: {data['recurring_expense']:.2f} €/мес ({data['recurring_expense_count']})\n"
+        f"🔁 Регулярные доходы: {data['recurring_income']:.2f} €/мес ({data['recurring_income_count']})\n\n"
+        f"📈 Баланс: {money(data['balance'])}\n\n"
     )
-
-    if data["recurring_count"] > 0:
-
-        text += (
-            f"\n<b>🔁 Регулярные: "
-            f"{data['recurring']:.2f} €/мес "
-            f"({data['recurring_count']})</b>\n"
-        )
-
-    text += "\n📋 <b>Операции</b>\n\n"
 
     regular = data["transactions"]
 
@@ -219,7 +211,7 @@ def format_month(
 
     if not regular:
 
-        text += "Операций нет."
+        text += "Операций за этот месяц нет."
 
     else:
 
@@ -242,14 +234,39 @@ def format_month(
     return text
 
 
+def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
+    index = year * 12 + month - 1 + delta
+    return index // 12, index % 12 + 1
+
+
+def month_keyboard(year: int, month: int, offset: int, total: int) -> InlineKeyboardMarkup:
+    previous_year, previous_month = _shift_month(year, month, -1)
+    next_year, next_month = _shift_month(year, month, 1)
+    rows = [[
+        InlineKeyboardButton(text="⬅️ Предыдущий месяц", callback_data=f"month:{previous_year}:{previous_month:02d}"),
+        InlineKeyboardButton(text="➡️ Следующий месяц", callback_data=f"month:{next_year}:{next_month:02d}"),
+    ]]
+    page = []
+    if offset > 0:
+        page.append(InlineKeyboardButton(text="⬅️ Предыдущие 20", callback_data=f"month:{year}:{month:02d}:{max(0, offset-LIMIT)}"))
+    if offset + LIMIT < total:
+        page.append(InlineKeyboardButton(text="➡️ Следующие 20", callback_data=f"month:{year}:{month:02d}:{offset+LIMIT}"))
+    if page:
+        rows.append(page)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 @router.message(Command("month"))
 async def month(message: Message):
     user = await get_user_by_telegram_id(message.from_user.id)
     if user is None:
         return
 
+    today = date.today()
     data = await get_month_statistics(
         user.family_id,
+        year=today.year,
+        month=today.month,
         offset=0,
         limit=LIMIT,
     )
@@ -260,15 +277,12 @@ async def month(message: Message):
     await message.answer(
         format_month(
             data,
+            today.year,
+            today.month,
             offset=0,
         ),
         parse_mode="HTML",
-        reply_markup=pagination_keyboard(
-            prefix="month",
-            offset=0,
-            total=total,
-            limit=LIMIT,
-        ),
+        reply_markup=month_keyboard(today.year, today.month, 0, total),
     )
 
 
@@ -279,9 +293,15 @@ async def month_page(
     callback: CallbackQuery,
 ):
 
-    offset = int(
-        callback.data.split(":")[1]
-    )
+    parts = callback.data.split(":")
+    if len(parts) not in (3, 4):
+        await callback.answer("Некорректный месяц", show_alert=True)
+        return
+    year, month = int(parts[1]), int(parts[2])
+    offset = int(parts[3]) if len(parts) == 4 else 0
+    if not 1 <= month <= 12:
+        await callback.answer("Некорректный месяц", show_alert=True)
+        return
 
     user = await get_user_by_telegram_id(callback.from_user.id)
     if user is None:
@@ -290,6 +310,8 @@ async def month_page(
 
     data = await get_month_statistics(
         user.family_id,
+        year=year,
+        month=month,
         offset=offset,
         limit=LIMIT,
     )
@@ -299,15 +321,12 @@ async def month_page(
     await callback.message.edit_text(
         format_month(
             data,
+            year,
+            month,
             offset=offset,
         ),
         parse_mode="HTML",
-        reply_markup=pagination_keyboard(
-            offset=offset,
-            total=total,
-            limit=LIMIT,
-            prefix="month"
-        ),
+        reply_markup=month_keyboard(year, month, offset, total),
     )
 
     await callback.answer()
