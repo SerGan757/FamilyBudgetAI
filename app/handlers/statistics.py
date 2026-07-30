@@ -372,12 +372,12 @@ async def balance(message: Message):
 
 
 @router.message(Command("analytics"))
-async def analytics(message: Message):
-    user = await get_user_by_telegram_id(message.from_user.id)
-    if user is None:
-        return
-
-    data = await get_analytics(user.family_id)
+async def analytics(message: Message, year: int | None = None, month: int | None = None, family_id: int | None = None):
+    if family_id is None:
+        user = await get_user_by_telegram_id(message.from_user.id)
+        if user is None:
+            return
+        family_id = user.family_id
 
     months = [
         "",
@@ -396,9 +396,11 @@ async def analytics(message: Message):
     ]
 
     today = date.today()
+    year, month = year or today.year, month or today.month
+    data = await get_analytics(family_id, year, month)
 
     text = (
-        f"📊 <b>Аналитика • {months[today.month]} {today.year}</b>\n\n"
+        f"📊 <b>Аналитика • {months[month]} {year}</b>\n\n"
 
         f"💰 Обычные доходы: <b>{money(data['ordinary_income'])}</b>\n"
         f"💸 Обычные расходы: <b>{money(data['ordinary_expense'])}</b>\n\n"
@@ -453,5 +455,32 @@ async def analytics(message: Message):
     await message.answer(
         text,
         parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=analytics_keyboard(year, month),
     )
+
+
+def analytics_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
+    previous_year, previous_month = _shift_month(year, month, -1)
+    next_year, next_month = _shift_month(year, month, 1)
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="⬅️ Предыдущий месяц", callback_data=f"analytics:{previous_year}:{previous_month:02d}"),
+        InlineKeyboardButton(text="➡️ Следующий месяц", callback_data=f"analytics:{next_year}:{next_month:02d}"),
+    ]])
+
+
+@router.callback_query(F.data.startswith("analytics:"))
+async def analytics_page(callback: CallbackQuery):
+    try:
+        _, year, month = callback.data.split(":")
+        year, month = int(year), int(month)
+        if not 1 <= month <= 12:
+            raise ValueError
+    except ValueError:
+        await callback.answer("Некорректный месяц", show_alert=True)
+        return
+    user = await get_user_by_telegram_id(callback.from_user.id)
+    if user is None:
+        await callback.answer("Пользователь не найден", show_alert=True)
+        return
+    await analytics(callback.message, year, month, user.family_id)
+    await callback.answer()
