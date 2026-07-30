@@ -2,7 +2,7 @@ from aiogram import F, Router
 from html import escape
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, Message
 
 from app.services.delete_service import (
     delete_last_transaction,
@@ -11,6 +11,7 @@ from app.services.delete_service import (
 )
 from app.services.history_service import get_last_transactions
 from app.handlers.user_states import DeleteState
+from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.services.user_service import get_user_by_telegram_id
 
 router = Router()
@@ -78,7 +79,7 @@ async def delete(message: Message, state: FSMContext):
         "125\n"
         "125 126 130"
         "</pre>",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=back_to_main_menu_keyboard,
     )
 
 
@@ -118,7 +119,7 @@ async def delete_multiple(message: Message, state: FSMContext):
     if not deleted:
         await message.answer(
             "Ни одной операции не найдено.",
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=back_to_main_menu_keyboard,
         )
         return
 
@@ -135,7 +136,7 @@ async def delete_multiple(message: Message, state: FSMContext):
 
     await message.answer(
         result,
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=back_to_main_menu_keyboard,
     )
 
     transactions = await get_last_transactions(user.family_id)
@@ -152,7 +153,7 @@ async def delete_multiple(message: Message, state: FSMContext):
 
         await message.answer(
             history_text,
-            reply_markup=ReplyKeyboardRemove(),
+            reply_markup=back_to_main_menu_keyboard,
         )
 # -------------------------------------------------------------------
 # Новое удаление из истории

@@ -13,6 +13,7 @@ from app.services.statistics_service import (
     get_today_statistics,
 )
 from app.services.user_service import get_user_by_telegram_id
+from app.keyboards.main_menu import back_to_main_menu_keyboard
 
 router = Router()
 
@@ -367,7 +368,7 @@ async def balance(message: Message):
     await message.answer(
         text,
         parse_mode="HTML",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=back_to_main_menu_keyboard,
     )
 
 
