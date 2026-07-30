@@ -259,41 +259,39 @@ async def get_month_statistics(
         "total": total,
     }
 
+def build_balance_data(transactions):
+    """Split actual monthly transactions without counting recurring rows twice."""
+    data = {
+        "ordinary_income": 0.0, "ordinary_expense": 0.0,
+        "recurring_income": 0.0, "recurring_expense": 0.0,
+        "recurring_income_count": 0, "recurring_expense_count": 0,
+    }
+    for transaction in transactions:
+        if transaction.type == "income":
+            key = "recurring_income" if transaction.is_recurring else "ordinary_income"
+        else:
+            key = "recurring_expense" if transaction.is_recurring else "ordinary_expense"
+        data[key] += transaction.amount
+        if transaction.is_recurring:
+            data[f"{key}_count"] += 1
+    data["balance"] = (
+        data["ordinary_income"] + data["recurring_income"]
+        - data["ordinary_expense"] - data["recurring_expense"]
+    )
+    return data
+
+
 async def get_balance(family_id: int):
-
-    income = await _sum(
-        family_id,
-        "income",
-    )
-
-    expense = await _sum(
-        family_id,
-        "expense",
-    )
-
     month_start, next_month = _month_bounds()
-    recurring = await _sum(family_id, "expense", month_start, next_month, recurring=True)
-
     async with SessionLocal() as session:
-
         result = await session.execute(
             select(Transaction).where(
                 Transaction.user.has(User.family_id == family_id),
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
-                Transaction.is_recurring.is_(True)
             )
         )
-
-        recurring_count = len(result.scalars().all())
-
-    return {
-        "income": income,
-        "expense": expense,
-        "recurring": recurring,
-        "recurring_count": recurring_count,
-        "balance": income - expense,
-    }
+        return build_balance_data(result.scalars().all())
 
 
 async def get_category_statistics():

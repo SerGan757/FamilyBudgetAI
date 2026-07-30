@@ -322,12 +322,11 @@ async def balance(message: Message):
     data = await get_balance(user.family_id)
 
     text = (
-        f"<b>💰 ОБЩИЙ БАЛАНС</b>\n"
-        f"══════════════════════\n\n"
-        f"💰 Доходы      : {money(data['income'])}\n"
-        f"💸 Расходы     : {money(data['expense'])}\n"
-        f"<b>🔁 Регулярные : {data['recurring']:.2f} €/мес ({data['recurring_count']})</b>\n"
-        f"──────────────────────\n"
+        f"<b>💰 ТЕКУЩИЙ БАЛАНС</b>\n\n"
+        f"💰 Доходы: {money(data['ordinary_income'])}\n"
+        f"💸 Расходы: {money(data['ordinary_expense'])}\n\n"
+        f"🔁 Регулярные расходы: {data['recurring_expense']:.2f} €/мес ({data['recurring_expense_count']})\n"
+        f"🔁 Регулярные доходы: {data['recurring_income']:.2f} €/мес ({data['recurring_income_count']})\n\n"
         f"<b>💎 Остаток     : {money(data['balance'])}</b>"
     )
 
