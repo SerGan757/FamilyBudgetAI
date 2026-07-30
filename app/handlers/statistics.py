@@ -72,16 +72,7 @@ def format_today(
         f"📈 Баланс     {money(data['balance'])}\n"
     )
 
-    if data["recurring_count"] > 0:
-
-        text += "\n📋 <b>Операции</b>\n\n"
-
-    text += (
-        "\n📋 <b>Операции</b>\n\n"
-        "<code>"
-        "ID  Операция             Сумма      Имя"
-        "</code>\n\n"
-    )
+    text += "\n"
 
     regular = data["transactions"]
 
