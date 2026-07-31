@@ -44,7 +44,7 @@ async def add_transaction(
         )
 
         await state.update_data(
-            original_text=message.text,
+            pending_operation_text=message.text,
         )
 
         await message.answer(
