@@ -4,20 +4,15 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(text="📋 История"),
-        ],
-        [
             KeyboardButton(text="📅 Сегодня"),
             KeyboardButton(text="📆 Месяц"),
         ],
         [
             KeyboardButton(text="💰 Баланс"),
-        ],
-        [
-            KeyboardButton(text="🗑️ Удалить"),
             KeyboardButton(text="📊 Аналитика"),
         ],
         [
+            KeyboardButton(text="🗑️ Удалить"),
             KeyboardButton(text="🔁 Регулярные"),
         ],
     ],
