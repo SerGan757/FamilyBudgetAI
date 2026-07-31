@@ -40,27 +40,23 @@ def operation_card(transaction) -> str:
     )
 
 def format_history_line(transaction) -> str:
-
     sign = "+" if transaction.type == "income" else "-"
-
     amount = (
-        f"{sign}{transaction.amount:.2f}€/м"
+        f"{sign}{transaction.amount:.2f} €/мес"
         if transaction.is_recurring
-        else f"{sign}{transaction.amount:.2f}€"
+        else f"{sign}{transaction.amount:.2f} €"
     )
 
-    icon = (
+    base_icon = (
         "💰"
         if transaction.type == "income"
         else escape(transaction.category.split()[0])
     )
-
-    return (
-        f"<code>{transaction.id:>4}</code> │ "
-        f"{icon} {escape(transaction.title[:18]):<18} │ "
-        f"{amount:<10} │ "
-        f"{escape(transaction.user_name)}"
-    )
+    icon = f"🔄{base_icon}" if transaction.is_recurring else base_icon
+    title = escape(transaction.title)
+    if len(title) > 24:
+        title = title[:23] + "…"
+    return f"{transaction.id}. {icon} {title} {amount} {escape(transaction.user_name)}"
 
 # -------------------------------------------------------------------
 # Удалить последнюю операцию
