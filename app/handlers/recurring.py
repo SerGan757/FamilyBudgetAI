@@ -31,8 +31,6 @@ recurring_keyboard = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text="📅 Создать операции месяца"),
-        ],
-        [
             KeyboardButton(text="⬅️ Главное меню"),
         ],
     ],
