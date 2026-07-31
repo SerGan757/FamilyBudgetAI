@@ -23,11 +23,17 @@ async def finish_group_registration(
     name = message.text.strip()
     data = await state.get_data()
     pending_operation_text = data.get("pending_operation_text")
+    family_id = data.get("registration_family_id")
     telegram_id = message.from_user.id
+
+    if family_id is None:
+        await message.answer("⚠️ Не удалось определить семью для регистрации.")
+        return
 
     await create_user(
         telegram_id=telegram_id,
         name=name,
+        family_id=family_id,
     )
     await state.clear()
 

@@ -304,6 +304,7 @@ async def month(message: Message):
         reply_markup=month_keyboard(today.year, today.month, 0, total),
     )
     await show_back_keyboard(message)
+    return
 
 
 @router.callback_query(

@@ -1,6 +1,6 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.types import Message
 
 from app.handlers.delete import delete
@@ -44,9 +44,10 @@ async def today_menu(message: Message):
     await today(message)
 
 
-@router.message(F.text == "📆 Месяц")
+@router.message(StateFilter(None), F.text == "📅 Месяц")
 async def month_menu(message: Message):
     await month(message)
+    return
 
 
 @router.message(F.text == "💰 Баланс")

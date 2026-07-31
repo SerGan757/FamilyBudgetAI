@@ -2,6 +2,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    BigInteger,
     Date,
     DateTime,
     Float,
@@ -41,6 +42,14 @@ class Family(Base):
         String(12),
         unique=True,
         nullable=False,
+        index=True,
+    )
+
+    # Nullable while legacy families are mapped to their Telegram chats.
+    telegram_chat_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        unique=True,
+        nullable=True,
         index=True,
     )
 

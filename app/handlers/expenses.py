@@ -7,6 +7,10 @@ from aiogram.types import Message
 
 from app.handlers.user_states import RegistrationState
 from app.keyboards.main_menu import back_to_main_menu_keyboard
+from app.services.family_context_service import (
+    FamilyContextConflictError,
+    get_or_create_family_for_chat,
+)
 from app.services.expense_service import save_transaction
 from app.services.user_service import get_user_by_telegram_id
 
@@ -39,12 +43,22 @@ async def add_transaction(
 
     if user is None:
 
+        chat_title = message.chat.title or f"Личный бюджет {message.from_user.full_name}"
+        try:
+            family = await get_or_create_family_for_chat(message.chat.id, chat_title)
+        except FamilyContextConflictError:
+            await message.answer(
+                "⚠️ Для этого чата требуется явная привязка существующей семьи."
+            )
+            return
+
         await state.set_state(
             RegistrationState.waiting_for_group_name
         )
 
         await state.update_data(
             pending_operation_text=message.text,
+            registration_family_id=family.id,
         )
 
         await message.answer(

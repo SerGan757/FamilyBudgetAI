@@ -29,7 +29,8 @@ class _State:
 class _Message:
     def __init__(self, text, telegram_id):
         self.text = text
-        self.from_user = SimpleNamespace(id=telegram_id)
+        self.from_user = SimpleNamespace(id=telegram_id, full_name="Test User")
+        self.chat = SimpleNamespace(id=telegram_id, title=None)
         self.answers = []
 
     async def answer(self, text, **kwargs):
@@ -42,12 +43,15 @@ class RegistrationFlowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_new_user_operation_stays_in_fsm_without_transaction(self):
         message, state = _Message("Кофе 5", 101), _State()
+        family = SimpleNamespace(id=10)
         with patch.object(expenses, "get_user_by_telegram_id", AsyncMock(return_value=None)), \
+             patch.object(expenses, "get_or_create_family_for_chat", AsyncMock(return_value=family)), \
              patch.object(expenses, "save_transaction", AsyncMock()) as save:
             await expenses.add_transaction(message, state)
 
         self.assertEqual(state.current_state, RegistrationState.waiting_for_group_name)
         self.assertEqual(state.data["pending_operation_text"], "Кофе 5")
+        self.assertEqual(state.data["registration_family_id"], 10)
         save.assert_not_awaited()
 
     async def test_registered_user_operation_is_saved_once(self):
@@ -62,19 +66,19 @@ class RegistrationFlowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_registration_creates_user_and_pending_transaction_once(self):
         message = _Message("Аня", 101)
-        state = _State({"pending_operation_text": "Кофе 5"})
+        state = _State({"pending_operation_text": "Кофе 5", "registration_family_id": 10})
         transaction = SimpleNamespace(type="expense", amount=5.0, category="☕ Еда", title="Кофе")
         with patch.object(registration, "create_user", AsyncMock()) as create_user, \
              patch.object(registration, "save_transaction", AsyncMock(return_value=transaction)) as save:
             await registration.finish_group_registration(message, state)
 
-        create_user.assert_awaited_once_with(telegram_id=101, name="Аня")
+        create_user.assert_awaited_once_with(telegram_id=101, name="Аня", family_id=10)
         save.assert_awaited_once_with("Кофе 5", 101)
         self.assertTrue(state.cleared)
 
     async def test_name_is_never_sent_to_expense_service(self):
         message = _Message("Аня", 101)
-        state = _State({"pending_operation_text": "Кофе 5"})
+        state = _State({"pending_operation_text": "Кофе 5", "registration_family_id": 10})
         transaction = SimpleNamespace(type="expense", amount=5.0, category="☕ Еда", title="Кофе")
         with patch.object(registration, "create_user", AsyncMock()), \
              patch.object(registration, "save_transaction", AsyncMock(return_value=transaction)) as save:
@@ -83,7 +87,7 @@ class RegistrationFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([call.args[0] for call in save.await_args_list], ["Кофе 5"])
 
     async def test_no_pending_operation_does_not_create_transaction(self):
-        message, state = _Message("Аня", 101), _State()
+        message, state = _Message("Аня", 101), _State({"registration_family_id": 10})
         with patch.object(registration, "create_user", AsyncMock()) as create_user, \
              patch.object(registration, "save_transaction", AsyncMock()) as save:
             await registration.finish_group_registration(message, state)
@@ -102,7 +106,9 @@ class RegistrationFlowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_two_new_users_keep_independent_pending_operations(self):
         first, second = _State(), _State()
-        with patch.object(expenses, "get_user_by_telegram_id", AsyncMock(return_value=None)):
+        family = SimpleNamespace(id=10)
+        with patch.object(expenses, "get_user_by_telegram_id", AsyncMock(return_value=None)), \
+             patch.object(expenses, "get_or_create_family_for_chat", AsyncMock(return_value=family)):
             await expenses.add_transaction(_Message("Кофе 5", 101), first)
             await expenses.add_transaction(_Message("Хлеб 3", 202), second)
 

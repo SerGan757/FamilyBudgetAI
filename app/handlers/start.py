@@ -5,6 +5,10 @@ from aiogram.types import Message
 
 from app.handlers.user_states import RegistrationState
 from app.keyboards.main_menu import main_menu
+from app.services.family_context_service import (
+    FamilyContextConflictError,
+    get_or_create_family_for_chat,
+)
 from app.services.user_service import (
     create_user,
     get_user_by_telegram_id,
@@ -52,12 +56,30 @@ async def cmd_start(
     print("START:", message.from_user.id, message.text)
 
     telegram_id = message.from_user.id
+    chat_id = message.chat.id
+    chat_title = message.chat.title or f"Личный бюджет {message.from_user.full_name}"
+
+    try:
+        family = await get_or_create_family_for_chat(chat_id, chat_title)
+    except FamilyContextConflictError:
+        await message.answer(
+            "⚠️ Для этого чата требуется явная привязка существующей семьи."
+        )
+        return
 
     user = await get_user_by_telegram_id(
         telegram_id
     )
 
     if user:
+
+        if user.family_id != family.id:
+            await state.clear()
+            await message.answer(
+                "⚠️ Этот пользователь уже связан с другой семьёй. "
+                "Поддержка участия в нескольких семьях будет добавлена следующим этапом."
+            )
+            return
 
         await state.clear()
 
@@ -75,6 +97,7 @@ async def cmd_start(
     await state.set_state(
         RegistrationState.waiting_for_name
     )
+    await state.update_data(registration_family_id=family.id)
 
     await message.answer(
         "👋 Добро пожаловать!\n\n"
@@ -100,9 +123,23 @@ async def registration_name(
         )
         return
 
+    data = await state.get_data()
+    family_id = data.get("registration_family_id")
+    if family_id is None:
+        chat_title = message.chat.title or f"Личный бюджет {message.from_user.full_name}"
+        try:
+            family = await get_or_create_family_for_chat(message.chat.id, chat_title)
+        except FamilyContextConflictError:
+            await message.answer(
+                "⚠️ Для этого чата требуется явная привязка существующей семьи."
+            )
+            return
+        family_id = family.id
+
     await create_user(
         telegram_id=message.from_user.id,
         name=name,
+        family_id=family_id,
     )
 
     await state.clear()
