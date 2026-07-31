@@ -59,15 +59,6 @@ async def history_menu(message: Message):
     await history(message)
 
 
-@router.message(F.text == "↩️ Отменить")
-async def undo_menu(message: Message):
-
-    await message.answer(
-        "Действие отменено.",
-        reply_markup=ReplyKeyboardRemove(),
-    )
-
-
 @router.message(F.text == "🗑️ Удалить")
 async def delete_menu(message: Message, state: FSMContext):
     await delete(message, state)

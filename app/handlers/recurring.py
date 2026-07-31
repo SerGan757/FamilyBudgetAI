@@ -33,7 +33,6 @@ recurring_keyboard = ReplyKeyboardMarkup(
             KeyboardButton(text="📅 Создать операции месяца"),
         ],
         [
-            KeyboardButton(text="❌ Отмена"),
             KeyboardButton(text="⬅️ Главное меню"),
         ],
     ],
@@ -58,17 +57,6 @@ async def back_to_main(message: Message, state: FSMContext):
     await message.answer(
         "Главное меню",
         reply_markup=main_menu,
-    )
-
-
-@router.message(F.text == "❌ Отмена")
-async def cancel(message: Message, state: FSMContext):
-
-    await cancel_state(state)
-
-    await message.answer(
-        "Действие отменено.",
-        reply_markup=recurring_keyboard,
     )
 
 
@@ -172,7 +160,6 @@ async def add_template(message: Message, state: FSMContext):
             "🗑 Удалить",
             "📅 Платежи",
             "📅 Создать операции месяца",
-            "❌ Отмена",
             "⬅️ Главное меню",
         }
     ),

@@ -12,7 +12,6 @@ main_menu = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text="💰 Баланс"),
-            KeyboardButton(text="↩️ Отменить"),
         ],
         [
             KeyboardButton(text="🗑️ Удалить"),
