@@ -76,17 +76,3 @@ async def recurring(message: Message):
     print(repr(message.text))
 
     await recurring_menu(message)
-
-
-@router.message(F.text == "⚙️ Еще")
-async def more(message: Message):
-
-    await message.answer(
-        "<b>Family Budget AI</b>\n\n"
-        "<b>Версия:</b> 2.1\n"
-        "<b>База данных:</b> PostgreSQL\n"
-        "<b>Статус:</b> в разработке\n\n"
-        "Спасибо, что тестируете проект ❤️",
-        reply_markup=back_to_main_menu_keyboard,
-        parse_mode="HTML",
-    )

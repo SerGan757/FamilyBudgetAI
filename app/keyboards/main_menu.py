@@ -19,7 +19,6 @@ main_menu = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text="🔁 Регулярные"),
-            KeyboardButton(text="⚙️ Еще"),
         ],
     ],
     resize_keyboard=True,
