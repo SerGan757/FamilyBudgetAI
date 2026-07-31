@@ -463,6 +463,7 @@ async def analytics(message: Message, year: int | None = None, month: int | None
         parse_mode="HTML",
         reply_markup=analytics_keyboard(year, month),
     )
+    await show_back_keyboard(message)
 
 
 def analytics_keyboard(year: int, month: int) -> InlineKeyboardMarkup:

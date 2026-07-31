@@ -12,7 +12,7 @@ from app.handlers.statistics import (
     today,
 )
 from app.handlers.recurring import recurring_menu
-from app.keyboards.main_menu import main_menu
+from app.keyboards.main_menu import back_to_main_menu_keyboard, main_menu
 
 router = Router()
 
@@ -35,7 +35,7 @@ async def add(message: Message):
         "или\n\n"
         "2300 Зарплата"
         "</pre>",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=back_to_main_menu_keyboard,
     )
 
 
