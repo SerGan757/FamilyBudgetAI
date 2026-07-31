@@ -1,7 +1,7 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import Message
 
 from app.handlers.delete import delete
 from app.handlers.history import history
@@ -83,9 +83,10 @@ async def more(message: Message):
 
     await message.answer(
         "<b>Family Budget AI</b>\n\n"
-        "<b>Версия:</b> 0.4.3\n"
+        "<b>Версия:</b> 2.1\n"
         "<b>База данных:</b> PostgreSQL\n"
-        "<b>AI Parser:</b> В разработке\n\n"
+        "<b>Статус:</b> в разработке\n\n"
         "Спасибо, что тестируете проект ❤️",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=back_to_main_menu_keyboard,
+        parse_mode="HTML",
     )
