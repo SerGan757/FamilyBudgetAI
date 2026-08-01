@@ -113,6 +113,7 @@ async def delete_payment(
             return False
         await session.execute(
             delete(Transaction).where(
+                Transaction.family_id == family_id,
                 Transaction.recurring_payment_id == payment.id,
                 Transaction.recurring_period == current_period,
                 Transaction.is_recurring.is_(True),
@@ -159,8 +160,10 @@ async def update_payment(
         await session.execute(
             update(Transaction)
             .where(
+                Transaction.family_id == family_id,
                 Transaction.recurring_payment_id == payment.id,
                 Transaction.recurring_period == current_period,
+                Transaction.is_recurring.is_(True),
             )
             .values(
                 title=title,
@@ -185,9 +188,8 @@ async def get_generated_payment_ids(
 
         result = await session.execute(
             select(Transaction.recurring_payment_id)
-            .join(RecurringPayment)
             .where(
-                RecurringPayment.family_id == family_id,
+                Transaction.family_id == family_id,
                 Transaction.is_recurring.is_(True),
                 Transaction.recurring_period == period,
             )

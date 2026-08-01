@@ -12,7 +12,7 @@ from app.services.statistics_service import (
     get_month_statistics,
     get_today_statistics,
 )
-from app.services.user_service import get_user_by_telegram_id
+from app.services.family_context_service import require_family_for_chat
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.utils.navigation import show_back_keyboard
 
@@ -107,13 +107,11 @@ def format_today(
 
 @router.message(Command("today"))
 async def today(message: Message):
-    user = await get_user_by_telegram_id(message.from_user.id)
-    if user is None:
-        return
+    family = await require_family_for_chat(message.chat.id)
 
     selected_date = date.today()
     data = await get_today_statistics(
-        user.family_id,
+        family.id,
         selected_date=selected_date,
         offset=0,
         limit=LIMIT,
@@ -148,13 +146,10 @@ async def today_page(
         await callback.answer("Некорректная дата", show_alert=True)
         return
 
-    user = await get_user_by_telegram_id(callback.from_user.id)
-    if user is None:
-        await callback.answer("Пользователь не найден", show_alert=True)
-        return
+    family = await require_family_for_chat(callback.message.chat.id)
 
     data = await get_today_statistics(
-        user.family_id,
+        family.id,
         selected_date=selected_date,
         offset=offset,
         limit=LIMIT,
@@ -277,13 +272,11 @@ def month_keyboard(year: int, month: int, offset: int, total: int) -> InlineKeyb
 
 @router.message(Command("month"))
 async def month(message: Message):
-    user = await get_user_by_telegram_id(message.from_user.id)
-    if user is None:
-        return
+    family = await require_family_for_chat(message.chat.id)
 
     today = date.today()
     data = await get_month_statistics(
-        user.family_id,
+        family.id,
         year=today.year,
         month=today.month,
         offset=0,
@@ -324,13 +317,10 @@ async def month_page(
         await callback.answer("Некорректный месяц", show_alert=True)
         return
 
-    user = await get_user_by_telegram_id(callback.from_user.id)
-    if user is None:
-        await callback.answer("Пользователь не найден", show_alert=True)
-        return
+    family = await require_family_for_chat(callback.message.chat.id)
 
     data = await get_month_statistics(
-        user.family_id,
+        family.id,
         year=year,
         month=month,
         offset=offset,
@@ -356,11 +346,8 @@ async def month_page(
 
 @router.message(Command("balance"))
 async def balance(message: Message):
-    user = await get_user_by_telegram_id(message.from_user.id)
-    if user is None:
-        return
-
-    data = await get_balance(user.family_id)
+    family = await require_family_for_chat(message.chat.id)
+    data = await get_balance(family.id)
 
     text = (
         f"<b>💰 ТЕКУЩИЙ БАЛАНС</b>\n\n"
@@ -381,10 +368,8 @@ async def balance(message: Message):
 @router.message(Command("analytics"))
 async def analytics(message: Message, year: int | None = None, month: int | None = None, family_id: int | None = None):
     if family_id is None:
-        user = await get_user_by_telegram_id(message.from_user.id)
-        if user is None:
-            return
-        family_id = user.family_id
+        family = await require_family_for_chat(message.chat.id)
+        family_id = family.id
 
     months = [
         "",
@@ -486,9 +471,6 @@ async def analytics_page(callback: CallbackQuery):
     except ValueError:
         await callback.answer("Некорректный месяц", show_alert=True)
         return
-    user = await get_user_by_telegram_id(callback.from_user.id)
-    if user is None:
-        await callback.answer("Пользователь не найден", show_alert=True)
-        return
-    await analytics(callback.message, year, month, user.family_id)
+    family = await require_family_for_chat(callback.message.chat.id)
+    await analytics(callback.message, year, month, family.id)
     await callback.answer()

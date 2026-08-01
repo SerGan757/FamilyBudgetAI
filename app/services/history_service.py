@@ -5,7 +5,7 @@ from app.database.models import Transaction, User
 
 
 def _family_scope(family_id: int):
-    return Transaction.user.has(User.family_id == family_id)
+    return Transaction.family_id == family_id
 
 
 async def get_transactions_count(family_id: int):
@@ -33,7 +33,7 @@ async def get_last_transactions(
                 User,
                 Transaction.user_id == User.id,
             )
-            .where(User.family_id == family_id)
+            .where(Transaction.family_id == family_id)
             .order_by(
                 desc(Transaction.id)
             )
@@ -70,7 +70,7 @@ async def get_transactions_by_category(
                 Transaction.user_id == User.id,
             )
             .where(
-                User.family_id == family_id,
+                Transaction.family_id == family_id,
                 Transaction.category == category
             )
             .order_by(
@@ -109,7 +109,7 @@ async def get_transactions_by_type(
                 Transaction.user_id == User.id,
             )
             .where(
-                User.family_id == family_id,
+                Transaction.family_id == family_id,
                 Transaction.type == transaction_type
             )
             .order_by(

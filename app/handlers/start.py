@@ -7,7 +7,9 @@ from app.handlers.user_states import RegistrationState
 from app.keyboards.main_menu import main_menu
 from app.services.family_context_service import (
     FamilyContextConflictError,
+    FamilyContextNotFoundError,
     get_or_create_family_for_chat,
+    require_family_for_chat,
 )
 from app.services.user_service import (
     create_user,
@@ -97,7 +99,10 @@ async def cmd_start(
     await state.set_state(
         RegistrationState.waiting_for_name
     )
-    await state.update_data(registration_family_id=family.id)
+    await state.update_data(
+        registration_family_id=family.id,
+        registration_chat_id=chat_id,
+    )
 
     await message.answer(
         "👋 Добро пожаловать!\n\n"
@@ -125,16 +130,22 @@ async def registration_name(
 
     data = await state.get_data()
     family_id = data.get("registration_family_id")
-    if family_id is None:
-        chat_title = message.chat.title or f"Личный бюджет {message.from_user.full_name}"
-        try:
-            family = await get_or_create_family_for_chat(message.chat.id, chat_title)
-        except FamilyContextConflictError:
-            await message.answer(
-                "⚠️ Для этого чата требуется явная привязка существующей семьи."
-            )
-            return
-        family_id = family.id
+    registration_chat_id = data.get("registration_chat_id")
+    try:
+        family = await require_family_for_chat(message.chat.id)
+    except FamilyContextNotFoundError:
+        await state.clear()
+        await message.answer("Регистрация была начата в другом чате. Начните заново.")
+        return
+
+    if (
+        registration_chat_id != message.chat.id
+        or family_id is None
+        or family.id != family_id
+    ):
+        await state.clear()
+        await message.answer("Регистрация была начата в другом чате. Начните заново.")
+        return
 
     await create_user(
         telegram_id=message.from_user.id,

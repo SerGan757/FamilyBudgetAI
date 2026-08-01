@@ -14,6 +14,7 @@ from app.services.recurring_manager import (
     update_payment,
     get_month_recurring_transactions,
 )
+from app.services.family_context_service import require_family_for_chat
 from app.utils.fsm import cancel_state
 
 router = Router()
@@ -38,7 +39,29 @@ recurring_keyboard = ReplyKeyboardMarkup(
     is_persistent=True,
 )
 
+
+async def _validate_recurring_fsm_family(
+    message: Message,
+    state: FSMContext,
+):
+    """Ensure an add/edit scenario cannot be continued from another chat."""
+    data = await state.get_data()
+    family = await require_family_for_chat(message.chat.id)
+    if (
+        data.get("recurring_chat_id") != message.chat.id
+        or data.get("recurring_family_id") != family.id
+    ):
+        await state.clear()
+        await message.answer(
+            "Сценарий был начат в другом чате. Начните действие заново.",
+            reply_markup=recurring_keyboard,
+        )
+        return None
+    return family
+
 async def recurring_menu(message: Message):
+
+    await require_family_for_chat(message.chat.id)
 
     await message.answer(
         "<b>🔁 Регулярные платежи</b>\n\n"
@@ -62,8 +85,9 @@ async def back_to_main(message: Message, state: FSMContext):
 async def add_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
+    family = await require_family_for_chat(message.chat.id)
 
-    payments = await list_payments(message.from_user.id)
+    payments = await list_payments(family.id)
     expense_text = ""
     income_text = ""
 
@@ -138,9 +162,11 @@ async def add_template(message: Message, state: FSMContext):
         "<pre>Аренда 1300</pre>"
     )
 
-    await state.set_state(
-        RecurringState.waiting_for_payment
+    await state.update_data(
+        recurring_family_id=family.id,
+        recurring_chat_id=message.chat.id,
     )
+    await state.set_state(RecurringState.waiting_for_payment)
 
     await message.answer(
         text,
@@ -164,9 +190,13 @@ async def add_template(message: Message, state: FSMContext):
 )
 async def save_template(message: Message, state: FSMContext):
 
+    family = await _validate_recurring_fsm_family(message, state)
+    if family is None:
+        return
+
     payment = await create_payment(
+        family.id,
         message.text,
-        message.from_user.id,
     )
 
     if payment is None:
@@ -194,9 +224,10 @@ async def month_recurring(message: Message, state: FSMContext):
     from datetime import date
 
     await cancel_state(state)
+    family = await require_family_for_chat(message.chat.id)
 
     transactions = await get_month_recurring_transactions(
-        message.from_user.id
+        family.id
     )
 
     months = [
@@ -306,8 +337,9 @@ async def month_recurring(message: Message, state: FSMContext):
 async def delete_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
+    family = await require_family_for_chat(message.chat.id)
 
-    payments = await list_payments(message.from_user.id)
+    payments = await list_payments(family.id)
 
     if not payments:
         await message.answer(
@@ -327,7 +359,8 @@ async def delete_template(message: Message, state: FSMContext):
 async def delete_template_callback(callback: CallbackQuery):
 
     payment_id = int(callback.data.split(":", maxsplit=1)[1])
-    deleted = await remove_payment(payment_id, callback.from_user.id)
+    family = await require_family_for_chat(callback.message.chat.id)
+    deleted = await remove_payment(family.id, payment_id)
 
     if deleted:
         await callback.message.edit_text("✅ Шаблон удалён")
@@ -341,8 +374,9 @@ async def delete_template_callback(callback: CallbackQuery):
 async def edit_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
+    family = await require_family_for_chat(message.chat.id)
 
-    payments = await list_payments(message.from_user.id)
+    payments = await list_payments(family.id)
 
     if not payments:
         await message.answer(
@@ -361,6 +395,10 @@ async def edit_template(message: Message, state: FSMContext):
 
     text += "\nВведите ID и новые данные.\n\n<pre>12 Интернет 55</pre>"
 
+    await state.update_data(
+        recurring_family_id=family.id,
+        recurring_chat_id=message.chat.id,
+    )
     await state.set_state(RecurringState.waiting_for_edit_payment)
 
     await message.answer(
@@ -372,6 +410,10 @@ async def edit_template(message: Message, state: FSMContext):
 @router.message(RecurringState.waiting_for_edit_payment)
 async def save_edited_template(message: Message, state: FSMContext):
 
+    family = await _validate_recurring_fsm_family(message, state)
+    if family is None:
+        return
+
     parts = message.text.split(maxsplit=1)
 
     if len(parts) != 2 or not parts[0].isdigit():
@@ -382,9 +424,9 @@ async def save_edited_template(message: Message, state: FSMContext):
         return
 
     payment = await update_payment(
+        family.id,
         int(parts[0]),
         parts[1],
-        message.from_user.id,
     )
 
     if payment is None:
@@ -409,8 +451,9 @@ async def create_month(message: Message, state: FSMContext):
     from datetime import date
 
     await cancel_state(state)
+    family = await require_family_for_chat(message.chat.id)
 
-    result = await create_month_transactions(message.from_user.id)
+    result = await create_month_transactions(family.id, message.from_user.id)
 
     months = [
         "",

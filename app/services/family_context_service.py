@@ -16,6 +16,10 @@ class FamilyContextConflictError(RuntimeError):
     """Raised when legacy families cannot be safely mapped to one chat."""
 
 
+class FamilyContextNotFoundError(RuntimeError):
+    """Raised when a financial request arrives from an unbound chat."""
+
+
 def _invite_code() -> str:
     alphabet = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(12))
@@ -30,6 +34,14 @@ async def get_family_by_chat_id(chat_id: int) -> Family | None:
         if family is not None:
             logger.info("FAMILY_CONTEXT_FOUND chat_id=%s", chat_id)
         return family
+
+
+async def require_family_for_chat(chat_id: int) -> Family:
+    """Read-only context lookup for financial handlers; never creates a family."""
+    family = await get_family_by_chat_id(chat_id)
+    if family is None:
+        raise FamilyContextNotFoundError("The Telegram chat is not bound to a family.")
+    return family
 
 
 async def bind_legacy_family_to_chat(

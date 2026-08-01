@@ -11,6 +11,7 @@ from app.services.user_service import get_user_by_telegram_id
 async def save_transaction(
     text: str,
     telegram_id: int,
+    family_id: int,
 ):
 
     parsed = parse_message(text)
@@ -22,9 +23,12 @@ async def save_transaction(
 
     if user is None:
         return "USER_NOT_FOUND"
+    if user.family_id != family_id:
+        return "USER_FAMILY_MISMATCH"
 
     transaction = await create_transaction(
         user_id=user.id,
+        family_id=family_id,
         title=parsed["title"],
         amount=parsed["amount"],
         transaction_type=parsed["type"],
@@ -36,6 +40,7 @@ async def save_transaction(
 
 async def create_transaction(
     user_id: int,
+    family_id: int,
     title: str,
     amount: float,
     transaction_type: str = "expense",
@@ -49,6 +54,7 @@ async def create_transaction(
 
         transaction = Transaction(
             user_id=user_id,
+            family_id=family_id,
             title=title,
             amount=amount,
             type=transaction_type,
@@ -96,13 +102,14 @@ async def update_recurring_transaction(
         return db_transaction        
 
 
-async def get_transaction(transaction_id: int):
+async def get_transaction(transaction_id: int, family_id: int):
 
     async with SessionLocal() as session:
 
         result = await session.execute(
             select(Transaction).where(
-                Transaction.id == transaction_id
+                Transaction.id == transaction_id,
+                Transaction.family_id == family_id,
             )
         )
 

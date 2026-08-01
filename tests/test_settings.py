@@ -13,6 +13,7 @@ class Message:
     def __init__(self, text="⚙️ Настройки"):
         self.text = text
         self.from_user = SimpleNamespace(id=1)
+        self.chat = SimpleNamespace(id=100)
         self.answers = []
 
     async def answer(self, text, **kwargs):
@@ -30,17 +31,25 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
         message = Message()
         data = {"id": 3, "name": "<Family>", "created_at": datetime(2026, 7, 17),
                 "members_count": 5, "transactions_count": 328, "recurring_count": 21}
-        with patch.object(settings, "get_family_settings_data", AsyncMock(return_value=data)):
+        family = SimpleNamespace(id=3)
+        with patch.object(settings, "require_family_for_chat", AsyncMock(return_value=family)) as require_family, \
+             patch.object(settings, "get_family_settings_data", AsyncMock(return_value=data)) as get_data:
             await settings.open_settings(message)
         self.assertIn("&lt;Family&gt;", message.answers[0][0])
         self.assertEqual(message.answers[0][1]["reply_markup"], settings_menu)
+        require_family.assert_awaited_once_with(100)
+        get_data.assert_awaited_once_with(3)
 
     async def test_members_and_about(self):
         message = Message("👥 Участники")
-        with patch.object(settings, "get_family_members", AsyncMock(return_value=[SimpleNamespace(name="<Ann>")])):
+        family = SimpleNamespace(id=3)
+        with patch.object(settings, "require_family_for_chat", AsyncMock(return_value=family)) as require_family, \
+             patch.object(settings, "get_family_members", AsyncMock(return_value=[SimpleNamespace(name="<Ann>")])) as get_members:
             await settings.members(message)
         self.assertIn("&lt;Ann&gt;", message.answers[0][0])
         self.assertEqual(message.answers[0][1]["reply_markup"], settings_menu)
+        require_family.assert_awaited_once_with(100)
+        get_members.assert_awaited_once_with(3)
 
         about = Message("ℹ️ О программе")
         await settings.about(about)

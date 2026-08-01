@@ -43,10 +43,7 @@ class RecurringDeleteTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session.deleted, [])
         self.assertEqual(len(session.queries), 1)
 
-    async def test_manager_passes_current_users_family(self):
-        user = SimpleNamespace(family_id=3)
-        with patch.object(recurring_manager, "get_user_by_telegram_id", AsyncMock(return_value=user)), \
-             patch.object(recurring_manager, "delete_payment", AsyncMock(return_value=True)) as delete:
-            self.assertTrue(await recurring_manager.remove_payment(12, 99))
+    async def test_manager_passes_explicit_family(self):
+        with patch.object(recurring_manager, "delete_payment", AsyncMock(return_value=True)) as delete:
+            self.assertTrue(await recurring_manager.remove_payment(3, 12))
         delete.assert_awaited_once_with(12, 3)
-

@@ -28,7 +28,7 @@ async def _sum(
         query = (
             select(Transaction)
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.type == transaction_type
             )
         )
@@ -106,7 +106,7 @@ async def get_today_statistics(
             select(func.count())
             .select_from(Transaction)
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= today,
                 Transaction.created_at < tomorrow,
             )
@@ -118,7 +118,7 @@ async def get_today_statistics(
             select(func.count())
             .select_from(Transaction)
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= today,
                 Transaction.created_at < tomorrow,
                 Transaction.is_recurring.is_(True),
@@ -132,7 +132,7 @@ async def get_today_statistics(
                 selectinload(Transaction.user)
             )
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= today,
                 Transaction.created_at < tomorrow,
             )
@@ -197,7 +197,7 @@ async def get_month_statistics(
             select(func.count())
             .select_from(Transaction)
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
             )
@@ -209,7 +209,7 @@ async def get_month_statistics(
             select(func.count())
             .select_from(Transaction)
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
                 Transaction.is_recurring.is_(True),
@@ -219,7 +219,7 @@ async def get_month_statistics(
         recurring_income_count = recurring_income_count_result.scalar() or 0
         recurring_expense_count_result = await session.execute(
             select(func.count()).select_from(Transaction).where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
                 Transaction.is_recurring.is_(True),
@@ -234,7 +234,7 @@ async def get_month_statistics(
                 selectinload(Transaction.user)
             )
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
             )
@@ -287,7 +287,7 @@ async def get_balance(family_id: int):
     async with SessionLocal() as session:
         result = await session.execute(
             select(Transaction).where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
             )
@@ -354,7 +354,7 @@ async def get_month_transactions(family_id: int, year: int | None = None, month:
                 selectinload(Transaction.user)
             )
             .where(
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
                 Transaction.created_at < next_month,
             )

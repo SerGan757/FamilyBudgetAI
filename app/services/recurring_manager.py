@@ -1,32 +1,32 @@
 from datetime import date
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from app.database.db import SessionLocal
+from app.database.models import Transaction
+from app.services.expense_service import create_transaction
 from app.services.parser import parse_message
 from app.services.recurring_service import (
     add_payment,
-    get_payments,
     delete_payment,
-    get_generated_payment_ids,
+    get_payments,
     update_payment as update_payment_in_db,
 )
-from app.services.expense_service import create_transaction
-from app.services.user_service import get_user_by_telegram_id
-from app.database.models import Transaction, User
 
 
-async def create_payment(text: str, telegram_id: int):
+def _month_period(target_date: date | None = None) -> date:
+    return (target_date or date.today()).replace(day=1)
 
+
+async def create_payment(family_id: int, text: str):
+    """Create a recurring template in the explicitly supplied family."""
     parsed = parse_message(text)
-
     if parsed is None:
         return None
 
-    user = await get_user_by_telegram_id(telegram_id)
-
-    if user is None:
-        return None
-
     return await add_payment(
-        family_id=user.family_id,
+        family_id=family_id,
         title=parsed["title"],
         amount=parsed["amount"],
         transaction_type=parsed["type"],
@@ -34,42 +34,22 @@ async def create_payment(text: str, telegram_id: int):
     )
 
 
-async def list_payments(telegram_id: int):
-    user = await get_user_by_telegram_id(telegram_id)
-
-    if user is None:
-        return []
-
-    return await get_payments(user.family_id, active_only=True)
+async def list_payments(family_id: int):
+    return await get_payments(family_id, active_only=True)
 
 
-async def remove_payment(payment_id: int, telegram_id: int):
-    user = await get_user_by_telegram_id(telegram_id)
-
-    if user is None:
-        return False
-
-    return await delete_payment(payment_id, user.family_id)
+async def remove_payment(family_id: int, payment_id: int):
+    return await delete_payment(payment_id, family_id)
 
 
-async def update_payment(
-    payment_id: int,
-    text: str,
-    telegram_id: int,
-):
+async def update_payment(family_id: int, payment_id: int, text: str):
     parsed = parse_message(text)
-
     if parsed is None:
-        return None
-
-    user = await get_user_by_telegram_id(telegram_id)
-
-    if user is None:
         return None
 
     return await update_payment_in_db(
         payment_id=payment_id,
-        family_id=user.family_id,
+        family_id=family_id,
         title=parsed["title"],
         amount=parsed["amount"],
         transaction_type=parsed["type"],
@@ -77,81 +57,81 @@ async def update_payment(
     )
 
 
-async def create_month_transactions(telegram_id: int):
-    from sqlalchemy import select
+async def create_month_transactions(
+    family_id: int,
+    user_id: int,
+    target_date: date | None = None,
+):
+    """Materialize this family's active templates for one calendar month.
 
-    from app.database.db import SessionLocal
-    from app.database.models import Transaction, User
-    from app.services.expense_service import (
-        create_transaction,
-        update_recurring_transaction,
-    )
-
-    user = await get_user_by_telegram_id(telegram_id)
-
-    if user is None:
-        return {
-            "created": 0,
-            "updated": 0,
-            "unchanged": 0,
-            "details": [],
-        }
-
-    period = date.today().replace(day=1)
-
-    payments = await get_payments(
-        user.family_id,
-        active_only=True,
-    )
-
-    created = 0
-    updated = 0
-    unchanged = 0
-    details = []
+    The exact (family, template, period) lookup makes repeated generation
+    idempotent even when similarly numbered templates exist in another family.
+    """
+    period = _month_period(target_date)
+    payments = await get_payments(family_id, active_only=True)
+    created = updated = unchanged = 0
+    details: list[dict[str, object]] = []
 
     for payment in payments:
         async with SessionLocal() as session:
             result = await session.execute(
                 select(Transaction).where(
+                    Transaction.family_id == family_id,
                     Transaction.recurring_payment_id == payment.id,
                     Transaction.recurring_period == period,
                 )
             )
             transaction = result.scalar_one_or_none()
 
-        if transaction is None:
-            await create_transaction(
-                user_id=user.id,
-                title=payment.title,
-                amount=payment.amount,
-                transaction_type=payment.type,
-                category=payment.category,
-                is_recurring=True,
-                recurring_payment_id=payment.id,
-                recurring_period=period,
-            )
-            created += 1
-            details.append({"title": payment.title, "amount": payment.amount, "type": payment.type, "status": "created"})
-            continue
+            if transaction is not None:
+                changed = (
+                    transaction.title != payment.title
+                    or transaction.amount != payment.amount
+                    or transaction.type != payment.type
+                    or transaction.category != payment.category
+                )
+                if changed:
+                    transaction.title = payment.title
+                    transaction.amount = payment.amount
+                    transaction.type = payment.type
+                    transaction.category = payment.category
+                    await session.commit()
+                    updated += 1
+                    status = "updated"
+                else:
+                    unchanged += 1
+                    status = "unchanged"
 
-        if (
-            transaction.title != payment.title
-            or transaction.amount != payment.amount
-            or transaction.type != payment.type
-            or transaction.category != payment.category
-        ):
-            await update_recurring_transaction(
-                transaction=transaction,
-                title=payment.title,
-                amount=payment.amount,
-                transaction_type=payment.type,
-                category=payment.category,
-            )
-            updated += 1
-            details.append({"title": payment.title, "amount": payment.amount, "type": payment.type, "status": "updated"})
-        else:
-            unchanged += 1
-            details.append({"title": payment.title, "amount": payment.amount, "type": payment.type, "status": "unchanged"})
+                details.append(
+                    {
+                        "title": payment.title,
+                        "amount": payment.amount,
+                        "type": payment.type,
+                        "status": status,
+                    }
+                )
+                continue
+
+        await create_transaction(
+            user_id=user_id,
+            family_id=family_id,
+            title=payment.title,
+            amount=payment.amount,
+            transaction_type=payment.type,
+            category=payment.category,
+            is_recurring=True,
+            recurring_payment_id=payment.id,
+            recurring_period=period,
+        )
+        created += 1
+        details.append(
+            {
+                "title": payment.title,
+                "amount": payment.amount,
+                "type": payment.type,
+                "status": "created",
+            }
+        )
 
     return {
         "created": created,
@@ -160,46 +140,22 @@ async def create_month_transactions(telegram_id: int):
         "details": details,
     }
 
-from datetime import date
 
-from sqlalchemy import extract, select
-from sqlalchemy.orm import selectinload
-
-from app.database.db import SessionLocal
-from app.database.models import Transaction, User
-
-
-async def get_month_recurring_transactions(telegram_id: int):
-
-    from datetime import date
-
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
-
-    user = await get_user_by_telegram_id(telegram_id)
-
-    if user is None:
-        return []
-
-    period = date.today().replace(day=1)
-
+async def get_month_recurring_transactions(
+    family_id: int,
+    target_date: date | None = None,
+):
+    period = _month_period(target_date)
     async with SessionLocal() as session:
-
         result = await session.execute(
             select(Transaction)
-            .options(
-                selectinload(Transaction.user)
-            )
-            .join(Transaction.user)
+            .options(selectinload(Transaction.user))
             .where(
+                Transaction.family_id == family_id,
                 Transaction.is_recurring.is_(True),
                 Transaction.recurring_period == period,
                 Transaction.recurring_payment_id.is_not(None),
-                User.family_id == user.family_id,
             )
-            .order_by(
-                Transaction.title
-            )
+            .order_by(Transaction.title)
         )
-
         return result.scalars().all()

@@ -5,6 +5,7 @@ from aiogram.types import Message
 from app.handlers.user_states import RegistrationState
 from app.keyboards.main_menu import main_menu
 from app.services.expense_service import save_transaction
+from app.services.family_context_service import require_family_for_chat
 from app.services.user_service import create_user
 
 
@@ -24,10 +25,17 @@ async def finish_group_registration(
     data = await state.get_data()
     pending_operation_text = data.get("pending_operation_text")
     family_id = data.get("registration_family_id")
+    registration_chat_id = data.get("registration_chat_id")
     telegram_id = message.from_user.id
 
-    if family_id is None:
-        await message.answer("⚠️ Не удалось определить семью для регистрации.")
+    family = await require_family_for_chat(message.chat.id)
+    if (
+        family_id is None
+        or registration_chat_id != message.chat.id
+        or family.id != family_id
+    ):
+        await state.clear()
+        await message.answer("Регистрация была начата в другом чате. Начните заново.")
         return
 
     await create_user(
@@ -54,7 +62,7 @@ async def finish_group_registration(
         if not line:
             continue
 
-        result = await save_transaction(line, telegram_id)
+        result = await save_transaction(line, telegram_id, family_id)
         if isinstance(result, str):
             failed.append(line)
             continue

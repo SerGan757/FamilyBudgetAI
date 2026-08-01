@@ -8,13 +8,15 @@ from app.constants import APP_VERSION
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.keyboards.settings_menu import settings_menu
 from app.services.settings_service import get_family_members, get_family_settings_data
+from app.services.family_context_service import require_family_for_chat
 
 
 router = Router()
 
 
 async def _get_data_or_show_error(message: Message):
-    data = await get_family_settings_data(message.from_user.id)
+    family = await require_family_for_chat(message.chat.id)
+    data = await get_family_settings_data(family.id)
     if data is None:
         await message.answer(
             "⚠️ Не удалось найти пользователя или его семью.",
@@ -62,7 +64,8 @@ async def family_info(message: Message):
 
 @router.message(StateFilter(None), F.text == "👥 Участники")
 async def members(message: Message):
-    family_members = await get_family_members(message.from_user.id)
+    family = await require_family_for_chat(message.chat.id)
+    family_members = await get_family_members(family.id)
     if family_members is None:
         await message.answer(
             "⚠️ Не удалось найти пользователя или его семью.",

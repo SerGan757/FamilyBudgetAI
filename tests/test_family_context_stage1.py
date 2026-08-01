@@ -41,4 +41,7 @@ class StartContextTests(unittest.IsolatedAsyncioTestCase):
             await start.cmd_start(message, state)
 
         state.set_state.assert_awaited_once_with(RegistrationState.waiting_for_name)
-        state.update_data.assert_awaited_once_with(registration_family_id=4)
+        state.update_data.assert_awaited_once_with(
+            registration_family_id=4,
+            registration_chat_id=-100123,
+        )

@@ -9,7 +9,7 @@ async def get_balance(family_id: int):
     async with SessionLocal() as session:
 
         result = await session.execute(
-            select(Transaction).where(Transaction.user.has(User.family_id == family_id))
+            select(Transaction).where(Transaction.family_id == family_id)
         )
 
         transactions = result.scalars().all()

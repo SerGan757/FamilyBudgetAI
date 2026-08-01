@@ -9,7 +9,7 @@ from app.services.history_service import (
     get_last_transactions,
     get_transactions_count,
 )
-from app.services.user_service import get_user_by_telegram_id
+from app.services.family_context_service import require_family_for_chat
 from app.utils.navigation import show_back_keyboard
 
 router = Router()
@@ -95,14 +95,11 @@ async def build_history_text(family_id: int, offset: int = 0):
 
 @router.message(Command("history"))
 async def history(message: Message):
-    user = await get_user_by_telegram_id(message.from_user.id)
-    if user is None:
-        return
-
-    total = await get_transactions_count(user.family_id)
+    family = await require_family_for_chat(message.chat.id)
+    total = await get_transactions_count(family.id)
 
     await message.answer(
-        await build_history_text(user.family_id, 0),
+        await build_history_text(family.id, 0),
         reply_markup=pagination_keyboard(
             prefix="history",
             offset=0,
@@ -124,15 +121,11 @@ async def history_page(
         callback.data.split(":")[1]
     )
 
-    user = await get_user_by_telegram_id(callback.from_user.id)
-    if user is None:
-        await callback.answer("Пользователь не найден", show_alert=True)
-        return
-
-    total = await get_transactions_count(user.family_id)
+    family = await require_family_for_chat(callback.message.chat.id)
+    total = await get_transactions_count(family.id)
 
     await callback.message.edit_text(
-        await build_history_text(user.family_id, offset),
+        await build_history_text(family.id, offset),
         reply_markup=pagination_keyboard(
             prefix="history",
             offset=offset,

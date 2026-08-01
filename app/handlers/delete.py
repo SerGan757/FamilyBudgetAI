@@ -12,7 +12,7 @@ from app.services.delete_service import (
 from app.services.history_service import get_last_transactions
 from app.handlers.user_states import DeleteState
 from app.keyboards.main_menu import back_to_main_menu_keyboard
-from app.services.user_service import get_user_by_telegram_id
+from app.services.family_context_service import require_family_for_chat
 
 router = Router()
 
@@ -86,10 +86,7 @@ async def delete(message: Message, state: FSMContext):
 @router.message(DeleteState.waiting_for_ids, F.text.regexp(r"^[\d,\s]+$"))
 async def delete_multiple(message: Message, state: FSMContext):
 
-    user = await get_user_by_telegram_id(message.from_user.id)
-    if user is None:
-        await state.clear()
-        return
+    family = await require_family_for_chat(message.chat.id)
 
     await state.clear()
 
@@ -110,7 +107,7 @@ async def delete_multiple(message: Message, state: FSMContext):
     if not ids:
         return
 
-    deleted = await delete_transactions_by_ids(ids, user.family_id)
+    deleted = await delete_transactions_by_ids(ids, family.id)
 
     if not deleted:
         await message.answer(
@@ -135,7 +132,7 @@ async def delete_multiple(message: Message, state: FSMContext):
         reply_markup=back_to_main_menu_keyboard,
     )
 
-    transactions = await get_last_transactions(user.family_id)
+    transactions = await get_last_transactions(family.id)
 
     if transactions:
 
@@ -166,12 +163,8 @@ async def history_delete_callback(
         callback.data.split(":")[1]
     )
 
-    user = await get_user_by_telegram_id(callback.from_user.id)
-    if user is None:
-        await callback.answer("Пользователь не найден", show_alert=True)
-        return
-
-    transaction = await delete_transaction_by_id(transaction_id, user.family_id)
+    family = await require_family_for_chat(callback.message.chat.id)
+    transaction = await delete_transaction_by_id(transaction_id, family.id)
 
     if transaction is None:
 

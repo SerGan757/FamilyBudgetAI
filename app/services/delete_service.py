@@ -24,7 +24,7 @@ async def delete_last_transaction(family_id: int):
     async with SessionLocal() as session:
 
         result = await session.execute(
-            select(Transaction).where(Transaction.user.has(User.family_id == family_id))
+            select(Transaction).where(Transaction.family_id == family_id)
             .order_by(desc(Transaction.id))
             .limit(1)
         )
@@ -47,7 +47,7 @@ async def delete_transaction_by_id(transaction_id: int, family_id: int):
         result = await session.execute(
             select(Transaction).where(
                 Transaction.id == transaction_id,
-                Transaction.user.has(User.family_id == family_id),
+                Transaction.family_id == family_id,
             )
         )
 
