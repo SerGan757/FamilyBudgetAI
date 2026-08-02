@@ -91,7 +91,7 @@ class User(Base):
     )
 
     telegram_id: Mapped[int] = mapped_column(
-        Integer,
+        BigInteger,
         unique=True,
         nullable=False,
         index=True,
