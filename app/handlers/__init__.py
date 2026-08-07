@@ -1,3 +1,4 @@
+from .admin import router as admin_router
 from .start import router as start_router
 from .registration import router as registration_router
 from .menu import router as menu_router
@@ -10,6 +11,7 @@ from .settings import router as settings_router
 
 
 routers = (
+    admin_router,
     start_router,
     registration_router,
     recurring_router,
