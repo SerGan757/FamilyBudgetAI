@@ -56,6 +56,9 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         text = event.message.edit_text.await_args.args[0]
         self.assertIn("📊 <b>Аналитика • Июль 2026</b>", text)
         self.assertIn("🏷 <b>Проекты</b>", text)
+        self.assertIn("📅 До конца месяца: 0 дней", text)
+        self.assertIn("⏳ Прошло месяца: 100%", text)
+        self.assertIn("📈 Прогноз расходов: 40.00 €", text)
         keyboard = event.message.edit_text.await_args.kwargs["reply_markup"]
         callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
         self.assertEqual(callbacks, ["analytics:2026:06", "analytics:2026:08"])
@@ -65,6 +68,11 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         event.message.edit_text.assert_awaited_once()
         event.message.answer.assert_not_awaited()
         event.answer.assert_awaited_once_with()
+        text = event.message.edit_text.await_args.args[0]
+        self.assertIn("📅 До конца месяца: 30 дней", text)
+        self.assertIn("⏳ Прошло месяца: 0%", text)
+        self.assertNotIn("📈 Прогноз расходов:", text)
+        self.assertIn("🏷 <b>Проекты</b>", text)
 
     async def test_message_not_modified_is_safe_and_callback_is_answered(self):
         event = callback("analytics:2026:08")

@@ -13,6 +13,7 @@ from app.services.statistics_service import (
     get_month_statistics,
     get_today_statistics,
 )
+from app.services.analytics_forecast import calculate_analytics_forecast
 from app.services.family_context_service import require_family_for_chat
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.utils.navigation import answer_with_navigation
@@ -396,6 +397,35 @@ async def analytics(
     today = date.today()
     year, month = year or today.year, month or today.month
     data = await get_analytics(family_id, year, month)
+    total_income = data["ordinary_income"] + data["recurring_income"]
+    total_expenses = data["ordinary_expense"] + data["recurring_expense"]
+    forecast = calculate_analytics_forecast(
+        year, month, total_income, total_expenses,
+    )
+
+    forecast_lines = [
+        f"📅 До конца месяца: {forecast.days_remaining} дней",
+        f"⏳ Прошло месяца: {forecast.elapsed_percent}%",
+    ]
+    if forecast.spent_percent is not None:
+        forecast_lines.append(f"💸 Потрачено бюджета: {forecast.spent_percent}%")
+    if forecast.forecast_expenses is not None:
+        forecast_lines.append(
+            f"📈 Прогноз расходов: {money(forecast.forecast_expenses)}"
+        )
+    if forecast.forecast_balance is not None:
+        forecast_lines.append(
+            f"💎 Прогноз остатка: {money(forecast.forecast_balance)}"
+        )
+    if forecast.pace_delta is not None:
+        if forecast.pace_delta > 2:
+            pace = f"⚖️ Темп: выше плана на {forecast.pace_delta}%"
+        elif forecast.pace_delta < -2:
+            pace = f"✅ Темп: экономия {abs(forecast.pace_delta)}%"
+        else:
+            pace = "⚖️ Темп: по плану"
+        forecast_lines.append(pace)
+    forecast_text = "\n".join(forecast_lines)
 
     text = (
         f"📊 <b>Аналитика • {months[month]} {year}</b>\n\n"
@@ -405,6 +435,7 @@ async def analytics(
         f"🔁 Регулярные доходы: <b>{money(data['recurring_income'])}/мес ({data['recurring_income_count']})</b>\n"
         f"🔁 Регулярные расходы: <b>{money(data['recurring_expense'])}/мес ({data['recurring_expense_count']})</b>\n\n"
         f"💎 Остаток месяца: <b>{money(data['balance'])}</b>\n\n"
+        f"{forecast_text}\n\n"
 
         f"📋 Операций: <b>{data['operations']}</b>\n"
         f"🧾 Средний чек: <b>{money(data['average_check'])}</b>\n"

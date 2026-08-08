@@ -10,7 +10,8 @@ class Message:
     def __init__(self):
         self.chat = SimpleNamespace(id=100)
         self.answer = AsyncMock()
-        self.sent = SimpleNamespace(edit_reply_markup=AsyncMock())
+        self.bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
+        self.sent = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=55)
         self.answer.return_value = self.sent
 
 
@@ -44,13 +45,13 @@ class SingleMessageNavigationTests(unittest.IsolatedAsyncioTestCase):
             await statistics.balance(message)
         message.answer.assert_awaited_once()
         self.assertIs(message.answer.await_args.kwargs["reply_markup"], back_to_main_menu_keyboard)
-        message.sent.edit_reply_markup.assert_not_awaited()
+        message.bot.edit_message_reply_markup.assert_not_awaited()
 
     async def test_history_sends_one_useful_message_and_keeps_both_keyboards(self):
         message = Message()
         with patch.object(
             history, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1)),
-        ), patch.object(history, "get_transactions_count", AsyncMock(return_value=0)), \
+        ), patch.object(history, "get_transactions_count", AsyncMock(return_value=25)), \
              patch.object(history, "build_history_text", AsyncMock(return_value="📋 История пуста.")):
             await history.history(message)
         self._assert_one_message_with_navigation(message, "История")
@@ -83,9 +84,17 @@ class SingleMessageNavigationTests(unittest.IsolatedAsyncioTestCase):
     def _assert_one_message_with_navigation(self, message, expected_text):
         message.answer.assert_awaited_once()
         self.assertIn(expected_text, message.answer.await_args.args[0])
-        self.assertIs(message.answer.await_args.kwargs["reply_markup"], back_to_main_menu_keyboard)
-        inline = message.sent.edit_reply_markup.await_args.kwargs["reply_markup"]
-        self.assertIsNotNone(inline.inline_keyboard)
+        self.assertNotIn("\u2063", message.answer.await_args.args[0])
+        inline = message.answer.await_args.kwargs["reply_markup"]
+        self.assertTrue(inline.inline_keyboard)
+        callbacks = [
+            button.callback_data
+            for row in inline.inline_keyboard
+            for button in row
+        ]
+        self.assertTrue(callbacks)
+        self.assertTrue(all(callbacks))
+        message.bot.edit_message_reply_markup.assert_not_awaited()
 
 
 if __name__ == "__main__":

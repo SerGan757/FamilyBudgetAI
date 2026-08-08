@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app.handlers import menu, statistics
-from app.keyboards.main_menu import back_to_main_menu_keyboard, main_menu
+from app.keyboards.main_menu import main_menu
 
 
 class _Message:
@@ -12,7 +12,8 @@ class _Message:
         self.from_user = SimpleNamespace(id=1)
         self.chat = SimpleNamespace(id=100)
         self.answers = []
-        self.sent = SimpleNamespace(edit_reply_markup=AsyncMock())
+        self.bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
+        self.sent = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=55)
 
     async def answer(self, text, **kwargs):
         self.answers.append((text, kwargs))
@@ -48,9 +49,12 @@ class MonthButtonTests(unittest.IsolatedAsyncioTestCase):
         report, report_kwargs = message.answers[0]
         self.assertIn("Регулярные расходы", report)
         self.assertNotEqual(report, "Главное меню")
-        self.assertEqual(report_kwargs["reply_markup"], back_to_main_menu_keyboard)
-        inline = message.sent.edit_reply_markup.await_args.kwargs["reply_markup"]
+        inline = report_kwargs["reply_markup"]
         self.assertTrue(inline.inline_keyboard)
+        callbacks = [button.callback_data for row in inline.inline_keyboard for button in row]
+        self.assertTrue(callbacks)
+        self.assertTrue(all(callbacks))
+        message.bot.edit_message_reply_markup.assert_not_awaited()
         require_family.assert_awaited_once_with(100)
         self.assertEqual(get_month.await_args.args[0], 3)
 
