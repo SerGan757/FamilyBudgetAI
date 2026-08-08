@@ -27,7 +27,10 @@ router = Router()
 
 
 async def _get_data_or_show_error(message: Message):
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
     data = await get_family_settings_data(family.id)
     if data is None:
         await message.answer(
@@ -247,7 +250,10 @@ async def family_info(message: Message):
 
 @router.message(StateFilter(None), F.text == "👥 Участники")
 async def members(message: Message):
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
     family_members = await get_family_members(family.id)
     if family_members is None:
         await message.answer(

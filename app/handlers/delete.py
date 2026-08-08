@@ -90,7 +90,10 @@ async def delete(message: Message, state: FSMContext):
 @router.message(DeleteState.waiting_for_ids, F.text.regexp(r"^[\d,\s]+$"))
 async def delete_multiple(message: Message, state: FSMContext):
 
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     await state.clear()
 
@@ -167,7 +170,10 @@ async def history_delete_callback(
         callback.data.split(":")[1]
     )
 
-    family = await require_family_for_chat(callback.message.chat.id)
+    family = await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
     transaction = await delete_transaction_by_id(transaction_id, family.id)
 
     if transaction is None:

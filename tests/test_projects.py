@@ -85,7 +85,7 @@ class Message:
     def __init__(self, text=""):
         self.text = text
         self.from_user = SimpleNamespace(id=100)
-        self.chat = SimpleNamespace(id=500)
+        self.chat = SimpleNamespace(id=500, type="private")
         self.answers = []
         self.edits = []
 

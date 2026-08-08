@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.database.db import SessionLocal
-from app.database.models import Family
+from app.database.models import Family, User
 
 
 logger = logging.getLogger(__name__)
@@ -36,9 +36,31 @@ async def get_family_by_chat_id(chat_id: int) -> Family | None:
         return family
 
 
-async def require_family_for_chat(chat_id: int) -> Family:
+async def get_family_by_user_telegram_id(telegram_id: int) -> Family | None:
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(Family)
+            .join(User, User.family_id == Family.id)
+            .where(User.telegram_id == telegram_id)
+        )
+        return result.scalar_one_or_none()
+
+
+async def require_family_for_chat(
+    chat_id: int,
+    *,
+    chat_type: str | None = None,
+    telegram_id: int | None = None,
+) -> Family:
     """Read-only context lookup for financial handlers; never creates a family."""
-    family = await get_family_by_chat_id(chat_id)
+    if chat_type == "private":
+        family = (
+            await get_family_by_user_telegram_id(telegram_id)
+            if telegram_id is not None
+            else None
+        )
+    else:
+        family = await get_family_by_chat_id(chat_id)
     if family is None:
         raise FamilyContextNotFoundError("The Telegram chat is not bound to a family.")
     return family

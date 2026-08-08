@@ -26,7 +26,8 @@ def calculate_analytics_forecast(
     year: int,
     month: int,
     total_income: float,
-    total_expenses: float,
+    ordinary_expenses: float,
+    recurring_expenses: float,
     *,
     today: date | None = None,
 ) -> AnalyticsForecast:
@@ -35,6 +36,7 @@ def calculate_analytics_forecast(
     selected_month = (year, month)
     current_month = (today.year, today.month)
     days_in_month = monthrange(year, month)[1]
+    total_expenses = ordinary_expenses + recurring_expenses
 
     spent_percent = (
         _round_percent(total_expenses / total_income * 100)
@@ -57,12 +59,23 @@ def calculate_analytics_forecast(
 
     elapsed_days = today.day
     elapsed_percent = _round_percent(elapsed_days / days_in_month * 100)
-    forecast_expenses = total_expenses / elapsed_days * days_in_month
+    forecast_ordinary_expenses = ordinary_expenses / elapsed_days * days_in_month
+    forecast_expenses = forecast_ordinary_expenses + recurring_expenses
     forecast_balance = (
         total_income - forecast_expenses if total_income > 0 else None
     )
+    elapsed_recurring_expenses = recurring_expenses * elapsed_days / days_in_month
+    pace_spent_percent = (
+        _round_percent(
+            (ordinary_expenses + elapsed_recurring_expenses) / total_income * 100
+        )
+        if total_income > 0
+        else None
+    )
     pace_delta = (
-        spent_percent - elapsed_percent if spent_percent is not None else None
+        pace_spent_percent - elapsed_percent
+        if pace_spent_percent is not None
+        else None
     )
     return AnalyticsForecast(
         days_in_month - elapsed_days,

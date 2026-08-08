@@ -24,6 +24,16 @@ router = Router()
 LIMIT = 20
 
 
+def days_text(value: int) -> str:
+    if value % 10 == 1 and value % 100 != 11:
+        word = "день"
+    elif value % 10 in (2, 3, 4) and value % 100 not in (12, 13, 14):
+        word = "дня"
+    else:
+        word = "дней"
+    return f"{value} {word}"
+
+
 def money(value: float) -> str:
     return f"{value:,.2f} €".replace(",", " ")
 
@@ -111,7 +121,10 @@ def format_today(
 
 @router.message(Command("today"))
 async def today(message: Message):
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     selected_date = date.today()
     data = await get_today_statistics(
@@ -150,7 +163,10 @@ async def today_page(
         await callback.answer("Некорректная дата", show_alert=True)
         return
 
-    family = await require_family_for_chat(callback.message.chat.id)
+    family = await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
 
     data = await get_today_statistics(
         family.id,
@@ -274,7 +290,10 @@ def month_keyboard(year: int, month: int, offset: int, total: int) -> InlineKeyb
 
 @router.message(Command("month"))
 async def month(message: Message):
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     today = date.today()
     data = await get_month_statistics(
@@ -319,7 +338,10 @@ async def month_page(
         await callback.answer("Некорректный месяц", show_alert=True)
         return
 
-    family = await require_family_for_chat(callback.message.chat.id)
+    family = await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
 
     data = await get_month_statistics(
         family.id,
@@ -346,7 +368,10 @@ async def month_page(
 
 @router.message(Command("balance"))
 async def balance(message: Message):
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
     data = await get_balance(family.id)
 
     text = (
@@ -375,7 +400,10 @@ async def analytics(
     edit_existing: bool = False,
 ):
     if family_id is None:
-        family = await require_family_for_chat(message.chat.id)
+        family = await require_family_for_chat(
+            message.chat.id, chat_type=message.chat.type,
+            telegram_id=message.from_user.id,
+        )
         family_id = family.id
 
     months = [
@@ -398,14 +426,14 @@ async def analytics(
     year, month = year or today.year, month or today.month
     data = await get_analytics(family_id, year, month)
     total_income = data["ordinary_income"] + data["recurring_income"]
-    total_expenses = data["ordinary_expense"] + data["recurring_expense"]
     forecast = calculate_analytics_forecast(
-        year, month, total_income, total_expenses,
+        year, month, total_income,
+        data["ordinary_expense"], data["recurring_expense"],
     )
 
     forecast_lines = [
-        f"📅 До конца месяца: {forecast.days_remaining} дней",
-        f"⏳ Прошло месяца: {forecast.elapsed_percent}%",
+        f"📅 До конца месяца: {days_text(forecast.days_remaining)} "
+        f"({forecast.elapsed_percent}%)",
     ]
     if forecast.spent_percent is not None:
         forecast_lines.append(f"💸 Потрачено бюджета: {forecast.spent_percent}%")
@@ -414,16 +442,21 @@ async def analytics(
             f"📈 Прогноз расходов: {money(forecast.forecast_expenses)}"
         )
     if forecast.forecast_balance is not None:
-        forecast_lines.append(
-            f"💎 Прогноз остатка: {money(forecast.forecast_balance)}"
-        )
+        if forecast.forecast_balance >= 0:
+            forecast_lines.append(
+                f"🟢 Прогноз остатка: {money(forecast.forecast_balance)}"
+            )
+        else:
+            forecast_lines.append(
+                f"🔴 Прогноз дефицита: {money(abs(forecast.forecast_balance))}"
+            )
     if forecast.pace_delta is not None:
         if forecast.pace_delta > 2:
-            pace = f"⚖️ Темп: выше плана на {forecast.pace_delta}%"
+            pace = f"⚠️ Превышение темпа расходов: {forecast.pace_delta}%"
         elif forecast.pace_delta < -2:
-            pace = f"✅ Темп: экономия {abs(forecast.pace_delta)}%"
+            pace = f"✅ Темп расходов ниже плана: {abs(forecast.pace_delta)}%"
         else:
-            pace = "⚖️ Темп: по плану"
+            pace = "✅ Темп расходов: по плану"
         forecast_lines.append(pace)
     forecast_text = "\n".join(forecast_lines)
 
@@ -502,10 +535,80 @@ async def analytics(
 def analytics_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
     previous_year, previous_month = _shift_month(year, month, -1)
     next_year, next_month = _shift_month(year, month, 1)
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="⬅️ Предыдущий месяц", callback_data=f"analytics:{previous_year}:{previous_month:02d}"),
-        InlineKeyboardButton(text="➡️ Следующий месяц", callback_data=f"analytics:{next_year}:{next_month:02d}"),
-    ]])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="⬅️ Предыдущий месяц", callback_data=f"analytics:{previous_year}:{previous_month:02d}"),
+            InlineKeyboardButton(text="➡️ Следующий месяц", callback_data=f"analytics:{next_year}:{next_month:02d}"),
+        ],
+        [InlineKeyboardButton(
+            text="❓ Что означают показатели?",
+            callback_data=f"analytics_help:{year}:{month:02d}",
+        )],
+    ])
+
+
+def analytics_help_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text="⬅️ Назад к аналитике",
+        callback_data=f"analytics_back:{year}:{month:02d}",
+    )]])
+
+
+ANALYTICS_HELP_TEXT = """📊 <b>Как читать прогноз</b>
+
+📅 До конца месяца — сколько дней осталось. Процент в скобках показывает, какая часть месяца уже прошла.
+
+💸 Потрачено бюджета — какая часть ожидаемых доходов месяца уже приходится на расходы.
+
+📈 Прогноз расходов — примерные общие расходы к концу месяца, если текущий темп обычных расходов сохранится.
+
+🟢 Прогноз остатка — сколько денег предположительно останется к концу месяца.
+
+🔴 Прогноз дефицита — сколько денег предположительно не хватит к концу месяца.
+
+⚠️ Превышение темпа расходов — насколько расходы идут быстрее равномерного расходования бюджета в течение месяца.
+
+Прогноз автоматически меняется после новых операций."""
+
+
+@router.callback_query(F.data.startswith("analytics_help:"))
+async def analytics_help(callback: CallbackQuery):
+    try:
+        _, year, month = callback.data.split(":")
+        year, month = int(year), int(month)
+        if not 1 <= month <= 12:
+            raise ValueError
+    except ValueError:
+        await callback.answer("Некорректный месяц", show_alert=True)
+        return
+    await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
+    await callback.message.edit_text(
+        ANALYTICS_HELP_TEXT,
+        parse_mode="HTML",
+        reply_markup=analytics_help_keyboard(year, month),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("analytics_back:"))
+async def analytics_back(callback: CallbackQuery):
+    try:
+        _, year, month = callback.data.split(":")
+        year, month = int(year), int(month)
+        if not 1 <= month <= 12:
+            raise ValueError
+    except ValueError:
+        await callback.answer("Некорректный месяц", show_alert=True)
+        return
+    family = await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
+    await analytics(callback.message, year, month, family.id, edit_existing=True)
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("analytics:"))
@@ -518,7 +621,10 @@ async def analytics_page(callback: CallbackQuery):
     except ValueError:
         await callback.answer("Некорректный месяц", show_alert=True)
         return
-    family = await require_family_for_chat(callback.message.chat.id)
+    family = await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
     try:
         await analytics(
             callback.message, year, month, family.id, edit_existing=True,

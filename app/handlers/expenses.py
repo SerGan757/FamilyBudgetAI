@@ -46,9 +46,19 @@ async def add_transaction(
 
     telegram_id = message.from_user.id
     try:
-        family = await require_family_for_chat(message.chat.id)
+        family = await require_family_for_chat(
+            message.chat.id,
+            chat_type=message.chat.type,
+            telegram_id=message.from_user.id,
+        )
     except FamilyContextNotFoundError:
-        await message.answer("⚠️ Для этого чата не настроен семейный контекст.")
+        if message.chat.type == "private":
+            await message.answer(
+                "Вы ещё не подключены к семейному бюджету.\n"
+                "Нажмите /start, чтобы создать бюджет или присоединиться к семье."
+            )
+        else:
+            await message.answer("⚠️ Для этого чата не настроен семейный контекст.")
         return
     user = await get_user_by_telegram_id(
         telegram_id

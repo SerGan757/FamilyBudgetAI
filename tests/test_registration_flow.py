@@ -30,7 +30,7 @@ class _Message:
     def __init__(self, text, telegram_id):
         self.text = text
         self.from_user = SimpleNamespace(id=telegram_id, full_name="Test User")
-        self.chat = SimpleNamespace(id=telegram_id, title=None)
+        self.chat = SimpleNamespace(id=telegram_id, type="private", title=None)
         self.answers = []
 
     async def answer(self, text, **kwargs):

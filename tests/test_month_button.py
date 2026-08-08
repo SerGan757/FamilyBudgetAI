@@ -10,7 +10,7 @@ from app.keyboards.main_menu import main_menu
 class _Message:
     def __init__(self):
         self.from_user = SimpleNamespace(id=1)
-        self.chat = SimpleNamespace(id=100)
+        self.chat = SimpleNamespace(id=100, type="private")
         self.answers = []
         self.bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
         self.sent = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=55)
@@ -55,7 +55,9 @@ class MonthButtonTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(callbacks)
         self.assertTrue(all(callbacks))
         message.bot.edit_message_reply_markup.assert_not_awaited()
-        require_family.assert_awaited_once_with(100)
+        require_family.assert_awaited_once_with(
+            100, chat_type="private", telegram_id=1,
+        )
         self.assertEqual(get_month.await_args.args[0], 3)
 
     def test_month_callbacks_preserve_year_month_and_page(self):

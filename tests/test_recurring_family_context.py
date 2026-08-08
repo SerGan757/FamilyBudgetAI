@@ -51,7 +51,7 @@ class _State:
 
 def _message(chat_id, text):
     return SimpleNamespace(
-        chat=SimpleNamespace(id=chat_id),
+        chat=SimpleNamespace(id=chat_id, type="group"),
         from_user=SimpleNamespace(id=500),
         text=text,
         answer=AsyncMock(),
@@ -228,7 +228,8 @@ class RecurringFamilyContextTests(unittest.IsolatedAsyncioTestCase):
     async def test_callback_from_family_b_cannot_delete_family_a_template(self):
         callback = SimpleNamespace(
             data="rec_delete:1",
-            message=SimpleNamespace(chat=SimpleNamespace(id=200), edit_text=AsyncMock()),
+            from_user=SimpleNamespace(id=500),
+            message=SimpleNamespace(chat=SimpleNamespace(id=200, type="group"), edit_text=AsyncMock()),
             answer=AsyncMock(),
         )
         with patch.object(

@@ -97,7 +97,10 @@ async def build_history_text(family_id: int, offset: int = 0):
 
 @router.message(Command("history"))
 async def history(message: Message):
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
     total = await get_transactions_count(family.id)
 
     await answer_with_navigation(
@@ -123,7 +126,10 @@ async def history_page(
         callback.data.split(":")[1]
     )
 
-    family = await require_family_for_chat(callback.message.chat.id)
+    family = await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
     total = await get_transactions_count(family.id)
 
     await callback.message.edit_text(

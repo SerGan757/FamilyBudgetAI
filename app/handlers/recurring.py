@@ -47,7 +47,10 @@ async def _validate_recurring_fsm_family(
 ):
     """Ensure an add/edit scenario cannot be continued from another chat."""
     data = await state.get_data()
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
     if (
         data.get("recurring_chat_id") != message.chat.id
         or data.get("recurring_family_id") != family.id
@@ -62,7 +65,10 @@ async def _validate_recurring_fsm_family(
 
 async def recurring_menu(message: Message):
 
-    await require_family_for_chat(message.chat.id)
+    await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     await message.answer(
         "<b>🔁 Регулярные платежи</b>\n\n"
@@ -86,7 +92,10 @@ async def back_to_main(message: Message, state: FSMContext):
 async def add_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     payments = await list_payments(family.id)
     expense_text = ""
@@ -225,7 +234,10 @@ async def month_recurring(message: Message, state: FSMContext):
     from datetime import date
 
     await cancel_state(state)
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     transactions = await get_month_recurring_transactions(
         family.id
@@ -338,7 +350,10 @@ async def month_recurring(message: Message, state: FSMContext):
 async def delete_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     payments = await list_payments(family.id)
 
@@ -360,7 +375,10 @@ async def delete_template(message: Message, state: FSMContext):
 async def delete_template_callback(callback: CallbackQuery):
 
     payment_id = int(callback.data.split(":", maxsplit=1)[1])
-    family = await require_family_for_chat(callback.message.chat.id)
+    family = await require_family_for_chat(
+        callback.message.chat.id, chat_type=callback.message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
     deleted = await remove_payment(family.id, payment_id)
 
     if deleted:
@@ -375,7 +393,10 @@ async def delete_template_callback(callback: CallbackQuery):
 async def edit_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
 
     payments = await list_payments(family.id)
 
@@ -452,7 +473,10 @@ async def create_month(message: Message, state: FSMContext):
     from datetime import date
 
     await cancel_state(state)
-    family = await require_family_for_chat(message.chat.id)
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type,
+        telegram_id=message.from_user.id,
+    )
     user = await get_user_by_telegram_id(message.from_user.id)
     if user is None or user.family_id != family.id:
         await message.answer(

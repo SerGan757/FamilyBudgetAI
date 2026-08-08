@@ -13,7 +13,7 @@ class Message:
     def __init__(self, text="⚙️ Настройки"):
         self.text = text
         self.from_user = SimpleNamespace(id=1)
-        self.chat = SimpleNamespace(id=100)
+        self.chat = SimpleNamespace(id=100, type="private")
         self.answers = []
 
     async def answer(self, text, **kwargs):
@@ -46,7 +46,9 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
             await settings.members(message)
         self.assertIn("&lt;Ann&gt;", message.answers[0][0])
         self.assertEqual(message.answers[0][1]["reply_markup"], settings_menu)
-        require_family.assert_awaited_once_with(100)
+        require_family.assert_awaited_once_with(
+            100, chat_type="private", telegram_id=1,
+        )
         get_members.assert_awaited_once_with(3)
 
         about = Message("ℹ️ О программе")
