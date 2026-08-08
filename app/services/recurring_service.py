@@ -7,6 +7,7 @@ from app.database.models import (
     RecurringPayment,
     Transaction,
 )
+from app.services.family_activity_service import touch_family_activity
 
 
 async def add_payment(
@@ -38,6 +39,8 @@ async def add_payment(
         )
 
         session.add(payment)
+
+        await touch_family_activity(family_id, session=session)
 
         await session.commit()
         await session.refresh(payment)
@@ -122,6 +125,8 @@ async def delete_payment(
 
         await session.delete(payment)
 
+        await touch_family_activity(family_id, session=session)
+
         await session.commit()
 
         return True
@@ -172,6 +177,8 @@ async def update_payment(
                 category=category,
             )
         )
+
+        await touch_family_activity(family_id, session=session)
 
         await session.commit()
 

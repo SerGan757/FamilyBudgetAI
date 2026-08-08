@@ -17,6 +17,52 @@ async def init_db():
         # пересоздаем таблицу автоматически.
         await conn.run_sync(Base.metadata.create_all)
 
+        # Backward-compatible Family metadata migration. Existing rows and
+        # related user/transaction/payment data are preserved.
+        for statement in (
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMP WITHOUT TIME ZONE",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS city VARCHAR(100)",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS language VARCHAR(10) DEFAULT 'ru'",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) DEFAULT 'Europe/Berlin'",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'EUR'",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS plan VARCHAR(20) DEFAULT 'free'",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS paid_until TIMESTAMP WITHOUT TIME ZONE",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS trial_until TIMESTAMP WITHOUT TIME ZONE",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP WITHOUT TIME ZONE",
+            "ALTER TABLE families ADD COLUMN IF NOT EXISTS disabled_reason VARCHAR(255)",
+        ):
+            await conn.execute(text(statement))
+
+        await conn.execute(text(
+            "UPDATE families SET "
+            "created_at = COALESCE(created_at, CURRENT_TIMESTAMP AT TIME ZONE 'UTC'), "
+            "language = COALESCE(language, 'ru'), "
+            "timezone = COALESCE(timezone, 'Europe/Berlin'), "
+            "currency = COALESCE(currency, 'EUR'), "
+            "is_active = COALESCE(is_active, TRUE), "
+            "plan = COALESCE(plan, 'free') "
+            "WHERE created_at IS NULL OR language IS NULL OR timezone IS NULL "
+            "OR currency IS NULL OR is_active IS NULL OR plan IS NULL"
+        ))
+        for statement in (
+            "ALTER TABLE families ALTER COLUMN created_at SET DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')",
+            "ALTER TABLE families ALTER COLUMN created_at SET NOT NULL",
+            "ALTER TABLE families ALTER COLUMN language SET DEFAULT 'ru'",
+            "ALTER TABLE families ALTER COLUMN language SET NOT NULL",
+            "ALTER TABLE families ALTER COLUMN timezone SET DEFAULT 'Europe/Berlin'",
+            "ALTER TABLE families ALTER COLUMN timezone SET NOT NULL",
+            "ALTER TABLE families ALTER COLUMN currency SET DEFAULT 'EUR'",
+            "ALTER TABLE families ALTER COLUMN currency SET NOT NULL",
+            "ALTER TABLE families ALTER COLUMN is_active SET DEFAULT TRUE",
+            "ALTER TABLE families ALTER COLUMN is_active SET NOT NULL",
+            "ALTER TABLE families ALTER COLUMN plan SET DEFAULT 'free'",
+            "ALTER TABLE families ALTER COLUMN plan SET NOT NULL",
+        ):
+            await conn.execute(text(statement))
+
         await conn.execute(
             text(
                 "ALTER TABLE recurring_payments "

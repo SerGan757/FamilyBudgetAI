@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import (
@@ -56,8 +57,32 @@ class Family(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
+        server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"),
         nullable=False,
     )
+
+    last_activity_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    language: Mapped[str] = mapped_column(
+        String(10), default="ru", server_default="ru", nullable=False,
+    )
+    timezone: Mapped[str] = mapped_column(
+        String(64), default="Europe/Berlin", server_default="Europe/Berlin", nullable=False,
+    )
+    currency: Mapped[str] = mapped_column(
+        String(3), default="EUR", server_default="EUR", nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False,
+    )
+    plan: Mapped[str] = mapped_column(
+        String(20), default="free", server_default="free", nullable=False,
+    )
+    paid_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    trial_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_payment_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    disabled_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     users = relationship(
         "User",

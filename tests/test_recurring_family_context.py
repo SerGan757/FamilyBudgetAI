@@ -122,7 +122,7 @@ class RecurringFamilyContextTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_delete_scopes_current_month_transaction_to_family(self):
         payment = SimpleNamespace(id=1, family_id=10)
-        session = _Session([_Result(one=payment), _Result()])
+        session = _Session([_Result(one=payment), _Result(), _Result()])
         with patch.object(recurring_service, "SessionLocal", return_value=session):
             self.assertTrue(await recurring_service.delete_payment(1, 10))
         self.assertIn("transactions.family_id", session.queries[1])

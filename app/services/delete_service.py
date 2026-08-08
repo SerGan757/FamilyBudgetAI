@@ -2,6 +2,7 @@ from sqlalchemy import delete, desc, select
 
 from app.database.db import SessionLocal
 from app.database.models import Transaction, User
+from app.services.family_activity_service import touch_family_activity
 
 
 async def delete_transactions_by_ids(ids: list[int], family_id: int):
@@ -35,6 +36,7 @@ async def delete_last_transaction(family_id: int):
             return None
 
         await session.delete(transaction)
+        await touch_family_activity(family_id, session=session)
         await session.commit()
 
         return transaction
@@ -57,6 +59,7 @@ async def delete_transaction_by_id(transaction_id: int, family_id: int):
             return None
 
         await session.delete(transaction)
+        await touch_family_activity(family_id, session=session)
         await session.commit()
 
         return transaction

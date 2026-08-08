@@ -6,6 +6,7 @@ from app.database.db import SessionLocal
 from app.database.models import Transaction
 from app.services.parser import parse_message
 from app.services.user_service import get_user_by_telegram_id
+from app.services.family_activity_service import touch_family_activity
 
 
 async def save_transaction(
@@ -66,6 +67,9 @@ async def create_transaction(
 
         session.add(transaction)
 
+        if not is_recurring:
+            await touch_family_activity(family_id, session=session)
+
         await session.commit()
 
         await session.refresh(transaction)
@@ -95,6 +99,9 @@ async def update_recurring_transaction(
         db_transaction.amount = amount
         db_transaction.type = transaction_type
         db_transaction.category = category
+
+        if db_transaction.family_id is not None:
+            await touch_family_activity(db_transaction.family_id, session=session)
 
         await session.commit()
         await session.refresh(db_transaction)

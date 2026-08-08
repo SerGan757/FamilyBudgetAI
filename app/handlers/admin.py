@@ -1,5 +1,7 @@
 import logging
+from datetime import UTC, date, datetime
 from html import escape
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import Router
 from aiogram.enums import ChatType
@@ -45,6 +47,65 @@ async def _authorize_callback(callback: CallbackQuery) -> bool:
 
 def _money(value: int | float) -> str:
     return f"{float(value):.2f} €"
+
+
+LANGUAGE_LABELS = {
+    "ru": "Русский",
+    "uk": "Українська",
+    "de": "Deutsch",
+    "en": "English",
+}
+
+
+def _value(value) -> str:
+    return "—" if value is None or value == "" else escape(str(value))
+
+
+def _family_datetime(value: datetime | date | None, timezone_name: str,
+                     *, date_only: bool = False) -> str:
+    if value is None:
+        return "—"
+    if isinstance(value, datetime):
+        try:
+            timezone = ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            timezone = ZoneInfo("Europe/Berlin")
+        source = value.replace(tzinfo=UTC) if value.tzinfo is None else value
+        value = source.astimezone(timezone)
+        return value.strftime("%d.%m.%Y" if date_only else "%d.%m.%Y %H:%M")
+    return value.strftime("%d.%m.%Y")
+
+
+def family_card_text(family: dict[str, object]) -> str:
+    timezone_name = str(family.get("timezone") or "Europe/Berlin")
+    language_code = str(family.get("language") or "ru")
+    language = LANGUAGE_LABELS.get(language_code, escape(language_code))
+    active = bool(family.get("is_active", True))
+    status = "🟢 Активна" if active else "🔴 Отключена"
+    reason = family.get("disabled_reason")
+    reason_line = f"\nПричина: {_value(reason)}" if not active and reason else ""
+    return (
+        "👨‍👩‍👧 Семья\n\n"
+        f"ID: {family['id']}\n"
+        f"Название: {_value(family.get('name'))}\n\n"
+        f"📅 Создана: {_family_datetime(family.get('created_at'), timezone_name, date_only=True)}\n"
+        f"🕐 Последняя активность: {_family_datetime(family.get('last_activity_at'), timezone_name)}\n\n"
+        f"🌍 Страна: {_value(family.get('country'))}\n"
+        f"🏙 Город: {_value(family.get('city'))}\n"
+        f"🌐 Язык: {language}\n"
+        f"🕓 Часовой пояс: {escape(timezone_name)}\n"
+        f"💶 Валюта: {_value(family.get('currency') or 'EUR')}\n\n"
+        f"{status}\n"
+        f"💎 Тариф: {escape(str(family.get('plan') or 'free').title())}\n"
+        f"💳 Оплачено до: {_family_datetime(family.get('paid_until'), timezone_name, date_only=True)}\n"
+        f"🎁 Trial до: {_family_datetime(family.get('trial_until'), timezone_name, date_only=True)}\n"
+        f"💰 Последняя оплата: {_family_datetime(family.get('last_payment_at'), timezone_name)}"
+        f"{reason_line}\n\n"
+        f"👥 Участников: {family.get('users', 0)}\n"
+        f"💰 Операций: {family.get('transactions', 0)}\n"
+        f"🔁 Регулярных платежей: {family.get('recurring_payments', 0)}\n"
+        f"📊 Операций за 30 дней: {family.get('transactions_30_days', 0)}"
+    )
 
 
 @router.message(Command("myid"))
@@ -95,12 +156,7 @@ async def _show_admin_action(callback: CallbackQuery, data: AdminCallback) -> bo
         if family is None:
             await callback.answer(NOT_FOUND_TEXT, show_alert=True)
             return False
-        body = (
-            "👨‍👩‍👧 Семья\n\n"
-            f"ID: {family['id']}\nНазвание: {escape(str(family['name']))}\n"
-            f"Участников: {family['users']}\nОпераций: {family['transactions']}\n"
-            f"Регулярных платежей: {family['recurring_payments']}"
-        )
+        body = family_card_text(family)
         await callback.message.edit_text(
             body, reply_markup=admin_family_keyboard(object_id, page), parse_mode="HTML",
         )

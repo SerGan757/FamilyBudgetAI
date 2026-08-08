@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select, text
@@ -47,7 +47,7 @@ async def get_admin_families_page(page: int, page_size: int) -> tuple[list[tuple
         return [(row.id, row.name) for row in rows], total
 
 
-async def get_admin_family(family_id: int) -> dict[str, int | str] | None:
+async def get_admin_family(family_id: int) -> dict[str, object] | None:
     async with SessionLocal() as session:
         family = await session.get(Family, family_id)
         if family is None:
@@ -61,9 +61,31 @@ async def get_admin_family(family_id: int) -> dict[str, int | str] | None:
         recurring = (await session.execute(
             select(func.count()).select_from(RecurringPayment).where(RecurringPayment.family_id == family_id)
         )).scalar_one()
+        thirty_days_ago = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=30)
+        recent_transactions = (await session.execute(
+            select(func.count()).select_from(Transaction).where(
+                Transaction.family_id == family_id,
+                Transaction.created_at >= thirty_days_ago,
+            )
+        )).scalar_one()
         return {
             "id": family.id, "name": family.name, "users": users,
-            "transactions": transactions, "recurring_payments": recurring,
+            "created_at": family.created_at,
+            "last_activity_at": family.last_activity_at,
+            "country": family.country,
+            "city": family.city,
+            "language": family.language,
+            "timezone": family.timezone,
+            "currency": family.currency,
+            "is_active": family.is_active,
+            "plan": family.plan,
+            "paid_until": family.paid_until,
+            "trial_until": family.trial_until,
+            "last_payment_at": family.last_payment_at,
+            "disabled_reason": family.disabled_reason,
+            "transactions": transactions,
+            "recurring_payments": recurring,
+            "transactions_30_days": recent_transactions,
         }
 
 
