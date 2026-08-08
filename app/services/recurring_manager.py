@@ -5,7 +5,6 @@ from sqlalchemy.orm import selectinload
 
 from app.database.db import SessionLocal
 from app.database.models import Transaction
-from app.services.expense_service import create_transaction
 from app.services.parser import parse_message
 from app.services.recurring_service import (
     add_payment,
@@ -72,66 +71,70 @@ async def create_month_transactions(
     created = updated = unchanged = 0
     details: list[dict[str, object]] = []
 
-    for payment in payments:
-        async with SessionLocal() as session:
-            result = await session.execute(
-                select(Transaction).where(
-                    Transaction.family_id == family_id,
-                    Transaction.recurring_payment_id == payment.id,
-                    Transaction.recurring_period == period,
+    async with SessionLocal() as session:
+        try:
+            for payment in payments:
+                result = await session.execute(
+                    select(Transaction).where(
+                        Transaction.family_id == family_id,
+                        Transaction.recurring_payment_id == payment.id,
+                        Transaction.recurring_period == period,
+                    )
                 )
-            )
-            transaction = result.scalar_one_or_none()
+                transaction = result.scalar_one_or_none()
 
-            if transaction is not None:
-                changed = (
-                    transaction.title != payment.title
-                    or transaction.amount != payment.amount
-                    or transaction.type != payment.type
-                    or transaction.category != payment.category
-                )
-                if changed:
-                    transaction.title = payment.title
-                    transaction.amount = payment.amount
-                    transaction.type = payment.type
-                    transaction.category = payment.category
-                    await session.commit()
-                    updated += 1
-                    status = "updated"
-                else:
-                    unchanged += 1
-                    status = "unchanged"
+                if transaction is not None:
+                    changed = (
+                        transaction.title != payment.title
+                        or transaction.amount != payment.amount
+                        or transaction.type != payment.type
+                        or transaction.category != payment.category
+                    )
+                    if changed:
+                        transaction.title = payment.title
+                        transaction.amount = payment.amount
+                        transaction.type = payment.type
+                        transaction.category = payment.category
+                        updated += 1
+                        status = "updated"
+                    else:
+                        unchanged += 1
+                        status = "unchanged"
 
+                    details.append(
+                        {
+                            "title": payment.title,
+                            "amount": payment.amount,
+                            "type": payment.type,
+                            "status": status,
+                        }
+                    )
+                    continue
+
+                session.add(Transaction(
+                    user_id=user_id,
+                    family_id=family_id,
+                    title=payment.title,
+                    amount=payment.amount,
+                    type=payment.type,
+                    category=payment.category,
+                    is_recurring=True,
+                    recurring_payment_id=payment.id,
+                    recurring_period=period,
+                ))
+                created += 1
                 details.append(
                     {
                         "title": payment.title,
                         "amount": payment.amount,
                         "type": payment.type,
-                        "status": status,
+                        "status": "created",
                     }
                 )
-                continue
-
-        await create_transaction(
-            user_id=user_id,
-            family_id=family_id,
-            title=payment.title,
-            amount=payment.amount,
-            transaction_type=payment.type,
-            category=payment.category,
-            is_recurring=True,
-            recurring_payment_id=payment.id,
-            recurring_period=period,
-        )
-        created += 1
-        details.append(
-            {
-                "title": payment.title,
-                "amount": payment.amount,
-                "type": payment.type,
-                "status": "created",
-            }
-        )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
     return {
         "created": created,

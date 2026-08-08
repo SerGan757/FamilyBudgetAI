@@ -27,6 +27,9 @@ class _Session:
         self.results = iter(results)
         self.queries = []
         self.deleted = []
+        self.added = []
+        self.commits = 0
+        self.rollbacks = 0
 
     async def __aenter__(self): return self
     async def __aexit__(self, *_): return None
@@ -34,7 +37,9 @@ class _Session:
         self.queries.append(str(query))
         return next(self.results)
     async def delete(self, value): self.deleted.append(value)
-    async def commit(self): pass
+    def add(self, value): self.added.append(value)
+    async def commit(self): self.commits += 1
+    async def rollback(self): self.rollbacks += 1
 
 
 class _State:
@@ -88,30 +93,99 @@ class RecurringFamilyContextTests(unittest.IsolatedAsyncioTestCase):
         first_session = _Session([_Result(one=None)])
         with patch.object(recurring_manager, "get_payments", AsyncMock(return_value=[payment])), patch.object(
             recurring_manager, "SessionLocal", return_value=first_session
-        ), patch.object(recurring_manager, "create_transaction", AsyncMock()) as create:
+        ):
             result = await recurring_manager.create_month_transactions(10, 500, date(2026, 8, 20))
         self.assertEqual(result["created"], 1)
-        self.assertEqual(create.await_args.kwargs["family_id"], 10)
-        self.assertEqual(create.await_args.kwargs["recurring_period"], date(2026, 8, 1))
+        self.assertEqual(first_session.added[0].family_id, 10)
+        self.assertEqual(first_session.added[0].user_id, 500)
+        self.assertEqual(first_session.added[0].recurring_period, date(2026, 8, 1))
+        self.assertEqual(first_session.commits, 1)
         self.assertIn("transactions.family_id", first_session.queries[0])
 
         existing = SimpleNamespace(title="Salary", amount=1500.0, type="income", category="income")
         second_session = _Session([_Result(one=existing)])
         with patch.object(recurring_manager, "get_payments", AsyncMock(return_value=[payment])), patch.object(
             recurring_manager, "SessionLocal", return_value=second_session
-        ), patch.object(recurring_manager, "create_transaction", AsyncMock()) as create:
+        ):
             result = await recurring_manager.create_month_transactions(10, 500, date(2026, 8, 20))
         self.assertEqual(result["unchanged"], 1)
-        create.assert_not_awaited()
+        self.assertEqual(second_session.added, [])
 
     async def test_generation_for_family_b_uses_family_b(self):
         payment = SimpleNamespace(id=2, title="Rent", amount=100.0, type="expense", category="other")
         session = _Session([_Result(one=None)])
         with patch.object(recurring_manager, "get_payments", AsyncMock(return_value=[payment])), patch.object(
             recurring_manager, "SessionLocal", return_value=session
-        ), patch.object(recurring_manager, "create_transaction", AsyncMock()) as create:
+        ):
             await recurring_manager.create_month_transactions(20, 501, date(2026, 8, 20))
-        self.assertEqual(create.await_args.kwargs["family_id"], 20)
+        self.assertEqual(session.added[0].family_id, 20)
+
+    async def test_create_month_maps_telegram_id_to_internal_family_user_id(self):
+        message = _message(100, "📅 Создать операции месяца")
+        message.from_user.id = 274540057
+        state = _State({})
+        user = SimpleNamespace(id=1, telegram_id=274540057, family_id=10)
+        result = {"created": 0, "updated": 0, "unchanged": 0, "details": []}
+        with patch.object(
+            recurring, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=10)),
+        ), patch.object(
+            recurring, "get_user_by_telegram_id", AsyncMock(return_value=user),
+        ) as get_user, patch.object(
+            recurring, "create_month_transactions", AsyncMock(return_value=result),
+        ) as create:
+            await recurring.create_month(message, state)
+        get_user.assert_awaited_once_with(274540057)
+        create.assert_awaited_once_with(10, 1)
+        self.assertNotEqual(create.await_args.args[1], 274540057)
+
+    async def test_unknown_or_other_family_user_creates_nothing(self):
+        for user in (None, SimpleNamespace(id=1, family_id=20)):
+            message = _message(100, "📅 Создать операции месяца")
+            state = _State({})
+            with patch.object(
+                recurring, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=10)),
+            ), patch.object(
+                recurring, "get_user_by_telegram_id", AsyncMock(return_value=user),
+            ), patch.object(recurring, "create_month_transactions", AsyncMock()) as create:
+                await recurring.create_month(message, state)
+            create.assert_not_awaited()
+            self.assertIn("не зарегистрирован", message.answer.await_args.args[0])
+
+    async def test_income_and_expense_templates_commit_atomically(self):
+        payments = [
+            SimpleNamespace(id=1, title="Salary", amount=1500.0, type="income", category="income"),
+            SimpleNamespace(id=2, title="Rent", amount=700.0, type="expense", category="home"),
+        ]
+        session = _Session([_Result(one=None), _Result(one=None)])
+        with patch.object(recurring_manager, "get_payments", AsyncMock(return_value=payments)), \
+             patch.object(recurring_manager, "SessionLocal", return_value=session):
+            result = await recurring_manager.create_month_transactions(10, 1, date(2026, 8, 20))
+        self.assertEqual(result["created"], 2)
+        self.assertEqual([item.type for item in session.added], ["income", "expense"])
+        self.assertEqual([item.user_id for item in session.added], [1, 1])
+        self.assertEqual([item.recurring_period for item in session.added], [date(2026, 8, 1)] * 2)
+        self.assertEqual(session.commits, 1)
+
+    async def test_generation_error_rolls_back_whole_month(self):
+        payments = [
+            SimpleNamespace(id=1, title="Salary", amount=1500.0, type="income", category="income"),
+            SimpleNamespace(id=2, title="Rent", amount=700.0, type="expense", category="home"),
+        ]
+        session = _Session([_Result(one=None)])
+        original_execute = session.execute
+
+        async def execute_then_fail(query):
+            if session.queries:
+                raise RuntimeError("simulated second-template failure")
+            return await original_execute(query)
+
+        session.execute = execute_then_fail
+        with patch.object(recurring_manager, "get_payments", AsyncMock(return_value=payments)), \
+             patch.object(recurring_manager, "SessionLocal", return_value=session):
+            with self.assertRaises(RuntimeError):
+                await recurring_manager.create_month_transactions(10, 1, date(2026, 8, 20))
+        self.assertEqual(session.commits, 0)
+        self.assertEqual(session.rollbacks, 1)
 
     async def test_month_transactions_are_scoped_to_family(self):
         session = _Session([_Result(many=[SimpleNamespace(family_id=10)])])

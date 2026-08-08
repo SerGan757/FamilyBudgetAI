@@ -15,8 +15,21 @@ class _Result:
 
 
 class _Session:
+    def __init__(self):
+        self.added = []
+        self.commits = 0
+
     async def execute(self, _query):
         return _Result()
+
+    def add(self, value):
+        self.added.append(value)
+
+    async def commit(self):
+        self.commits += 1
+
+    async def rollback(self):
+        pass
 
     async def __aenter__(self):
         return self
@@ -32,15 +45,16 @@ class SafeStageTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_generator_creates_typed_regular_transaction(self):
         payment = SimpleNamespace(id=11, title="Salary", amount=2300.0, type="income", category="💰 Доход")
+        session = _Session()
         with patch.object(recurring_manager, "get_payments", AsyncMock(return_value=[payment])), \
-             patch.object(recurring_manager, "SessionLocal", return_value=_Session()), \
-             patch.object(recurring_manager, "create_transaction", AsyncMock()) as create:
+             patch.object(recurring_manager, "SessionLocal", return_value=session):
             result = await recurring_manager.create_month_transactions(3, 7)
         self.assertEqual(result["created"], 1)
         self.assertEqual(result["details"][0]["type"], "income")
-        self.assertTrue(create.await_args.kwargs["is_recurring"])
-        self.assertEqual(create.await_args.kwargs["transaction_type"], "income")
-        self.assertEqual(create.await_args.kwargs["family_id"], 3)
+        self.assertTrue(session.added[0].is_recurring)
+        self.assertEqual(session.added[0].type, "income")
+        self.assertEqual(session.added[0].family_id, 3)
+        self.assertEqual(session.commits, 1)
 
     def test_html_is_escaped_in_history(self):
         row = SimpleNamespace(id=1, type="expense", amount=1.0, is_recurring=True,

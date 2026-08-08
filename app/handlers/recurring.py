@@ -15,6 +15,7 @@ from app.services.recurring_manager import (
     get_month_recurring_transactions,
 )
 from app.services.family_context_service import require_family_for_chat
+from app.services.user_service import get_user_by_telegram_id
 from app.utils.fsm import cancel_state
 
 router = Router()
@@ -452,8 +453,15 @@ async def create_month(message: Message, state: FSMContext):
 
     await cancel_state(state)
     family = await require_family_for_chat(message.chat.id)
+    user = await get_user_by_telegram_id(message.from_user.id)
+    if user is None or user.family_id != family.id:
+        await message.answer(
+            "⚠️ Пользователь не зарегистрирован в этой семье.",
+            reply_markup=recurring_keyboard,
+        )
+        return
 
-    result = await create_month_transactions(family.id, message.from_user.id)
+    result = await create_month_transactions(family.id, user.id)
 
     months = [
         "",

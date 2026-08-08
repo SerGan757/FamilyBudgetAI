@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from html import escape
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove
 
@@ -368,7 +369,14 @@ async def balance(message: Message):
 
 
 @router.message(Command("analytics"))
-async def analytics(message: Message, year: int | None = None, month: int | None = None, family_id: int | None = None):
+async def analytics(
+    message: Message,
+    year: int | None = None,
+    month: int | None = None,
+    family_id: int | None = None,
+    *,
+    edit_existing: bool = False,
+):
     if family_id is None:
         family = await require_family_for_chat(message.chat.id)
         family_id = family.id
@@ -453,12 +461,10 @@ async def analytics(message: Message, year: int | None = None, month: int | None
                 f"{index}. {escape(project_name)} — <b>{money(amount)}</b>\n"
             )
 
-    await message.answer(
-        text,
-        parse_mode="HTML",
-        reply_markup=analytics_keyboard(year, month),
-    )
-    await show_back_keyboard(message)
+    send = message.edit_text if edit_existing else message.answer
+    await send(text, parse_mode="HTML", reply_markup=analytics_keyboard(year, month))
+    if not edit_existing:
+        await show_back_keyboard(message)
 
 
 def analytics_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
@@ -481,5 +487,12 @@ async def analytics_page(callback: CallbackQuery):
         await callback.answer("Некорректный месяц", show_alert=True)
         return
     family = await require_family_for_chat(callback.message.chat.id)
-    await analytics(callback.message, year, month, family.id)
-    await callback.answer()
+    try:
+        await analytics(
+            callback.message, year, month, family.id, edit_existing=True,
+        )
+    except TelegramBadRequest as error:
+        if "message is not modified" not in str(error).lower():
+            raise
+    finally:
+        await callback.answer()
