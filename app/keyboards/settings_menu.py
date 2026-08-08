@@ -25,6 +25,7 @@ family_settings_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [_inline("🕓 Часовой пояс", "timezone")],
     [_inline("💶 Валюта", "currency")],
     [project_button("🏷 Проекты", "list")],
+    [_inline("ℹ️ О боте", "about")],
     [_inline("⬅️ Назад", "close")],
 ])
 
@@ -74,6 +75,10 @@ settings_cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [_inline("❌ Отмена", "cancel")],
 ])
 
+settings_about_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [_inline("⬅️ Назад", "home")],
+])
+
 
 COUNTRIES_PER_PAGE = 10
 
@@ -102,7 +107,7 @@ settings_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="👨‍👩‍👧 Семья"), KeyboardButton(text="👥 Участники")],
         [KeyboardButton(text="🏷 Категории"), KeyboardButton(text="💶 Валюта")],
         [KeyboardButton(text="📤 Экспорт"), KeyboardButton(text="💾 Резервная копия")],
-        [KeyboardButton(text="ℹ️ О программе"), KeyboardButton(text="⬅️ Главное меню")],
+        [KeyboardButton(text="ℹ️ О боте"), KeyboardButton(text="⬅️ Главное меню")],
     ],
     resize_keyboard=True,
     one_time_keyboard=False,

@@ -1,1 +1,4 @@
-APP_VERSION = "2.2"
+APP_NAME = "FamilyBudgetAI"
+APP_VERSION = "2.0"
+DEVELOPER_NAME = "SerGan"
+DEVELOPER_TELEGRAM = "@sergan757"

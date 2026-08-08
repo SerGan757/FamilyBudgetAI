@@ -5,12 +5,13 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.constants import APP_VERSION
+from app.constants import APP_NAME, APP_VERSION, DEVELOPER_NAME, DEVELOPER_TELEGRAM
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.handlers.settings_states import FamilySettingsState
 from app.keyboards.settings_menu import (
     FamilySettingsCallback, currency_keyboard, family_settings_keyboard,
-    country_keyboard, language_keyboard, settings_cancel_keyboard, settings_menu,
+    country_keyboard, language_keyboard, settings_about_keyboard,
+    settings_cancel_keyboard, settings_menu,
     timezone_keyboard,
 )
 from app.services.country_catalog import get_country
@@ -63,6 +64,32 @@ def family_settings_text(data: dict, notice: str | None = None) -> str:
         f"🏙 Город: {escape(data['city'] or '—')}\n"
         f"🕓 Часовой пояс: {escape(data['timezone'])}\n"
         f"💶 Валюта: {escape(currency)} ({CURRENCY_SYMBOLS.get(currency, '')})"
+    )
+
+
+def about_text() -> str:
+    return (
+        "ℹ️ <b>О боте</b>\n\n"
+        f"🤖 <b>{escape(APP_NAME)}</b>\n\n"
+        "Семейный Telegram-бот для простого совместного\n"
+        "учёта домашних финансов.\n\n"
+        "👨‍👩‍👧‍👦 Создайте группу в Telegram, добавьте семью\n"
+        "и этого бота — и ведите семейный бюджет вместе.\n\n"
+        "💰 <b>Возможности:</b>\n"
+        "• быстрый ввод доходов и расходов;\n"
+        "• совместный бюджет семьи;\n"
+        "• история операций;\n"
+        "• баланс и месячная аналитика;\n"
+        "• регулярные платежи;\n"
+        "• статистика по категориям;\n"
+        "• семейные проекты — отпуск, ремонт, дача и другие;\n"
+        "• привязка расходов к проекту через #тег;\n"
+        "• настройки страны, валюты, языка и часового пояса.\n\n"
+        "⚡ <b>Простой ввод:</b>\n"
+        "<code>кофе 5\n+2000 зарплата\nкраска 40 #ремонт</code>\n\n"
+        f"👨‍💻 Разработчик: {escape(DEVELOPER_NAME)}\n"
+        f"✈️ Telegram: {escape(DEVELOPER_TELEGRAM)}\n\n"
+        f"🏷 Версия: {escape(APP_VERSION)}"
     )
 
 
@@ -124,6 +151,10 @@ async def family_settings_callback(
         await message.edit_text("💶 Выберите валюту:", reply_markup=currency_keyboard)
     elif action == "country":
         await message.edit_text("🌍 Выберите страну:", reply_markup=country_keyboard())
+    elif action == "about":
+        await message.edit_text(
+            about_text(), reply_markup=settings_about_keyboard, parse_mode="HTML",
+        )
     elif action == "country_page":
         try:
             page = int(value)
@@ -232,19 +263,10 @@ async def members(message: Message):
     await message.answer(text, reply_markup=settings_menu, parse_mode="HTML")
 
 
-@router.message(StateFilter(None), F.text == "ℹ️ О программе")
+@router.message(StateFilter(None), F.text.in_({"ℹ️ О боте", "ℹ️ О программе"}))
 async def about(message: Message):
     await message.answer(
-        "ℹ️ <b>О программе</b>\n\n"
-        "FamilyBudgetAI\n"
-        f"Версия: {APP_VERSION}\n"
-        "База данных: PostgreSQL\n"
-        "Статус: активная разработка\n\n"
-        "Основные функции:\n"
-        "• расходы и доходы;\n• история;\n• баланс;\n• аналитика;\n"
-        "• регулярные платежи;\n• семейный доступ.",
-        reply_markup=settings_menu,
-        parse_mode="HTML",
+        about_text(), reply_markup=settings_menu, parse_mode="HTML",
     )
 
 
