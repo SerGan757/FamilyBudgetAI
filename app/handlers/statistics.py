@@ -15,7 +15,7 @@ from app.services.statistics_service import (
 )
 from app.services.family_context_service import require_family_for_chat
 from app.keyboards.main_menu import back_to_main_menu_keyboard
-from app.utils.navigation import show_back_keyboard
+from app.utils.navigation import answer_with_navigation
 from app.utils.transaction_format import project_suffix
 
 router = Router()
@@ -122,16 +122,16 @@ async def today(message: Message):
 
     total = data["total"]
 
-    await message.answer(
+    await answer_with_navigation(
+        message,
         format_today(
             data,
             selected_date,
             offset=0,
         ),
         parse_mode="HTML",
-        reply_markup=day_keyboard(selected_date, 0, total),
+        inline_markup=day_keyboard(selected_date, 0, total),
     )  
-    await show_back_keyboard(message)
 
 
 @router.callback_query(F.data.startswith("today:") | F.data.startswith("day:"))
@@ -170,8 +170,6 @@ async def today_page(
         parse_mode="HTML",
         reply_markup=day_keyboard(selected_date, offset, total),
     )
-    await show_back_keyboard(callback.message)
-
     await callback.answer()
 
 
@@ -289,7 +287,8 @@ async def month(message: Message):
     total = data["total"]
    
 
-    await message.answer(
+    await answer_with_navigation(
+        message,
         format_month(
             data,
             today.year,
@@ -297,9 +296,8 @@ async def month(message: Message):
             offset=0,
         ),
         parse_mode="HTML",
-        reply_markup=month_keyboard(today.year, today.month, 0, total),
+        inline_markup=month_keyboard(today.year, today.month, 0, total),
     )
-    await show_back_keyboard(message)
     return
 
 
@@ -342,8 +340,6 @@ async def month_page(
         parse_mode="HTML",
         reply_markup=month_keyboard(year, month, offset, total),
     )
-    await show_back_keyboard(callback.message)
-
     await callback.answer()
 
 
@@ -461,10 +457,15 @@ async def analytics(
                 f"{index}. {escape(project_name)} — <b>{money(amount)}</b>\n"
             )
 
-    send = message.edit_text if edit_existing else message.answer
-    await send(text, parse_mode="HTML", reply_markup=analytics_keyboard(year, month))
-    if not edit_existing:
-        await show_back_keyboard(message)
+    if edit_existing:
+        await message.edit_text(
+            text, parse_mode="HTML", reply_markup=analytics_keyboard(year, month),
+        )
+    else:
+        await answer_with_navigation(
+            message, text, parse_mode="HTML",
+            inline_markup=analytics_keyboard(year, month),
+        )
 
 
 def analytics_keyboard(year: int, month: int) -> InlineKeyboardMarkup:

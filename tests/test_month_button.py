@@ -12,9 +12,11 @@ class _Message:
         self.from_user = SimpleNamespace(id=1)
         self.chat = SimpleNamespace(id=100)
         self.answers = []
+        self.sent = SimpleNamespace(edit_reply_markup=AsyncMock())
 
     async def answer(self, text, **kwargs):
         self.answers.append((text, kwargs))
+        return self.sent
 
 
 class MonthButtonTests(unittest.IsolatedAsyncioTestCase):
@@ -42,13 +44,13 @@ class MonthButtonTests(unittest.IsolatedAsyncioTestCase):
              patch.object(statistics, "get_month_statistics", AsyncMock(return_value=data)) as get_month:
             await statistics.month(message)
 
+        self.assertEqual(len(message.answers), 1)
         report, report_kwargs = message.answers[0]
-        _, keyboard_kwargs = message.answers[1]
         self.assertIn("Регулярные расходы", report)
         self.assertNotEqual(report, "Главное меню")
-        self.assertNotEqual(report_kwargs["reply_markup"], main_menu)
-        self.assertTrue(report_kwargs["reply_markup"].inline_keyboard)
-        self.assertEqual(keyboard_kwargs["reply_markup"], back_to_main_menu_keyboard)
+        self.assertEqual(report_kwargs["reply_markup"], back_to_main_menu_keyboard)
+        inline = message.sent.edit_reply_markup.await_args.kwargs["reply_markup"]
+        self.assertTrue(inline.inline_keyboard)
         require_family.assert_awaited_once_with(100)
         self.assertEqual(get_month.await_args.args[0], 3)
 

@@ -43,15 +43,14 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
             AsyncMock(return_value=SimpleNamespace(id=7)),
         ), patch.object(
             statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
-        ), patch.object(statistics, "show_back_keyboard", AsyncMock()) as show_back:
+        ):
             await statistics.analytics_page(event)
-        return event, show_back
+        return event
 
     async def test_previous_month_edits_existing_message(self):
-        event, show_back = await self._navigate("analytics:2026:07")
+        event = await self._navigate("analytics:2026:07")
         event.message.edit_text.assert_awaited_once()
         event.message.answer.assert_not_awaited()
-        show_back.assert_not_awaited()
         event.answer.assert_awaited_once_with()
 
         text = event.message.edit_text.await_args.args[0]
@@ -62,7 +61,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(callbacks, ["analytics:2026:06", "analytics:2026:08"])
 
     async def test_next_month_edits_existing_message(self):
-        event, _ = await self._navigate("analytics:2026:09")
+        event = await self._navigate("analytics:2026:09")
         event.message.edit_text.assert_awaited_once()
         event.message.answer.assert_not_awaited()
         event.answer.assert_awaited_once_with()

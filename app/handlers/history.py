@@ -10,7 +10,7 @@ from app.services.history_service import (
     get_transactions_count,
 )
 from app.services.family_context_service import require_family_for_chat
-from app.utils.navigation import show_back_keyboard
+from app.utils.navigation import answer_with_navigation
 from app.utils.transaction_format import project_suffix
 
 router = Router()
@@ -100,16 +100,16 @@ async def history(message: Message):
     family = await require_family_for_chat(message.chat.id)
     total = await get_transactions_count(family.id)
 
-    await message.answer(
+    await answer_with_navigation(
+        message,
         await build_history_text(family.id, 0),
-        reply_markup=pagination_keyboard(
+        inline_markup=pagination_keyboard(
             prefix="history",
             offset=0,
             total=total,
             limit=LIMIT,
         ),
     )
-    await show_back_keyboard(message)
 
 
 @router.callback_query(

@@ -37,9 +37,11 @@ class Message:
     def __init__(self):
         self.chat = SimpleNamespace(id=100)
         self.answers = []
+        self.sent = SimpleNamespace(edit_reply_markup=AsyncMock())
 
     async def answer(self, text, **kwargs):
         self.answers.append((text, kwargs))
+        return self.sent
 
 
 def analytics_data(projects):
@@ -108,8 +110,7 @@ class ProjectAnalyticsHandlerTests(unittest.IsolatedAsyncioTestCase):
     async def test_analytics_screen_shows_top_projects_after_biggest_purchase_html_safe(self):
         message = Message()
         data = analytics_data([("Ремонт <A&B>", 40.0), ("Италия 2026", 20.0)])
-        with patch.object(statistics, "get_analytics", AsyncMock(return_value=data)), \
-             patch.object(statistics, "show_back_keyboard", AsyncMock()):
+        with patch.object(statistics, "get_analytics", AsyncMock(return_value=data)):
             await statistics.analytics(message, 2026, 8, family_id=7)
         text = message.answers[0][0]
         self.assertIn("🏷 <b>Проекты</b>", text)
@@ -119,7 +120,6 @@ class ProjectAnalyticsHandlerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_analytics_without_project_expenses_has_no_project_block(self):
         message = Message()
-        with patch.object(statistics, "get_analytics", AsyncMock(return_value=analytics_data([]))), \
-             patch.object(statistics, "show_back_keyboard", AsyncMock()):
+        with patch.object(statistics, "get_analytics", AsyncMock(return_value=analytics_data([]))):
             await statistics.analytics(message, 2026, 8, family_id=7)
         self.assertNotIn("🏷 <b>Проекты</b>", message.answers[0][0])
