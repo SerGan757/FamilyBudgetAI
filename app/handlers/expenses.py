@@ -21,6 +21,7 @@ from app.services.expense_service import (
 )
 from app.services.project_service import get_project
 from app.services.user_service import get_user_by_telegram_id
+from app.utils.currency import family_currency, format_money
 
 router = Router()
 
@@ -132,6 +133,7 @@ async def add_transaction(
                 pending_project_family_id=family.id,
                 pending_project_parsed=result.parsed,
                 pending_project_tag=result.tag,
+                pending_project_currency=family_currency(family),
             )
             await state.set_state(ProjectTransactionState.waiting_for_resolution)
             if result.status == "inactive":
@@ -182,13 +184,13 @@ async def add_transaction(
             text += (
                 f"{t.category:<18}"
                 f"{t.title[:20]:<20}"
-                f"{sign}{t.amount:>8.2f} €\n"
+                f"{sign}{format_money(t.amount, family_currency(family))}\n"
             )
 
         text += (
             "\n──────────────────────────────\n"
-            f"💰 Доходы : {total_income:.2f} €\n"
-            f"💸 Расходы: {total_expense:.2f} €\n"
+            f"💰 Доходы : {format_money(total_income, family_currency(family))}\n"
+            f"💸 Расходы: {format_money(total_expense, family_currency(family))}\n"
         )
 
     if failed:
@@ -270,6 +272,7 @@ async def resolve_pending_project_transaction(
     )
     await message.edit_text(
         f"✅ Операция сохранена.\n{project_header}"
-        f"{escape(transaction.title)} · {sign}{transaction.amount:.2f} €"
+        f"{escape(transaction.title)} · {sign}"
+        f"{format_money(transaction.amount, data.get('pending_project_currency'))}"
     )
     await callback.answer()

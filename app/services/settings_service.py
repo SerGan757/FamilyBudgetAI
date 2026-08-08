@@ -4,11 +4,11 @@ from app.database.db import SessionLocal
 from app.database.models import Family, RecurringPayment, Transaction, User
 from app.services.family_activity_service import touch_family_activity
 from app.services.country_catalog import COUNTRIES, get_country
+from app.utils.currency import CURRENCY_CODES
 
 
 LANGUAGE_CODES = frozenset({"ru", "uk", "de", "en", "be"})
 TIMEZONE_VALUES = frozenset({country.timezone for country in COUNTRIES} | {"UTC"})
-CURRENCY_CODES = frozenset({country.currency for country in COUNTRIES} | {"USD"})
 TEMPORARY_SCREEN_TTL_VALUES = frozenset({0, 5, 10, 20, 30, 60})
 SETTING_VALUES = {
     "language": LANGUAGE_CODES,

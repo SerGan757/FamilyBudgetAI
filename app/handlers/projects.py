@@ -15,18 +15,22 @@ from app.services.project_service import (
     update_project_name, update_project_tag, validate_project_name,
     normalize_project_tag,
 )
+from app.services.settings_service import get_current_family_settings
+from app.utils.currency import format_money
 
 
 router = Router()
 
 
-def project_card_text(project, spent: float, operations: int) -> str:
+def project_card_text(
+    project, spent: float, operations: int, currency_code: str = "EUR",
+) -> str:
     status = "🟢 Активен" if project.is_active else "⚪ Завершён"
     return (
         f"🏷 <b>{escape(project.name)}</b>\n\n"
         f"Тег: #{escape(project.tag)}\n"
         f"Статус: {status}\n\n"
-        f"Потрачено: {spent:.2f} €\n"
+        f"Потрачено: {format_money(spent, currency_code)}\n"
         f"Операций: {operations}"
     )
 
@@ -52,7 +56,9 @@ async def _show_card(message, telegram_id: int, project_id: int, notice: str | N
         await message.edit_text("Объект не найден.")
         return
     project, spent, operations = result
-    text = project_card_text(project, spent, operations)
+    settings = await get_current_family_settings(telegram_id)
+    currency_code = settings["currency"] if settings else "EUR"
+    text = project_card_text(project, spent, operations, currency_code)
     if notice:
         text = f"{notice}\n\n{text}"
     await message.edit_text(text, reply_markup=project_card_keyboard(project), parse_mode="HTML")
@@ -77,7 +83,6 @@ async def project_callback(
         await state.clear()
         from app.handlers.settings import family_settings_text
         from app.keyboards.settings_menu import family_settings_keyboard_for_ttl
-        from app.services.settings_service import get_current_family_settings
         data = await get_current_family_settings(callback.from_user.id)
         if data is None:
             await message.edit_text("⚠️ Пользователь или семья не найдены.")
@@ -133,6 +138,8 @@ async def project_callback(
             return
         transactions, total = result
         project = await get_project(callback.from_user.id, callback_data.project_id)
+        settings = await get_current_family_settings(callback.from_user.id)
+        currency_code = settings["currency"] if settings else "EUR"
         text = f"📊 <b>Операции проекта: {escape(project.name)}</b>\n\n"
         if not transactions:
             text += "Операций пока нет."
@@ -141,7 +148,7 @@ async def project_callback(
             author = escape(transaction.user.name) if transaction.user else "—"
             text += (
                 f"{transaction.created_at:%d.%m.%Y} · {escape(transaction.title)} · "
-                f"{sign}{transaction.amount:.2f} € · {author}\n"
+                f"{sign}{format_money(transaction.amount, currency_code)} · {author}\n"
             )
         keyboard = project_back_keyboard(project.id)
         if total > 10:
@@ -207,8 +214,10 @@ async def project_tag(message: Message, state: FSMContext):
     await state.clear()
     result = await get_project_card(message.from_user.id, project.id)
     project, spent, operations = result
+    settings = await get_current_family_settings(message.from_user.id)
+    currency_code = settings["currency"] if settings else "EUR"
     await message.answer(
-        "✅ Проект создан.\n\n" + project_card_text(project, spent, operations),
+        "✅ Проект создан.\n\n" + project_card_text(project, spent, operations, currency_code),
         reply_markup=project_card_keyboard(project), parse_mode="HTML",
     )
 
@@ -242,8 +251,10 @@ async def _edit_project_value(message: Message, state: FSMContext, *, field: str
     await state.clear()
     result = await get_project_card(message.from_user.id, updated.id)
     project, spent, operations = result
+    settings = await get_current_family_settings(message.from_user.id)
+    currency_code = settings["currency"] if settings else "EUR"
     await message.answer(
-        notice + "\n\n" + project_card_text(project, spent, operations),
+        notice + "\n\n" + project_card_text(project, spent, operations, currency_code),
         reply_markup=project_card_keyboard(project), parse_mode="HTML",
     )
 

@@ -14,6 +14,7 @@ from app.handlers.user_states import DeleteState
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.services.family_context_service import require_family_for_chat
 from app.utils.transaction_format import project_suffix
+from app.utils.currency import family_currency, format_money
 
 router = Router()
 
@@ -22,7 +23,7 @@ router = Router()
 # -------------------------------------------------------------------
 
 
-def operation_card(transaction) -> str:
+def operation_card(transaction, currency_code: str = "EUR") -> str:
 
     sign = "+" if transaction.type == "income" else "-"
 
@@ -36,16 +37,16 @@ def operation_card(transaction) -> str:
         "🗑️ Операция удалена\n"
         "────────────────────────────\n\n"
         f"{icon} {escape(transaction.title)}\n"
-        f"{sign}{transaction.amount:.2f} €"
+        f"{sign}{format_money(transaction.amount, currency_code)}"
         "</pre>"
     )
 
-def format_history_line(transaction) -> str:
+def format_history_line(transaction, currency_code: str = "EUR") -> str:
     sign = "+" if transaction.type == "income" else "-"
     amount = (
-        f"{sign}{transaction.amount:.2f} €/мес"
+        f"{sign}{format_money(transaction.amount, currency_code)}/мес"
         if transaction.is_recurring
-        else f"{sign}{transaction.amount:.2f} €"
+        else f"{sign}{format_money(transaction.amount, currency_code)}"
     )
 
     base_icon = (
@@ -131,7 +132,7 @@ async def delete_multiple(message: Message, state: FSMContext):
         result += (
             f"✅ ID {transaction.id} "
             f"{escape(transaction.title)} "
-            f"{sign}{transaction.amount:.2f} €\n"
+            f"{sign}{format_money(transaction.amount, family_currency(family))}\n"
         )
 
     await message.answer(
@@ -147,7 +148,7 @@ async def delete_multiple(message: Message, state: FSMContext):
 
         for transaction in transactions:
             history_text += (
-                format_history_line(transaction)
+                format_history_line(transaction, family_currency(family))
                 + "\n"
             )
 
@@ -186,7 +187,7 @@ async def history_delete_callback(
         return
 
     await callback.message.edit_text(
-        operation_card(transaction)
+        operation_card(transaction, family_currency(family))
     )
 
     await callback.answer(

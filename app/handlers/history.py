@@ -13,22 +13,20 @@ from app.services.family_context_service import require_family_for_chat
 from app.utils.navigation import answer_with_navigation
 from app.utils.temporary_screens import refresh_temporary_message, schedule_temporary_message
 from app.utils.transaction_format import project_suffix
+from app.utils.currency import family_currency, format_money
 
 router = Router()
 
 LIMIT = 20
 
 
-def format_transaction(transaction) -> str:
+def format_transaction(transaction, currency_code: str = "EUR") -> str:
 
     sign = "+" if transaction.type == "income" else "-"
 
     amount = abs(transaction.amount)
 
-    if amount.is_integer():
-        amount_text = f"{sign}{int(amount)} €"
-    else:
-        amount_text = f"{sign}{amount:.2f} €"
+    amount_text = f"{sign}{format_money(amount, currency_code)}"
 
     if transaction.is_recurring:
         amount_text += "/мес"
@@ -62,7 +60,7 @@ def format_transaction(transaction) -> str:
     )
 
 
-async def build_history_text(family_id: int, offset: int = 0):
+async def build_history_text(family_id: int, offset: int = 0, currency_code: str = "EUR"):
 
     total = await get_transactions_count(family_id)
 
@@ -81,7 +79,7 @@ async def build_history_text(family_id: int, offset: int = 0):
 
     for transaction in transactions:
         text += (
-            format_transaction(transaction)
+            format_transaction(transaction, currency_code)
             + "\n"
         )
 
@@ -106,7 +104,7 @@ async def history(message: Message):
 
     sent_message = await answer_with_navigation(
         message,
-        await build_history_text(family.id, 0),
+        await build_history_text(family.id, 0, family_currency(family)),
         inline_markup=pagination_keyboard(
             prefix="history",
             offset=0,
@@ -135,7 +133,7 @@ async def history_page(
     total = await get_transactions_count(family.id)
 
     await callback.message.edit_text(
-        await build_history_text(family.id, offset),
+        await build_history_text(family.id, offset, family_currency(family)),
         reply_markup=pagination_keyboard(
             prefix="history",
             offset=offset,

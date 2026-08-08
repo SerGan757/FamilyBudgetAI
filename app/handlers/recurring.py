@@ -17,6 +17,7 @@ from app.services.recurring_manager import (
 from app.services.family_context_service import require_family_for_chat
 from app.services.user_service import get_user_by_telegram_id
 from app.utils.fsm import cancel_state
+from app.utils.currency import family_currency, format_money, format_signed_money
 
 router = Router()
 
@@ -124,7 +125,7 @@ async def add_template(message: Message, state: FSMContext):
 
                 income_text += (
                     f"{inc}. {escape(payment.title)}"
-                    f" — +{payment.amount:.2f} €/мес\n"
+                    f" — +{format_money(payment.amount, family_currency(family))}/мес\n"
                 )
 
                 inc += 1
@@ -136,7 +137,7 @@ async def add_template(message: Message, state: FSMContext):
 
                 expense_text += (
                     f"{exp}. {escape(payment.title)}"
-                    f" — {payment.amount:.2f} €/мес\n"
+                    f" — {format_money(payment.amount, family_currency(family))}/мес\n"
                 )
 
                 exp += 1
@@ -154,11 +155,11 @@ async def add_template(message: Message, state: FSMContext):
 
         text += (
             "\n━━━━━━━━━━━━━━━━━━\n\n"
-            f"<b>💸 Расходы: {expense_total:.2f} €/мес ({expense_count})</b>\n"
-            f"<b>💰 Доходы: {income_total:.2f} €/мес ({income_count})</b>\n\n"
+            f"<b>💸 Расходы: {format_money(expense_total, family_currency(family))}/мес ({expense_count})</b>\n"
+            f"<b>💰 Доходы: {format_money(income_total, family_currency(family))}/мес ({income_count})</b>\n\n"
             "━━━━━━━━━━━━━━━━━━\n\n"
             f"<b>💶 Баланс: "
-            f"{income_total-expense_total:+.2f} €/мес</b>\n\n"
+            f"{format_signed_money(income_total-expense_total, family_currency(family))}/мес</b>\n\n"
         )
 
     else:
@@ -223,7 +224,7 @@ async def save_template(message: Message, state: FSMContext):
 
     await message.answer(
         "✅ Шаблон сохранён.\n\n"
-        f"{escape(payment.title)} — {payment.amount:.2f} €/мес",
+        f"{escape(payment.title)} — {format_money(payment.amount, family_currency(family))}/мес",
         reply_markup=recurring_keyboard,
     )
 
@@ -304,7 +305,7 @@ async def month_recurring(message: Message, state: FSMContext):
 
             income_text += (
                 f"🔁 💰 {escape(transaction.title)} "
-                f"+{transaction.amount:.2f} €/мес "
+                f"+{format_money(transaction.amount, family_currency(family))}/мес "
                 f"{author}\n"
             )
 
@@ -315,7 +316,7 @@ async def month_recurring(message: Message, state: FSMContext):
 
             expense_text += (
                 f"🔁 {escape(transaction.title)} "
-                f"-{transaction.amount:.2f} €/мес "
+                f"-{format_money(transaction.amount, family_currency(family))}/мес "
                 f"{author}\n"
             )
 
@@ -332,11 +333,11 @@ async def month_recurring(message: Message, state: FSMContext):
 
     text += (
         "\n━━━━━━━━━━━━━━━━━━\n\n"
-        f"<b>💸 Расходы: {expense_total:.2f} €/мес ({expense_count})</b>\n"
-        f"<b>💰 Доходы: {income_total:.2f} €/мес ({income_count})</b>\n\n"
+        f"<b>💸 Расходы: {format_money(expense_total, family_currency(family))}/мес ({expense_count})</b>\n"
+        f"<b>💰 Доходы: {format_money(income_total, family_currency(family))}/мес ({income_count})</b>\n\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
         f"<b>💶 Баланс: "
-        f"{income_total-expense_total:+.2f} €/мес</b>"
+        f"{format_signed_money(income_total-expense_total, family_currency(family))}/мес</b>"
     )
 
     await message.answer(
@@ -366,7 +367,7 @@ async def delete_template(message: Message, state: FSMContext):
 
     for payment in payments:
         await message.answer(
-            f"{payment.title} — {payment.amount:.2f} €/мес",
+            f"{payment.title} — {format_money(payment.amount, family_currency(family))}/мес",
             reply_markup=delete_keyboard(payment.id),
         )
 
@@ -412,7 +413,7 @@ async def edit_template(message: Message, state: FSMContext):
     for payment in payments:
         text += (
             f"ID {payment.id}: {escape(payment.title)}"
-            f" — {payment.amount:.2f} €/мес\n"
+            f" — {format_money(payment.amount, family_currency(family))}/мес\n"
         )
 
     text += "\nВведите ID и новые данные.\n\n<pre>12 Интернет 55</pre>"
@@ -462,7 +463,7 @@ async def save_edited_template(message: Message, state: FSMContext):
 
     await message.answer(
         "✅ Шаблон изменён.\n\n"
-        f"{escape(payment.title)} — {payment.amount:.2f} €/мес",
+        f"{escape(payment.title)} — {format_money(payment.amount, family_currency(family))}/мес",
         reply_markup=recurring_keyboard,
     )
 
@@ -530,7 +531,7 @@ async def create_month(message: Message, state: FSMContext):
 
             text += (
                 f"{icon} {escape(item['title'])} — "
-                f"{sign}{item['amount']:.2f} €/мес\n"
+                f"{sign}{format_money(item['amount'], family_currency(family))}/мес\n"
             )
 
     await message.answer(

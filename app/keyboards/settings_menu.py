@@ -4,6 +4,7 @@ from aiogram.types import (
 )
 from app.services.country_catalog import COUNTRIES
 from app.keyboards.projects import button as project_button
+from app.utils.currency import CURRENCY_SYMBOLS
 
 
 class FamilySettingsCallback(CallbackData, prefix="fset"):
@@ -79,11 +80,8 @@ timezone_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 
-CURRENCY_OPTIONS = (
-    ("EUR (€)", "EUR"), ("USD ($)", "USD"), ("UAH (₴)", "UAH"),
-    ("GBP (£)", "GBP"), ("PLN (zł)", "PLN"), ("CZK (Kč)", "CZK"),
-    ("RON (lei)", "RON"), ("CHF (CHF)", "CHF"), ("HUF (Ft)", "HUF"),
-    ("SEK (kr)", "SEK"), ("NOK (kr)", "NOK"), ("DKK (kr)", "DKK"),
+CURRENCY_OPTIONS = tuple(
+    (f"{code} ({symbol})", code) for code, symbol in CURRENCY_SYMBOLS.items()
 )
 currency_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     *[[_inline(label, "set_currency", value)] for label, value in CURRENCY_OPTIONS],

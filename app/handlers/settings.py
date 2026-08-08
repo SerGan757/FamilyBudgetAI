@@ -22,6 +22,7 @@ from app.services.settings_service import (
     update_current_family_country, validate_family_setting,
 )
 from app.services.family_context_service import require_family_for_chat
+from app.utils.currency import currency_symbol, normalize_currency_code
 
 
 router = Router()
@@ -49,15 +50,9 @@ LANGUAGE_LABELS = {
     "ru": "Русский", "uk": "Українська", "de": "Deutsch", "en": "English",
     "be": "Беларуская",
 }
-CURRENCY_SYMBOLS = {
-    "EUR": "€", "USD": "$", "UAH": "₴", "GBP": "£", "PLN": "zł", "CZK": "Kč",
-    "RON": "lei", "CHF": "CHF", "HUF": "Ft", "SEK": "kr", "NOK": "kr", "DKK": "kr",
-}
-
-
 def family_settings_text(data: dict, notice: str | None = None) -> str:
     language = LANGUAGE_LABELS.get(data["language"], data["language"])
-    currency = data["currency"]
+    currency = normalize_currency_code(data["currency"])
     country = get_country(data["country"])
     country_label = f"{country.flag} {country.name}" if country else (data["country"] or "—")
     prefix = f"{notice}\n\n" if notice else ""
@@ -67,7 +62,7 @@ def family_settings_text(data: dict, notice: str | None = None) -> str:
         f"🌍 Страна: {escape(country_label)}\n"
         f"🏙 Город: {escape(data['city'] or '—')}\n"
         f"🕓 Часовой пояс: {escape(data['timezone'])}\n"
-        f"💶 Валюта: {escape(currency)} ({CURRENCY_SYMBOLS.get(currency, '')})"
+        f"💶 Валюта: {escape(currency)} ({currency_symbol(currency)})"
     )
 
 

@@ -18,6 +18,7 @@ from app.services.family_context_service import require_family_for_chat
 from app.utils.navigation import answer_with_navigation
 from app.utils.transaction_format import project_suffix
 from app.utils.temporary_screens import refresh_temporary_message, schedule_temporary_message
+from app.utils.currency import family_currency, format_money
 
 router = Router()
 
@@ -34,20 +35,17 @@ def days_text(value: int) -> str:
     return f"{value} {word}"
 
 
-def money(value: float) -> str:
-    return f"{value:,.2f} €".replace(",", " ")
+def money(value: float, currency_code: str = "EUR") -> str:
+    return format_money(value, currency_code)
 
 
-def format_transaction(transaction):
+def format_transaction(transaction, currency_code: str = "EUR"):
 
     sign = "+" if transaction.type == "income" else "-"
 
     amount = abs(transaction.amount)
 
-    if amount.is_integer():
-        amount_text = f"{sign}{int(amount)} €"
-    else:
-        amount_text = f"{sign}{amount:.2f} €"
+    amount_text = f"{sign}{money(amount, currency_code)}"
 
     if transaction.is_recurring:
         amount_text += "/мес"
@@ -80,13 +78,14 @@ def format_today(
     data,
     selected_date: date,
     offset: int = 0,
+    currency_code: str = "EUR",
 ):
 
     text = (
         f"📅 <b>{selected_date.strftime('%d.%m.%Y')}</b>\n\n"
-        f"💰 Доходы     {money(data['income'])}\n"
-        f"💸 Расходы    {money(data['expense'])}\n"
-        f"📈 Баланс     {money(data['balance'])}\n"
+        f"💰 Доходы     {money(data['income'], currency_code)}\n"
+        f"💸 Расходы    {money(data['expense'], currency_code)}\n"
+        f"📈 Баланс     {money(data['balance'], currency_code)}\n"
     )
 
     text += "\n"
@@ -103,7 +102,7 @@ def format_today(
         for transaction in regular:
 
             text += (
-                format_transaction(transaction)
+                format_transaction(transaction, currency_code)
                 + "\n"
             )
 
@@ -142,6 +141,7 @@ async def today(message: Message):
             data,
             selected_date,
             offset=0,
+            currency_code=family_currency(family),
         ),
         parse_mode="HTML",
         inline_markup=day_keyboard(selected_date, 0, total),
@@ -184,6 +184,7 @@ async def today_page(
             data,
             selected_date,
             offset=offset,
+            currency_code=family_currency(family),
         ),
         parse_mode="HTML",
         reply_markup=day_keyboard(selected_date, offset, total),
@@ -197,6 +198,7 @@ def format_month(
     year: int,
     month: int,
     offset: int = 0,
+    currency_code: str = "EUR",
 ):
 
     months = [
@@ -217,11 +219,11 @@ def format_month(
 
     text = (
         f"📅 <b>{months[month]} {year}</b>\n\n"
-        f"💰 Доходы: {money(data['ordinary_income'])}\n"
-        f"💸 Расходы: {money(data['ordinary_expense'])}\n\n"
-        f"🔁 Регулярные расходы: {data['recurring_expense']:.2f} €/мес ({data['recurring_expense_count']})\n"
-        f"🔁 Регулярные доходы: {data['recurring_income']:.2f} €/мес ({data['recurring_income_count']})\n\n"
-        f"📈 Баланс: {money(data['balance'])}\n\n"
+        f"💰 Доходы: {money(data['ordinary_income'], currency_code)}\n"
+        f"💸 Расходы: {money(data['ordinary_expense'], currency_code)}\n\n"
+        f"🔁 Регулярные расходы: {money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})\n"
+        f"🔁 Регулярные доходы: {money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})\n\n"
+        f"📈 Баланс: {money(data['balance'], currency_code)}\n\n"
     )
 
     regular = data["transactions"]
@@ -237,7 +239,7 @@ def format_month(
         for transaction in regular:
 
             text += (
-                format_transaction(transaction)
+                format_transaction(transaction, currency_code)
                 + "\n"
             )
 
@@ -316,6 +318,7 @@ async def month(message: Message):
             today.year,
             today.month,
             offset=0,
+            currency_code=family_currency(family),
         ),
         parse_mode="HTML",
         inline_markup=month_keyboard(today.year, today.month, 0, total),
@@ -362,6 +365,7 @@ async def month_page(
             year,
             month,
             offset=offset,
+            currency_code=family_currency(family),
         ),
         parse_mode="HTML",
         reply_markup=month_keyboard(year, month, offset, total),
@@ -380,11 +384,11 @@ async def balance(message: Message):
 
     text = (
         f"<b>💰 ТЕКУЩИЙ БАЛАНС</b>\n\n"
-        f"💰 Доходы: {money(data['ordinary_income'])}\n"
-        f"💸 Расходы: {money(data['ordinary_expense'])}\n\n"
-        f"🔁 Регулярные расходы: {data['recurring_expense']:.2f} €/мес ({data['recurring_expense_count']})\n"
-        f"🔁 Регулярные доходы: {data['recurring_income']:.2f} €/мес ({data['recurring_income_count']})\n\n"
-        f"<b>💎 Остаток     : {money(data['balance'])}</b>"
+        f"💰 Доходы: {money(data['ordinary_income'], family_currency(family))}\n"
+        f"💸 Расходы: {money(data['ordinary_expense'], family_currency(family))}\n\n"
+        f"🔁 Регулярные расходы: {money(data['recurring_expense'], family_currency(family))}/мес ({data['recurring_expense_count']})\n"
+        f"🔁 Регулярные доходы: {money(data['recurring_income'], family_currency(family))}/мес ({data['recurring_income_count']})\n\n"
+        f"<b>💎 Остаток     : {money(data['balance'], family_currency(family))}</b>"
     )
 
     sent_message = await message.answer(
@@ -403,6 +407,7 @@ async def analytics(
     *,
     edit_existing: bool = False,
     temporary_screen_ttl: int = 20,
+    currency_code: str = "EUR",
 ):
     if family_id is None:
         family = await require_family_for_chat(
@@ -411,6 +416,7 @@ async def analytics(
         )
         family_id = family.id
         temporary_screen_ttl = family.temporary_screen_ttl
+        currency_code = family_currency(family)
 
     months = [
         "",
@@ -445,16 +451,16 @@ async def analytics(
         forecast_lines.append(f"💸 Потрачено бюджета: {forecast.spent_percent}%")
     if forecast.forecast_expenses is not None:
         forecast_lines.append(
-            f"📈 Прогноз расходов: {money(forecast.forecast_expenses)}"
+            f"📈 Прогноз расходов: {money(forecast.forecast_expenses, currency_code)}"
         )
     if forecast.forecast_balance is not None:
         if forecast.forecast_balance >= 0:
             forecast_lines.append(
-                f"🟢 Прогноз остатка: {money(forecast.forecast_balance)}"
+                f"🟢 Прогноз остатка: {money(forecast.forecast_balance, currency_code)}"
             )
         else:
             forecast_lines.append(
-                f"🔴 Прогноз дефицита: {money(abs(forecast.forecast_balance))}"
+                f"🔴 Прогноз дефицита: {money(abs(forecast.forecast_balance), currency_code)}"
             )
     if forecast.pace_delta is not None:
         if forecast.pace_delta > 2:
@@ -469,16 +475,16 @@ async def analytics(
     text = (
         f"📊 <b>Аналитика • {months[month]} {year}</b>\n\n"
 
-        f"💰 Обычные доходы: <b>{money(data['ordinary_income'])}</b>\n"
-        f"💸 Обычные расходы: <b>{money(data['ordinary_expense'])}</b>\n\n"
-        f"🔁 Регулярные доходы: <b>{money(data['recurring_income'])}/мес ({data['recurring_income_count']})</b>\n"
-        f"🔁 Регулярные расходы: <b>{money(data['recurring_expense'])}/мес ({data['recurring_expense_count']})</b>\n\n"
-        f"💎 Остаток месяца: <b>{money(data['balance'])}</b>\n\n"
+        f"💰 Обычные доходы: <b>{money(data['ordinary_income'], currency_code)}</b>\n"
+        f"💸 Обычные расходы: <b>{money(data['ordinary_expense'], currency_code)}</b>\n\n"
+        f"🔁 Регулярные доходы: <b>{money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})</b>\n"
+        f"🔁 Регулярные расходы: <b>{money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})</b>\n\n"
+        f"💎 Остаток месяца: <b>{money(data['balance'], currency_code)}</b>\n\n"
         f"{forecast_text}\n\n"
 
         f"📋 Операций: <b>{data['operations']}</b>\n"
-        f"🧾 Средний чек: <b>{money(data['average_check'])}</b>\n"
-        f"📅 В день: <b>{money(data['average_day'])}</b>\n"
+        f"🧾 Средний чек: <b>{money(data['average_check'], currency_code)}</b>\n"
+        f"📅 В день: <b>{money(data['average_day'], currency_code)}</b>\n"
     )
     if data["users"]:
 
@@ -495,7 +501,7 @@ async def analytics(
             medal = medals[i] if i < len(medals) else "▪️"
 
             text += (
-                f"{medal} {escape(name)} — <b>{money(amount)}</b>\n"
+                f"{medal} {escape(name)} — <b>{money(amount, currency_code)}</b>\n"
             )
 
     if data["categories"]:
@@ -505,7 +511,7 @@ async def analytics(
         for i, (category, amount) in enumerate(data["categories"][:5], 1):
 
             text += (
-                f"{i}. {escape(category)} — <b>{money(amount)}</b>\n"
+                f"{i}. {escape(category)} — <b>{money(amount, currency_code)}</b>\n"
             )
 
     if data["biggest"]:
@@ -517,14 +523,14 @@ async def analytics(
         text += (
             "\n🔥 <b>Крупнейшая покупка</b>\n"
             f"{purchase_date} • {escape(purchase.title)}\n"
-            f"<b>{money(purchase.amount)}</b>"
+            f"<b>{money(purchase.amount, currency_code)}</b>"
         )
 
     if data["projects"]:
         text += "\n\n🏷 <b>Проекты</b>\n"
         for index, (project_name, amount) in enumerate(data["projects"], 1):
             text += (
-                f"{index}. {escape(project_name)} — <b>{money(amount)}</b>\n"
+                f"{index}. {escape(project_name)} — <b>{money(amount, currency_code)}</b>\n"
             )
 
     if edit_existing:
@@ -615,7 +621,10 @@ async def analytics_back(callback: CallbackQuery):
         callback.message.chat.id, chat_type=callback.message.chat.type,
         telegram_id=callback.from_user.id,
     )
-    await analytics(callback.message, year, month, family.id, edit_existing=True)
+    await analytics(
+        callback.message, year, month, family.id,
+        edit_existing=True, currency_code=family_currency(family),
+    )
     refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
@@ -636,7 +645,8 @@ async def analytics_page(callback: CallbackQuery):
     )
     try:
         await analytics(
-            callback.message, year, month, family.id, edit_existing=True,
+            callback.message, year, month, family.id,
+            edit_existing=True, currency_code=family_currency(family),
         )
     except TelegramBadRequest as error:
         if "message is not modified" not in str(error).lower():

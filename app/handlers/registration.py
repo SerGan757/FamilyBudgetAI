@@ -10,6 +10,7 @@ from app.keyboards.main_menu import main_menu
 from app.services.expense_service import PendingProjectTransaction, save_transaction
 from app.services.family_context_service import require_family_for_chat
 from app.services.user_service import create_user
+from app.utils.currency import family_currency, format_money
 
 
 router = Router()
@@ -72,6 +73,7 @@ async def finish_group_registration(
                 pending_project_family_id=family_id,
                 pending_project_parsed=result.parsed,
                 pending_project_tag=result.tag,
+                pending_project_currency=family_currency(family),
             )
             await state.set_state(ProjectTransactionState.waiting_for_resolution)
             if result.status == "inactive":
@@ -107,9 +109,12 @@ async def finish_group_registration(
             sign = "+" if transaction.type == "income" else "-"
             text += (
                 f"• {transaction.category} | {transaction.title} | "
-                f"{sign}{transaction.amount:.2f} €\n"
+                f"{sign}{format_money(transaction.amount, family_currency(family))}\n"
             )
-        text += f"\n💰 Доходы: {income:.2f} €\n💸 Расходы: {expense:.2f} €"
+        text += (
+            f"\n💰 Доходы: {format_money(income, family_currency(family))}"
+            f"\n💸 Расходы: {format_money(expense, family_currency(family))}"
+        )
 
     if failed:
         text += "\n\n⚠️ Не удалось распознать:\n"
