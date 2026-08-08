@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from app.constants import APP_VERSION
 from app.handlers import settings
 from app.keyboards.main_menu import main_menu
-from app.keyboards.settings_menu import settings_menu
+from app.keyboards.settings_menu import family_settings_keyboard, settings_menu
 
 
 class Message:
@@ -29,16 +29,14 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_settings_screen_escapes_family_and_opens_menu(self):
         message = Message()
-        data = {"id": 3, "name": "<Family>", "created_at": datetime(2026, 7, 17),
-                "members_count": 5, "transactions_count": 328, "recurring_count": 21}
-        family = SimpleNamespace(id=3)
-        with patch.object(settings, "require_family_for_chat", AsyncMock(return_value=family)) as require_family, \
-             patch.object(settings, "get_family_settings_data", AsyncMock(return_value=data)) as get_data:
+        data = {"id": 3, "name": "<Family>", "language": "uk", "country": None,
+                "city": "Berlin", "timezone": "Europe/Berlin", "currency": "EUR"}
+        with patch.object(settings, "get_current_family_settings", AsyncMock(return_value=data)) as get_data:
             await settings.open_settings(message)
-        self.assertIn("&lt;Family&gt;", message.answers[0][0])
-        self.assertEqual(message.answers[0][1]["reply_markup"], settings_menu)
-        require_family.assert_awaited_once_with(100)
-        get_data.assert_awaited_once_with(3)
+        self.assertIn("Українська", message.answers[0][0])
+        self.assertIn("Berlin", message.answers[0][0])
+        self.assertEqual(message.answers[0][1]["reply_markup"], family_settings_keyboard)
+        get_data.assert_awaited_once_with(1)
 
     async def test_members_and_about(self):
         message = Message("👥 Участники")
