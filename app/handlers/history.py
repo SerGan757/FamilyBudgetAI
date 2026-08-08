@@ -11,6 +11,7 @@ from app.services.history_service import (
 )
 from app.services.family_context_service import require_family_for_chat
 from app.utils.navigation import show_back_keyboard
+from app.utils.transaction_format import project_suffix
 
 router = Router()
 
@@ -56,6 +57,7 @@ def format_transaction(transaction) -> str:
 
     return (
         f"{transaction.id} {icon} {title} {amount_text} {user}"
+        f"{project_suffix(transaction)}"
     )
 
 

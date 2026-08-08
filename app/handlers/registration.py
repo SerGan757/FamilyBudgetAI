@@ -1,10 +1,13 @@
 from aiogram import Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
+from html import escape
 
 from app.handlers.user_states import RegistrationState
+from app.handlers.project_states import ProjectTransactionState
+from app.keyboards.projects import pending_project_keyboard
 from app.keyboards.main_menu import main_menu
-from app.services.expense_service import save_transaction
+from app.services.expense_service import PendingProjectTransaction, save_transaction
 from app.services.family_context_service import require_family_for_chat
 from app.services.user_service import create_user
 
@@ -63,6 +66,29 @@ async def finish_group_registration(
             continue
 
         result = await save_transaction(line, telegram_id, family_id)
+        if isinstance(result, PendingProjectTransaction):
+            await state.update_data(
+                pending_project_chat_id=message.chat.id,
+                pending_project_family_id=family_id,
+                pending_project_parsed=result.parsed,
+                pending_project_tag=result.tag,
+            )
+            await state.set_state(ProjectTransactionState.waiting_for_resolution)
+            if result.status == "inactive":
+                pending_text = f"⚠️ Проект «{escape(result.project.name)}» завершён."
+                suggestion = None
+            else:
+                pending_text = f"⚠️ Проект #{escape(result.tag)} не найден."
+                suggestion = result.suggestion
+                if suggestion is not None:
+                    pending_text += (
+                        "\n\nВозможно, вы имели в виду:\n"
+                        f"🏷 #{escape(suggestion.tag)} — {escape(suggestion.name)}"
+                    )
+            await message.answer(
+                pending_text, reply_markup=pending_project_keyboard(suggestion),
+            )
+            return
         if isinstance(result, str):
             failed.append(line)
             continue

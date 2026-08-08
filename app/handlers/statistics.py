@@ -15,6 +15,7 @@ from app.services.statistics_service import (
 from app.services.family_context_service import require_family_for_chat
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.utils.navigation import show_back_keyboard
+from app.utils.transaction_format import project_suffix
 
 router = Router()
 
@@ -59,6 +60,7 @@ def format_transaction(transaction):
         f"{title} "
         f"{amount_text} "
         f"{author}"
+        f"{project_suffix(transaction)}"
     )
 
 
@@ -443,6 +445,13 @@ async def analytics(message: Message, year: int | None = None, month: int | None
             f"{purchase_date} • {escape(purchase.title)}\n"
             f"<b>{money(purchase.amount)}</b>"
         )
+
+    if data["projects"]:
+        text += "\n\n🏷 <b>Проекты</b>\n"
+        for index, (project_name, amount) in enumerate(data["projects"], 1):
+            text += (
+                f"{index}. {escape(project_name)} — <b>{money(amount)}</b>\n"
+            )
 
     await message.answer(
         text,

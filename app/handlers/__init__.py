@@ -8,6 +8,7 @@ from .statistics import router as statistics_router
 from .delete import router as delete_router
 from .recurring import router as recurring_router
 from .settings import router as settings_router
+from .projects import router as projects_router
 
 
 routers = (
@@ -19,6 +20,7 @@ routers = (
     menu_router,
     history_router,
     statistics_router,
+    projects_router,
     settings_router,
     expenses_router,
 )

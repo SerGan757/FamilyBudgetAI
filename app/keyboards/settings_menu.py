@@ -3,6 +3,7 @@ from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup,
 )
 from app.services.country_catalog import COUNTRIES
+from app.keyboards.projects import button as project_button
 
 
 class FamilySettingsCallback(CallbackData, prefix="fset"):
@@ -23,6 +24,7 @@ family_settings_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [_inline("🏙 Город", "city")],
     [_inline("🕓 Часовой пояс", "timezone")],
     [_inline("💶 Валюта", "currency")],
+    [project_button("🏷 Проекты", "list")],
     [_inline("⬅️ Назад", "close")],
 ])
 

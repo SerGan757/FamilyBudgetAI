@@ -13,6 +13,7 @@ from app.services.history_service import get_last_transactions
 from app.handlers.user_states import DeleteState
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.services.family_context_service import require_family_for_chat
+from app.utils.transaction_format import project_suffix
 
 router = Router()
 
@@ -56,7 +57,10 @@ def format_history_line(transaction) -> str:
     title = escape(transaction.title)
     if len(title) > 24:
         title = title[:23] + "…"
-    return f"{transaction.id}. {icon} {title} {amount} {escape(transaction.user_name)}"
+    return (
+        f"{transaction.id}. {icon} {title} {amount} {escape(transaction.user_name)}"
+        f"{project_suffix(transaction)}"
+    )
 
 # -------------------------------------------------------------------
 # Удалить последнюю операцию

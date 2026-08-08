@@ -1,7 +1,8 @@
-from sqlalchemy import desc, func, select
+from sqlalchemy import and_, desc, func, select
+from sqlalchemy.orm import contains_eager
 
 from app.database.db import SessionLocal
-from app.database.models import Transaction, User
+from app.database.models import Project, Transaction, User
 
 
 def _family_scope(family_id: int):
@@ -33,6 +34,11 @@ async def get_last_transactions(
                 User,
                 Transaction.user_id == User.id,
             )
+            .outerjoin(
+                Project,
+                and_(Project.id == Transaction.project_id, Project.family_id == family_id),
+            )
+            .options(contains_eager(Transaction.project))
             .where(Transaction.family_id == family_id)
             .order_by(
                 desc(Transaction.id)
@@ -69,6 +75,11 @@ async def get_transactions_by_category(
                 User,
                 Transaction.user_id == User.id,
             )
+            .outerjoin(
+                Project,
+                and_(Project.id == Transaction.project_id, Project.family_id == family_id),
+            )
+            .options(contains_eager(Transaction.project))
             .where(
                 Transaction.family_id == family_id,
                 Transaction.category == category
@@ -108,6 +119,11 @@ async def get_transactions_by_type(
                 User,
                 Transaction.user_id == User.id,
             )
+            .outerjoin(
+                Project,
+                and_(Project.id == Transaction.project_id, Project.family_id == family_id),
+            )
+            .options(contains_eager(Transaction.project))
             .where(
                 Transaction.family_id == family_id,
                 Transaction.type == transaction_type

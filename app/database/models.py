@@ -96,6 +96,12 @@ class Family(Base):
         cascade="all, delete-orphan",
     )
 
+    projects = relationship(
+        "Project",
+        back_populates="family",
+        cascade="all, delete-orphan",
+    )
+
     def __repr__(self):
         return (
             f"<Family(id={self.id}, name='{self.name}')>"
@@ -225,6 +231,12 @@ class Transaction(Base):
         nullable=True,
     )
 
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
@@ -238,6 +250,11 @@ class Transaction(Base):
 
     recurring_payment = relationship(
         "RecurringPayment",
+        back_populates="transactions",
+    )
+
+    project = relationship(
+        "Project",
         back_populates="transactions",
     )
 
@@ -354,3 +371,36 @@ class RecurringPayment(Base):
             f"title='{self.title}', "
             f"amount={self.amount})>"
         )
+
+
+# =====================================================
+# PROJECTS
+# =====================================================
+
+class Project(Base):
+    __tablename__ = "projects"
+    __table_args__ = (
+        UniqueConstraint("family_id", "tag", name="uq_projects_family_tag"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tag: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"),
+        nullable=False,
+    )
+
+    family = relationship("Family", back_populates="projects")
+    transactions = relationship("Transaction", back_populates="project")
+
+    def __repr__(self):
+        return f"<Project(id={self.id}, family_id={self.family_id}, tag='{self.tag}')>"

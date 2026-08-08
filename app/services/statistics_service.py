@@ -1,10 +1,21 @@
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 
 from app.database.db import SessionLocal
-from app.database.models import Transaction, User
-from sqlalchemy.orm import selectinload
+from app.database.models import Project, Transaction, User
+from sqlalchemy.orm import contains_eager, selectinload
+
+
+def _transaction_list_query(family_id: int):
+    return (
+        select(Transaction)
+        .outerjoin(
+            Project,
+            and_(Project.id == Transaction.project_id, Project.family_id == family_id),
+        )
+        .options(selectinload(Transaction.user), contains_eager(Transaction.project))
+    )
 
 
 def _month_bounds() -> tuple[datetime, datetime]:
@@ -127,10 +138,7 @@ async def get_today_statistics(
         recurring_count = recurring_count_result.scalar() or 0
 
         result = await session.execute(
-            select(Transaction)
-            .options(
-                selectinload(Transaction.user)
-            )
+            _transaction_list_query(family_id)
             .where(
                 Transaction.family_id == family_id,
                 Transaction.created_at >= today,
@@ -229,10 +237,7 @@ async def get_month_statistics(
         recurring_expense_count = recurring_expense_count_result.scalar() or 0
 
         result = await session.execute(
-            select(Transaction)
-            .options(
-                selectinload(Transaction.user)
-            )
+            _transaction_list_query(family_id)
             .where(
                 Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
@@ -349,10 +354,7 @@ async def get_month_transactions(family_id: int, year: int | None = None, month:
     async with SessionLocal() as session:
 
         result = await session.execute(
-            select(Transaction)
-            .options(
-                selectinload(Transaction.user)
-            )
+            _transaction_list_query(family_id)
             .where(
                 Transaction.family_id == family_id,
                 Transaction.created_at >= month_start,
@@ -508,9 +510,39 @@ async def get_month_operations(family_id: int):
     return len(transactions)
 
 
+async def get_project_expense_statistics(family_id: int, year: int, month: int):
+    month_start = datetime(year, month, 1)
+    next_month = (
+        datetime(year + 1, 1, 1)
+        if month == 12
+        else datetime(year, month + 1, 1)
+    )
+    project_total = func.sum(Transaction.amount)
+    async with SessionLocal() as session:
+        result = await session.execute(
+            select(Project.name, project_total)
+            .join(Transaction, Transaction.project_id == Project.id)
+            .where(
+                Transaction.family_id == family_id,
+                Project.family_id == family_id,
+                Transaction.type == "expense",
+                Transaction.project_id.is_not(None),
+                Transaction.created_at >= month_start,
+                Transaction.created_at < next_month,
+            )
+            .group_by(Project.id, Project.name)
+            .order_by(project_total.desc())
+            .limit(5)
+        )
+        return [(name, float(amount)) for name, amount in result.all()]
+
+
 async def get_analytics(family_id: int, year: int | None = None, month: int | None = None):
+    today = date.today()
+    year, month = year or today.year, month or today.month
     stats = await get_month_statistics(family_id, year, month)
     transactions = await get_month_transactions(family_id, year, month)
+    projects = await get_project_expense_statistics(family_id, year, month)
     expenses = [t for t in transactions if t.type == "expense"]
     incomes = [t for t in transactions if t.type == "income"]
     users, categories, by_day_expense, by_day_income = {}, {}, {}, {}
@@ -531,5 +563,6 @@ async def get_analytics(family_id: int, year: int | None = None, month: int | No
             "users": sorted(users.items(), key=lambda x: x[1], reverse=True),
             "categories": sorted(categories.items(), key=lambda x: x[1], reverse=True),
             "biggest": biggest_expense, "biggest_income": biggest_income,
+            "projects": projects,
             "costliest_day": max(by_day_expense.items(), key=lambda x: x[1]) if by_day_expense else None,
             "best_income_day": max(by_day_income.items(), key=lambda x: x[1]) if by_day_income else None}
