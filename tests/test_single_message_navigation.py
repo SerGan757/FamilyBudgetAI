@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from app.handlers import history, statistics
-from app.keyboards.main_menu import back_to_main_menu_keyboard
 
 
 class Message:
@@ -12,7 +11,7 @@ class Message:
         self.from_user = SimpleNamespace(id=1)
         self.answer = AsyncMock()
         self.bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
-        self.sent = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=55)
+        self.sent = SimpleNamespace(bot=self.bot, chat=SimpleNamespace(id=100), message_id=55)
         self.answer.return_value = self.sent
 
 
@@ -38,20 +37,21 @@ def analytics_data():
 
 
 class SingleMessageNavigationTests(unittest.IsolatedAsyncioTestCase):
-    async def test_balance_remains_one_useful_message_with_back_keyboard(self):
+    async def test_balance_is_temporary_without_own_reply_keyboard(self):
         message = Message()
         with patch.object(
-            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1)),
+            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1, temporary_screen_ttl=20)),
         ), patch.object(statistics, "get_balance", AsyncMock(return_value=month_data())):
             await statistics.balance(message)
         message.answer.assert_awaited_once()
-        self.assertIs(message.answer.await_args.kwargs["reply_markup"], back_to_main_menu_keyboard)
+        self.assertNotIn("reply_markup", message.answer.await_args.kwargs)
+        self.assertNotIn("\u2063", message.answer.await_args.args[0])
         message.bot.edit_message_reply_markup.assert_not_awaited()
 
     async def test_history_sends_one_useful_message_and_keeps_both_keyboards(self):
         message = Message()
         with patch.object(
-            history, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1)),
+            history, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1, temporary_screen_ttl=20)),
         ), patch.object(history, "get_transactions_count", AsyncMock(return_value=25)), \
              patch.object(history, "build_history_text", AsyncMock(return_value="📋 История пуста.")):
             await history.history(message)
@@ -60,7 +60,7 @@ class SingleMessageNavigationTests(unittest.IsolatedAsyncioTestCase):
     async def test_today_sends_one_useful_message_and_keeps_both_keyboards(self):
         message = Message()
         with patch.object(
-            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1)),
+            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1, temporary_screen_ttl=20)),
         ), patch.object(statistics, "get_today_statistics", AsyncMock(return_value=month_data())):
             await statistics.today(message)
         self._assert_one_message_with_navigation(message, "Доходы")
@@ -68,7 +68,7 @@ class SingleMessageNavigationTests(unittest.IsolatedAsyncioTestCase):
     async def test_month_sends_one_useful_message_and_keeps_both_keyboards(self):
         message = Message()
         with patch.object(
-            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1)),
+            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1, temporary_screen_ttl=20)),
         ), patch.object(statistics, "get_month_statistics", AsyncMock(return_value=month_data())):
             await statistics.month(message)
         self._assert_one_message_with_navigation(message, "месяц")
@@ -76,7 +76,7 @@ class SingleMessageNavigationTests(unittest.IsolatedAsyncioTestCase):
     async def test_analytics_sends_one_useful_message_and_keeps_projects(self):
         message = Message()
         with patch.object(
-            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1)),
+            statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1, temporary_screen_ttl=20)),
         ), patch.object(statistics, "get_analytics", AsyncMock(return_value=analytics_data())):
             await statistics.analytics(message, 2026, 8)
         self._assert_one_message_with_navigation(message, "Аналитика")

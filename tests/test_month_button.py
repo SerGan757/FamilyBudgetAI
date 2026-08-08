@@ -13,7 +13,7 @@ class _Message:
         self.chat = SimpleNamespace(id=100, type="private")
         self.answers = []
         self.bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
-        self.sent = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=55)
+        self.sent = SimpleNamespace(bot=self.bot, chat=SimpleNamespace(id=100), message_id=55)
 
     async def answer(self, text, **kwargs):
         self.answers.append((text, kwargs))
@@ -34,7 +34,7 @@ class MonthButtonTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_month_response_keeps_inline_and_compact_back_keyboard(self):
         message = _Message()
-        family = SimpleNamespace(id=3)
+        family = SimpleNamespace(id=3, temporary_screen_ttl=20)
         data = {
             "ordinary_income": 110.0, "ordinary_expense": 89.02,
             "recurring_income": 3875.0, "recurring_expense": 1877.36,

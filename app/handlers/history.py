@@ -11,6 +11,7 @@ from app.services.history_service import (
 )
 from app.services.family_context_service import require_family_for_chat
 from app.utils.navigation import answer_with_navigation
+from app.utils.temporary_screens import refresh_temporary_message, schedule_temporary_message
 from app.utils.transaction_format import project_suffix
 
 router = Router()
@@ -103,7 +104,7 @@ async def history(message: Message):
     )
     total = await get_transactions_count(family.id)
 
-    await answer_with_navigation(
+    sent_message = await answer_with_navigation(
         message,
         await build_history_text(family.id, 0),
         inline_markup=pagination_keyboard(
@@ -113,6 +114,7 @@ async def history(message: Message):
             limit=LIMIT,
         ),
     )
+    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
 
 
 @router.callback_query(
@@ -142,4 +144,5 @@ async def history_page(
         ),
     )
 
+    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()

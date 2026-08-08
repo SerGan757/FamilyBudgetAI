@@ -28,7 +28,9 @@ def analytics_data():
 
 def callback(data: str):
     message = SimpleNamespace(
+        bot=SimpleNamespace(delete_message=AsyncMock()),
         chat=SimpleNamespace(id=100, type="private"),
+        message_id=55,
         answer=AsyncMock(),
         edit_text=AsyncMock(),
     )
@@ -43,7 +45,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         event = callback(data)
         with patch.object(
             statistics, "require_family_for_chat",
-            AsyncMock(return_value=SimpleNamespace(id=7)),
+            AsyncMock(return_value=SimpleNamespace(id=7, temporary_screen_ttl=20)),
         ), patch.object(
             statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
         ):
@@ -81,7 +83,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         event = callback("analytics_help:2026:07")
         with patch.object(
             statistics, "require_family_for_chat",
-            AsyncMock(return_value=SimpleNamespace(id=7)),
+            AsyncMock(return_value=SimpleNamespace(id=7, temporary_screen_ttl=20)),
         ):
             await statistics.analytics_help(event)
         event.message.edit_text.assert_awaited_once()
@@ -97,7 +99,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         back = callback("analytics_back:2026:07")
         with patch.object(
             statistics, "require_family_for_chat",
-            AsyncMock(return_value=SimpleNamespace(id=7)),
+            AsyncMock(return_value=SimpleNamespace(id=7, temporary_screen_ttl=20)),
         ), patch.object(
             statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
         ) as get_analytics:
@@ -167,7 +169,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         )
         with patch.object(
             statistics, "require_family_for_chat",
-            AsyncMock(return_value=SimpleNamespace(id=7)),
+            AsyncMock(return_value=SimpleNamespace(id=7, temporary_screen_ttl=20)),
         ), patch.object(
             statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
         ):

@@ -38,7 +38,7 @@ class Message:
         self.chat = SimpleNamespace(id=100)
         self.answers = []
         self.bot = SimpleNamespace(edit_message_reply_markup=AsyncMock())
-        self.sent = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=55)
+        self.sent = SimpleNamespace(bot=self.bot, chat=SimpleNamespace(id=100), message_id=55)
 
     async def answer(self, text, **kwargs):
         self.answers.append((text, kwargs))

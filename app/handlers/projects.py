@@ -76,14 +76,16 @@ async def project_callback(
     elif action == "settings":
         await state.clear()
         from app.handlers.settings import family_settings_text
-        from app.keyboards.settings_menu import family_settings_keyboard
+        from app.keyboards.settings_menu import family_settings_keyboard_for_ttl
         from app.services.settings_service import get_current_family_settings
         data = await get_current_family_settings(callback.from_user.id)
         if data is None:
             await message.edit_text("⚠️ Пользователь или семья не найдены.")
         else:
             await message.edit_text(
-                family_settings_text(data), reply_markup=family_settings_keyboard, parse_mode="HTML",
+                family_settings_text(data),
+                reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
+                parse_mode="HTML",
             )
     elif action == "new":
         await state.clear()

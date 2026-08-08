@@ -18,16 +18,36 @@ def _inline(text: str, action: str, value: str = "") -> InlineKeyboardButton:
     )
 
 
-family_settings_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [_inline("🌐 Язык", "language")],
-    [_inline("🌍 Страна", "country")],
-    [_inline("🏙 Город", "city")],
-    [_inline("🕓 Часовой пояс", "timezone")],
-    [_inline("💶 Валюта", "currency")],
-    [project_button("🏷 Проекты", "list")],
-    [_inline("ℹ️ О боте", "about")],
-    [_inline("⬅️ Назад", "close")],
-])
+def temporary_screen_ttl_label(ttl: int) -> str:
+    value = "выключено" if ttl == 0 else f"{ttl} сек."
+    return f"🧹 Автоудаление экранов: {value}"
+
+
+def family_settings_keyboard_for_ttl(ttl: int = 20) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [_inline("🌐 Язык", "language")],
+        [_inline("🌍 Страна", "country")],
+        [_inline("🏙 Город", "city")],
+        [_inline("🕓 Часовой пояс", "timezone")],
+        [_inline("💶 Валюта", "currency")],
+        [_inline(temporary_screen_ttl_label(ttl), "temporary_ttl")],
+        [project_button("🏷 Проекты", "list")],
+        [_inline("ℹ️ О боте", "about")],
+        [_inline("⬅️ Назад", "close")],
+    ])
+
+
+family_settings_keyboard = family_settings_keyboard_for_ttl()
+
+
+def temporary_screen_ttl_keyboard(current_ttl: int) -> InlineKeyboardMarkup:
+    rows = []
+    for ttl in (5, 10, 20, 30, 60, 0):
+        label = "Выключено" if ttl == 0 else f"{ttl} сек."
+        marker = "●" if ttl == current_ttl else "○"
+        rows.append([_inline(f"{marker} {label}", "set_temporary_ttl", str(ttl))])
+    rows.append([_inline("⬅️ Назад", "home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 language_keyboard = InlineKeyboardMarkup(inline_keyboard=[

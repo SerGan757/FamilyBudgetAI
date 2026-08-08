@@ -6,7 +6,7 @@ from app.handlers import settings
 from app.handlers.settings_states import FamilySettingsState
 from app.keyboards.settings_menu import (
     FamilySettingsCallback, country_keyboard, currency_keyboard, family_settings_keyboard,
-    language_keyboard,
+    language_keyboard, temporary_screen_ttl_keyboard,
 )
 from app.services import settings_service
 from app.services.country_catalog import COUNTRIES, COUNTRIES_BY_CODE
@@ -15,6 +15,7 @@ from app.services.country_catalog import COUNTRIES, COUNTRIES_BY_CODE
 DATA = {
     "id": 7, "name": "Family", "language": "ru", "country": "DE",
     "city": "Berlin", "timezone": "Europe/Berlin", "currency": "EUR",
+    "temporary_screen_ttl": 20,
 }
 
 
@@ -22,6 +23,7 @@ class FakeMessage:
     def __init__(self, text=""):
         self.text = text
         self.from_user = SimpleNamespace(id=123)
+        self.chat = SimpleNamespace(id=456, type="private")
         self.answers = []
         self.edits = []
         self.deleted = False
@@ -162,7 +164,7 @@ class FamilySettingsHandlerTests(unittest.IsolatedAsyncioTestCase):
             await settings.open_settings(message)
         get_data.assert_awaited_once_with(123)
         update.assert_not_awaited()
-        self.assertIs(message.answers[0][1]["reply_markup"], family_settings_keyboard)
+        self.assertEqual(message.answers[0][1]["reply_markup"], family_settings_keyboard)
 
     async def test_select_update_uses_telegram_id_not_family_id(self):
         callback, state = FakeCallback(), FakeState()
@@ -252,6 +254,34 @@ class FamilySettingsHandlerTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(state.cleared, 1)
 
+    async def test_temporary_ttl_selection_is_saved_for_resolved_family(self):
+        callback, state = FakeCallback(), FakeState()
+        updated = {**DATA, "temporary_screen_ttl": 10}
+        get_data = AsyncMock(side_effect=[DATA, updated])
+        family = SimpleNamespace(id=7, temporary_screen_ttl=20)
+        with patch.object(settings, "get_current_family_settings", get_data), \
+             patch.object(settings, "require_family_for_chat", AsyncMock(return_value=family)) as context, \
+             patch.object(settings, "update_family_temporary_screen_ttl", AsyncMock(return_value=True)) as update:
+            await settings.family_settings_callback(
+                callback, FamilySettingsCallback(action="set_temporary_ttl", value="10"), state,
+            )
+        context.assert_awaited_once_with(456, chat_type="private", telegram_id=123)
+        update.assert_awaited_once_with(7, 10)
+        self.assertIn("10 сек.", callback.message.edits[-1][1]["reply_markup"].inline_keyboard[5][0].text)
+
+    async def test_temporary_ttl_picker_marks_current_value(self):
+        callback, state = FakeCallback(), FakeState()
+        with patch.object(settings, "get_current_family_settings", AsyncMock(return_value=DATA)):
+            await settings.family_settings_callback(
+                callback, FamilySettingsCallback(action="temporary_ttl", value=""), state,
+            )
+        markup = callback.message.edits[-1][1]["reply_markup"]
+        self.assertEqual(
+            [row[0].text for row in markup.inline_keyboard],
+            [row[0].text for row in temporary_screen_ttl_keyboard(20).inline_keyboard],
+        )
+        self.assertIn("● 20 сек.", [row[0].text for row in markup.inline_keyboard])
+
 
 class FakeResult:
     def __init__(self, family):
@@ -296,6 +326,62 @@ class FamilySettingsServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_field_cannot_be_updated(self):
         with self.assertRaises(ValueError):
             await settings_service.update_current_family_setting(123, "plan", "paid")
+
+    async def test_temporary_ttl_update_is_family_scoped_and_persistent(self):
+        for ttl in (0, 5, 10, 20, 30, 60):
+            family = SimpleNamespace(id=7, temporary_screen_ttl=20)
+            session = FakeSession(family)
+            session.get = AsyncMock(return_value=family)
+            with patch.object(settings_service, "SessionLocal", return_value=session), \
+                 patch.object(settings_service, "touch_family_activity", AsyncMock()) as touch:
+                result = await settings_service.update_family_temporary_screen_ttl(7, ttl)
+            self.assertTrue(result)
+            self.assertEqual(family.temporary_screen_ttl, ttl)
+            touch.assert_awaited_once_with(7, session=session)
+            self.assertTrue(session.committed)
+
+    async def test_invalid_temporary_ttl_is_rejected(self):
+        with patch.object(settings_service, "SessionLocal") as session_local:
+            with self.assertRaises(ValueError):
+                await settings_service.update_family_temporary_screen_ttl(7, 15)
+        session_local.assert_not_called()
+
+    async def test_different_families_keep_independent_ttl_values(self):
+        families = {
+            7: SimpleNamespace(id=7, temporary_screen_ttl=20),
+            8: SimpleNamespace(id=8, temporary_screen_ttl=20),
+        }
+        sessions = []
+
+        def session_factory():
+            session = FakeSession(None)
+            session.get = AsyncMock(side_effect=lambda _model, family_id: families.get(family_id))
+            sessions.append(session)
+            return session
+
+        with patch.object(settings_service, "SessionLocal", side_effect=session_factory), \
+             patch.object(settings_service, "touch_family_activity", AsyncMock()):
+            await settings_service.update_family_temporary_screen_ttl(7, 5)
+            await settings_service.update_family_temporary_screen_ttl(8, 60)
+        self.assertEqual(families[7].temporary_screen_ttl, 5)
+        self.assertEqual(families[8].temporary_screen_ttl, 60)
+
+    async def test_private_and_group_context_update_the_same_family(self):
+        family = SimpleNamespace(id=7, temporary_screen_ttl=20)
+        for chat_type, chat_id in (("private", 123), ("group", -456)):
+            callback, state = FakeCallback(), FakeState()
+            callback.message.chat = SimpleNamespace(id=chat_id, type=chat_type)
+            with patch.object(settings, "get_current_family_settings", AsyncMock(return_value=DATA)), \
+                 patch.object(settings, "require_family_for_chat", AsyncMock(return_value=family)) as context, \
+                 patch.object(settings, "update_family_temporary_screen_ttl", AsyncMock(return_value=True)) as update, \
+                 patch.object(settings, "_show_current_settings", AsyncMock()):
+                await settings.family_settings_callback(
+                    callback, FamilySettingsCallback(action="set_temporary_ttl", value="30"), state,
+                )
+            context.assert_awaited_once_with(
+                chat_id, chat_type=chat_type, telegram_id=123,
+            )
+            update.assert_awaited_once_with(7, 30)
 
     async def test_country_update_is_atomic_and_touches_once(self):
         expected = {

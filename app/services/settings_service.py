@@ -9,6 +9,7 @@ from app.services.country_catalog import COUNTRIES, get_country
 LANGUAGE_CODES = frozenset({"ru", "uk", "de", "en", "be"})
 TIMEZONE_VALUES = frozenset({country.timezone for country in COUNTRIES} | {"UTC"})
 CURRENCY_CODES = frozenset({country.currency for country in COUNTRIES} | {"USD"})
+TEMPORARY_SCREEN_TTL_VALUES = frozenset({0, 5, 10, 20, 30, 60})
 SETTING_VALUES = {
     "language": LANGUAGE_CODES,
     "timezone": TIMEZONE_VALUES,
@@ -48,7 +49,21 @@ async def get_current_family_settings(telegram_id: int):
             "city": family.city,
             "timezone": family.timezone,
             "currency": family.currency,
+            "temporary_screen_ttl": family.temporary_screen_ttl,
         }
+
+
+async def update_family_temporary_screen_ttl(family_id: int, ttl: int) -> bool:
+    if ttl not in TEMPORARY_SCREEN_TTL_VALUES:
+        raise ValueError("Unsupported temporary screen TTL")
+    async with SessionLocal() as session:
+        family = await session.get(Family, family_id)
+        if family is None:
+            return False
+        family.temporary_screen_ttl = ttl
+        await touch_family_activity(family.id, session=session)
+        await session.commit()
+        return True
 
 
 async def update_current_family_setting(telegram_id: int, field: str, value: str) -> bool:

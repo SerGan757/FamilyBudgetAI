@@ -23,6 +23,17 @@ class Message:
 class SettingsTests(unittest.IsolatedAsyncioTestCase):
     def test_keyboard_layouts(self):
         self.assertEqual([len(row) for row in main_menu.keyboard], [2, 2, 2, 2])
+        self.assertEqual(
+            [[button.text for button in row] for row in main_menu.keyboard],
+            [
+                ["📋 История", "📅 Сегодня"],
+                ["📅 Месяц", "💰 Баланс"],
+                ["📊 Аналитика", "🗑️ Удалить"],
+                ["🔁 Регулярные", "⚙️ Настройки"],
+            ],
+        )
+        self.assertTrue(main_menu.resize_keyboard)
+        self.assertTrue(main_menu.one_time_keyboard)
         self.assertIn("📋 История", [button.text for row in main_menu.keyboard for button in row])
         self.assertIn("⚙️ Настройки", [button.text for row in main_menu.keyboard for button in row])
         self.assertEqual([len(row) for row in settings_menu.keyboard], [2, 2, 2, 2])
@@ -30,7 +41,8 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
     async def test_settings_screen_escapes_family_and_opens_menu(self):
         message = Message()
         data = {"id": 3, "name": "<Family>", "language": "uk", "country": None,
-                "city": "Berlin", "timezone": "Europe/Berlin", "currency": "EUR"}
+                "city": "Berlin", "timezone": "Europe/Berlin", "currency": "EUR",
+                "temporary_screen_ttl": 20}
         with patch.object(settings, "get_current_family_settings", AsyncMock(return_value=data)) as get_data:
             await settings.open_settings(message)
         self.assertIn("Українська", message.answers[0][0])

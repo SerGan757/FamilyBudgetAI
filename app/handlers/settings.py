@@ -9,15 +9,16 @@ from app.constants import APP_NAME, APP_VERSION, DEVELOPER_NAME, DEVELOPER_TELEG
 from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.handlers.settings_states import FamilySettingsState
 from app.keyboards.settings_menu import (
-    FamilySettingsCallback, currency_keyboard, family_settings_keyboard,
+    FamilySettingsCallback, currency_keyboard, family_settings_keyboard_for_ttl,
     country_keyboard, language_keyboard, settings_about_keyboard,
     settings_cancel_keyboard, settings_menu,
-    timezone_keyboard,
+    temporary_screen_ttl_keyboard, timezone_keyboard,
 )
 from app.services.country_catalog import get_country
 from app.services.settings_service import (
     CURRENCY_CODES, LANGUAGE_CODES, TIMEZONE_VALUES, get_current_family_settings,
-    get_family_members, get_family_settings_data, update_current_family_setting,
+    TEMPORARY_SCREEN_TTL_VALUES, get_family_members, get_family_settings_data,
+    update_current_family_setting, update_family_temporary_screen_ttl,
     update_current_family_country, validate_family_setting,
 )
 from app.services.family_context_service import require_family_for_chat
@@ -112,7 +113,9 @@ async def open_settings(message: Message):
     if data is None:
         return
     await message.answer(
-        family_settings_text(data), reply_markup=family_settings_keyboard, parse_mode="HTML",
+        family_settings_text(data),
+        reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
+        parse_mode="HTML",
     )
 
 
@@ -120,7 +123,8 @@ async def _show_current_settings(message: Message, telegram_id: int, notice: str
     data = await _current_settings_or_error(message, telegram_id)
     if data is not None:
         await message.edit_text(
-            family_settings_text(data, notice), reply_markup=family_settings_keyboard,
+            family_settings_text(data, notice),
+            reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
             parse_mode="HTML",
         )
     return data
@@ -152,6 +156,13 @@ async def family_settings_callback(
         await message.edit_text("🕓 Выберите часовой пояс:", reply_markup=timezone_keyboard)
     elif action == "currency":
         await message.edit_text("💶 Выберите валюту:", reply_markup=currency_keyboard)
+    elif action == "temporary_ttl":
+        await message.edit_text(
+            "🧹 <b>Автоудаление экранов</b>\n\n"
+            "Через сколько удалять информационные экраны?",
+            reply_markup=temporary_screen_ttl_keyboard(current["temporary_screen_ttl"]),
+            parse_mode="HTML",
+        )
     elif action == "country":
         await message.edit_text("🌍 Выберите страну:", reply_markup=country_keyboard())
     elif action == "about":
@@ -183,6 +194,24 @@ async def family_settings_callback(
             message, callback.from_user.id,
             "✅ Страна сохранена.\nВалюта и часовой пояс установлены автоматически.",
         )
+    elif action == "set_temporary_ttl":
+        try:
+            ttl = int(value)
+        except ValueError:
+            ttl = -1
+        if ttl not in TEMPORARY_SCREEN_TTL_VALUES:
+            await callback.answer("Недопустимое значение.", show_alert=True)
+            return
+        family = await require_family_for_chat(
+            message.chat.id, chat_type=message.chat.type,
+            telegram_id=callback.from_user.id,
+        )
+        updated = await update_family_temporary_screen_ttl(family.id, ttl)
+        if not updated:
+            await callback.answer("Пользователь или семья не найдены.", show_alert=True)
+            return
+        notice = "✅ Автоудаление выключено." if ttl == 0 else f"✅ Автоудаление: {ttl} сек."
+        await _show_current_settings(message, callback.from_user.id, notice)
     elif action.startswith("set_"):
         field = action.removeprefix("set_")
         allowed = {"language": LANGUAGE_CODES, "timezone": TIMEZONE_VALUES, "currency": CURRENCY_CODES}
@@ -222,7 +251,9 @@ async def _save_location(message: Message, state: FSMContext, field: str) -> Non
     data = await get_current_family_settings(message.from_user.id)
     notice = "✅ Страна сохранена." if field == "country" else "✅ Город сохранён."
     await message.answer(
-        family_settings_text(data, notice), reply_markup=family_settings_keyboard, parse_mode="HTML",
+        family_settings_text(data, notice),
+        reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
+        parse_mode="HTML",
     )
 
 

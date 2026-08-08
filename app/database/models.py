@@ -83,6 +83,9 @@ class Family(Base):
     trial_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_payment_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     disabled_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    temporary_screen_ttl: Mapped[int] = mapped_column(
+        Integer, default=20, server_default=text("20"), nullable=False,
+    )
 
     users = relationship(
         "User",

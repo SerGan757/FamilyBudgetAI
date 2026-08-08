@@ -15,9 +15,9 @@ from app.services.statistics_service import (
 )
 from app.services.analytics_forecast import calculate_analytics_forecast
 from app.services.family_context_service import require_family_for_chat
-from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.utils.navigation import answer_with_navigation
 from app.utils.transaction_format import project_suffix
+from app.utils.temporary_screens import refresh_temporary_message, schedule_temporary_message
 
 router = Router()
 
@@ -136,7 +136,7 @@ async def today(message: Message):
 
     total = data["total"]
 
-    await answer_with_navigation(
+    sent_message = await answer_with_navigation(
         message,
         format_today(
             data,
@@ -145,7 +145,8 @@ async def today(message: Message):
         ),
         parse_mode="HTML",
         inline_markup=day_keyboard(selected_date, 0, total),
-    )  
+    )
+    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
 
 
 @router.callback_query(F.data.startswith("today:") | F.data.startswith("day:"))
@@ -187,6 +188,7 @@ async def today_page(
         parse_mode="HTML",
         reply_markup=day_keyboard(selected_date, offset, total),
     )
+    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -307,7 +309,7 @@ async def month(message: Message):
     total = data["total"]
    
 
-    await answer_with_navigation(
+    sent_message = await answer_with_navigation(
         message,
         format_month(
             data,
@@ -318,6 +320,7 @@ async def month(message: Message):
         parse_mode="HTML",
         inline_markup=month_keyboard(today.year, today.month, 0, total),
     )
+    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
     return
 
 
@@ -363,6 +366,7 @@ async def month_page(
         parse_mode="HTML",
         reply_markup=month_keyboard(year, month, offset, total),
     )
+    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -383,11 +387,11 @@ async def balance(message: Message):
         f"<b>💎 Остаток     : {money(data['balance'])}</b>"
     )
 
-    await message.answer(
+    sent_message = await message.answer(
         text,
         parse_mode="HTML",
-        reply_markup=back_to_main_menu_keyboard,
     )
+    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
 
 
 @router.message(Command("analytics"))
@@ -398,6 +402,7 @@ async def analytics(
     family_id: int | None = None,
     *,
     edit_existing: bool = False,
+    temporary_screen_ttl: int = 20,
 ):
     if family_id is None:
         family = await require_family_for_chat(
@@ -405,6 +410,7 @@ async def analytics(
             telegram_id=message.from_user.id,
         )
         family_id = family.id
+        temporary_screen_ttl = family.temporary_screen_ttl
 
     months = [
         "",
@@ -526,10 +532,11 @@ async def analytics(
             text, parse_mode="HTML", reply_markup=analytics_keyboard(year, month),
         )
     else:
-        await answer_with_navigation(
+        sent_message = await answer_with_navigation(
             message, text, parse_mode="HTML",
             inline_markup=analytics_keyboard(year, month),
         )
+        schedule_temporary_message(sent_message, ttl=temporary_screen_ttl)
 
 
 def analytics_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
@@ -581,7 +588,7 @@ async def analytics_help(callback: CallbackQuery):
     except ValueError:
         await callback.answer("Некорректный месяц", show_alert=True)
         return
-    await require_family_for_chat(
+    family = await require_family_for_chat(
         callback.message.chat.id, chat_type=callback.message.chat.type,
         telegram_id=callback.from_user.id,
     )
@@ -590,6 +597,7 @@ async def analytics_help(callback: CallbackQuery):
         parse_mode="HTML",
         reply_markup=analytics_help_keyboard(year, month),
     )
+    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -608,6 +616,7 @@ async def analytics_back(callback: CallbackQuery):
         telegram_id=callback.from_user.id,
     )
     await analytics(callback.message, year, month, family.id, edit_existing=True)
+    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -632,5 +641,8 @@ async def analytics_page(callback: CallbackQuery):
     except TelegramBadRequest as error:
         if "message is not modified" not in str(error).lower():
             raise
+        refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+    else:
+        refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     finally:
         await callback.answer()
