@@ -7,7 +7,7 @@ from app.services.country_catalog import COUNTRIES, get_country
 from app.utils.currency import CURRENCY_CODES
 
 
-LANGUAGE_CODES = frozenset({"ru", "uk", "de", "en", "be"})
+LANGUAGE_CODES = frozenset({"ru", "uk", "de", "en", "be", "pl", "cs", "sk", "ro", "bg", "hu"})
 TIMEZONE_VALUES = frozenset({country.timezone for country in COUNTRIES} | {"UTC"})
 TEMPORARY_SCREEN_TTL_VALUES = frozenset({0, 5, 10, 20, 30, 60})
 SETTING_VALUES = {

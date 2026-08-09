@@ -31,6 +31,25 @@ def days_text(value: int, language: str = "ru") -> str:
         return f"{value} day" if value == 1 else f"{value} days"
     if language == "de":
         return f"{value} Tag" if value == 1 else f"{value} Tage"
+    if language == "pl":
+        word = "dzień" if value == 1 else ("dni" if value % 10 in (2, 3, 4) and value % 100 not in (12, 13, 14) else "dni")
+        return f"{value} {word}"
+    if language == "cs":
+        return f"{value} " + ("den" if value == 1 else "dny" if value in (2, 3, 4) else "dní")
+    if language == "sk":
+        return f"{value} " + ("deň" if value == 1 else "dni" if value in (2, 3, 4) else "dní")
+    if language == "ro":
+        return f"{value} " + ("zi" if value == 1 else "zile")
+    if language == "bg":
+        return f"{value} " + ("ден" if value == 1 else "дни")
+    if language == "hu":
+        return f"{value} nap"
+    if language == "uk":
+        word = "день" if value % 10 == 1 and value % 100 != 11 else ("дні" if value % 10 in (2, 3, 4) and value % 100 not in (12, 13, 14) else "днів")
+        return f"{value} {word}"
+    if language == "be":
+        word = "дзень" if value % 10 == 1 and value % 100 != 11 else ("дні" if value % 10 in (2, 3, 4) and value % 100 not in (12, 13, 14) else "дзён")
+        return f"{value} {word}"
     if value % 10 == 1 and value % 100 != 11:
         word = "день"
     elif value % 10 in (2, 3, 4) and value % 100 not in (12, 13, 14):
@@ -53,7 +72,7 @@ def format_transaction(transaction, currency_code: str = "EUR", language: str = 
     amount_text = f"{sign}{money(amount, currency_code)}"
 
     if transaction.is_recurring:
-        amount_text += "/мес"
+        amount_text += f"/{t(language, 'common.monthly')}"
 
     localized_category = category_label(language, transaction.category)
     base_icon = "💰" if transaction.type == "income" else escape(localized_category.split()[0])
@@ -210,29 +229,12 @@ def format_month(
     currency_code: str = "EUR",
     language: str = "ru",
 ):
-
-    months = [
-        "",
-        "Январь",
-        "Февраль",
-        "Март",
-        "Апрель",
-        "Май",
-        "Июнь",
-        "Июль",
-        "Август",
-        "Сентябрь",
-        "Октябрь",
-        "Ноябрь",
-        "Декабрь",
-    ]
-
     text = (
-        f"📅 <b>{months[month]} {year}</b>\n\n"
+        f"📅 <b>{month_name(language, month)} {year}</b>\n\n"
         f"💰 {t(language, 'common.income')}: {money(data['ordinary_income'], currency_code)}\n"
         f"💸 {t(language, 'common.expense')}: {money(data['ordinary_expense'], currency_code)}\n\n"
-        f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})\n"
-        f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})\n\n"
+        f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], currency_code)}/{t(language, 'common.monthly')} ({data['recurring_expense_count']})\n"
+        f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], currency_code)}/{t(language, 'common.monthly')} ({data['recurring_income_count']})\n\n"
         f"📈 {t(language, 'common.balance')}: {money(data['balance'], currency_code)}\n\n"
     )
 
@@ -399,8 +401,8 @@ async def balance(message: Message):
         f"<b>{t(language, 'balance.title')}</b>\n\n"
         f"💰 {t(language, 'common.income')}: {money(data['ordinary_income'], family_currency(family))}\n"
         f"💸 {t(language, 'common.expense')}: {money(data['ordinary_expense'], family_currency(family))}\n\n"
-        f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], family_currency(family))}/мес ({data['recurring_expense_count']})\n"
-        f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], family_currency(family))}/мес ({data['recurring_income_count']})\n\n"
+        f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], family_currency(family))}/{t(language, 'common.monthly')} ({data['recurring_expense_count']})\n"
+        f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], family_currency(family))}/{t(language, 'common.monthly')} ({data['recurring_income_count']})\n\n"
         f"<b>💎 {t(language, 'balance.remaining')}: {money(data['balance'], family_currency(family))}</b>"
     )
 
@@ -491,8 +493,8 @@ async def analytics(
 
         f"💰 {t(language, 'analytics.ordinary_income')}: <b>{money(data['ordinary_income'], currency_code)}</b>\n"
         f"💸 {t(language, 'analytics.ordinary_expense')}: <b>{money(data['ordinary_expense'], currency_code)}</b>\n\n"
-        f"🔁 {t(language, 'analytics.reg_income')}: <b>{money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})</b>\n"
-        f"🔁 {t(language, 'analytics.reg_expense')}: <b>{money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})</b>\n\n"
+        f"🔁 {t(language, 'analytics.reg_income')}: <b>{money(data['recurring_income'], currency_code)}/{t(language, 'common.monthly')} ({data['recurring_income_count']})</b>\n"
+        f"🔁 {t(language, 'analytics.reg_expense')}: <b>{money(data['recurring_expense'], currency_code)}/{t(language, 'common.monthly')} ({data['recurring_expense_count']})</b>\n\n"
         f"💎 {t(language, 'analytics.month_balance')}: <b>{money(data['balance'], currency_code)}</b>\n\n"
         f"{forecast_text}\n\n"
 

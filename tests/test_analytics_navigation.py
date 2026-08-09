@@ -79,6 +79,22 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("📈 Прогноз расходов:", text)
         self.assertIn("🏷 <b>Проекты</b>", text)
 
+    async def test_analytics_keeps_using_localized_month_title(self):
+        for language, expected in (
+            ("en", "Analytics • September 2026"),
+            ("de", "Analyse • September 2026"),
+        ):
+            with self.subTest(language=language):
+                message = callback("unused").message
+                with patch.object(
+                    statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
+                ):
+                    await statistics.analytics(
+                        message, 2026, 9, family_id=7,
+                        edit_existing=True, language=language,
+                    )
+                self.assertIn(expected, message.edit_text.await_args.args[0])
+
     async def test_help_edits_message_and_back_preserves_selected_month(self):
         event = callback("analytics_help:2026:07")
         with patch.object(

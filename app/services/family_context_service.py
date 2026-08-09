@@ -111,6 +111,7 @@ async def bind_legacy_family_to_chat(
 async def get_or_create_family_for_chat(
     chat_id: int,
     chat_title: str | None = None,
+    initial_language: str = "ru",
 ) -> Family:
     family = await get_family_by_chat_id(chat_id)
     if family is not None:
@@ -136,6 +137,7 @@ async def get_or_create_family_for_chat(
                 telegram_chat_id=chat_id,
                 name=chat_title or f"Семья {chat_id}",
                 invite_code=_invite_code(),
+                language=initial_language,
             )
             session.add(family)
             try:

@@ -30,7 +30,7 @@ def format_transaction(transaction, currency_code: str = "EUR", language: str = 
     amount_text = f"{sign}{format_money(amount, currency_code)}"
 
     if transaction.is_recurring:
-        amount_text += "/мес"
+        amount_text += f"/{t(language, 'common.monthly')}"
 
     base_icon = (
         "💰"

@@ -22,7 +22,7 @@ from app.services.expense_service import (
 from app.services.project_service import get_project
 from app.services.user_service import get_user_by_telegram_id
 from app.utils.currency import family_currency, format_money
-from app.i18n import category_label, family_language, t
+from app.i18n import category_label, family_language, normalize_telegram_language, t
 
 router = Router()
 
@@ -79,7 +79,10 @@ async def add_transaction(
 
         chat_title = message.chat.title or f"Личный бюджет {message.from_user.full_name}"
         try:
-            family = await get_or_create_family_for_chat(message.chat.id, chat_title)
+            family = await get_or_create_family_for_chat(
+                message.chat.id, chat_title,
+                initial_language=normalize_telegram_language(getattr(message.from_user, "language_code", None)),
+            )
         except FamilyContextConflictError:
             await message.answer(
                 "⚠️ Для этого чата требуется явная привязка существующей семьи."

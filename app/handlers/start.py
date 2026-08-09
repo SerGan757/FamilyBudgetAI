@@ -15,6 +15,7 @@ from app.services.user_service import (
     create_user,
     get_user_by_telegram_id,
 )
+from app.i18n import normalize_telegram_language
 
 router = Router()
 
@@ -62,7 +63,10 @@ async def cmd_start(
     chat_title = message.chat.title or f"Личный бюджет {message.from_user.full_name}"
 
     try:
-        family = await get_or_create_family_for_chat(chat_id, chat_title)
+        family = await get_or_create_family_for_chat(
+            chat_id, chat_title,
+            initial_language=normalize_telegram_language(getattr(message.from_user, "language_code", None)),
+        )
     except FamilyContextConflictError:
         await message.answer(
             "⚠️ Для этого чата требуется явная привязка существующей семьи."

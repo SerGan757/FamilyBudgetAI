@@ -52,14 +52,24 @@ def temporary_screen_ttl_keyboard(current_ttl: int, language: str = "ru") -> Inl
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-language_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [_inline("🇷🇺 Русский", "set_language", "ru")],
-    [_inline("🇺🇦 Українська", "set_language", "uk")],
-    [_inline("🇩🇪 Deutsch", "set_language", "de")],
-    [_inline("🇬🇧 English", "set_language", "en")],
-    [_inline("🇧🇾 Беларуская", "set_language", "be")],
-    [_inline("⬅️ Назад", "home")],
-])
+LANGUAGE_OPTIONS = (
+    ("🇷🇺 Русский", "ru"), ("🇺🇦 Українська", "uk"),
+    ("🇩🇪 Deutsch", "de"), ("🇬🇧 English", "en"),
+    ("🇧🇾 Беларуская", "be"), ("🇵🇱 Polski", "pl"),
+    ("🇨🇿 Čeština", "cs"), ("🇸🇰 Slovenčina", "sk"),
+    ("🇷🇴 Română", "ro"), ("🇧🇬 Български", "bg"),
+    ("🇭🇺 Magyar", "hu"),
+)
+
+def language_keyboard_for(current_language: str = "ru") -> InlineKeyboardMarkup:
+    rows = [
+        [_inline(f"{'✅ ' if code == current_language else ''}{label}", "set_language", code)]
+        for label, code in LANGUAGE_OPTIONS
+    ]
+    rows.append([_inline(t(current_language, "nav.back"), "home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+language_keyboard = language_keyboard_for("")
 
 
 TIMEZONE_OPTIONS = (

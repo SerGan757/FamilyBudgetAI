@@ -6,11 +6,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.constants import APP_NAME, APP_VERSION, DEVELOPER_NAME, DEVELOPER_TELEGRAM
-from app.keyboards.main_menu import back_to_main_menu_keyboard
+from app.keyboards.main_menu import back_to_main_menu_keyboard, main_menu_keyboard
 from app.handlers.settings_states import FamilySettingsState
 from app.keyboards.settings_menu import (
     FamilySettingsCallback, currency_keyboard, family_settings_keyboard_for_ttl,
-    country_keyboard, language_keyboard, settings_about_keyboard_for,
+    country_keyboard, language_keyboard, language_keyboard_for, settings_about_keyboard_for,
     settings_cancel_keyboard, settings_menu,
     temporary_screen_ttl_keyboard, timezone_keyboard,
 )
@@ -49,7 +49,8 @@ def _created_line(created_at) -> str:
 
 LANGUAGE_LABELS = {
     "ru": "Русский", "uk": "Українська", "de": "Deutsch", "en": "English",
-    "be": "Беларуская",
+    "be": "Беларуская", "pl": "Polski", "cs": "Čeština", "sk": "Slovenčina",
+    "ro": "Română", "bg": "Български", "hu": "Magyar",
 }
 def family_settings_text(data: dict, notice: str | None = None) -> str:
     language_code = normalize_language(data.get("language"))
@@ -75,15 +76,7 @@ def about_text(language: str = "ru") -> str:
         f"{t(language, 'about.description')}\n\n"
         f"👨‍👩‍👧‍👦 {t(language, 'about.family')}\n\n"
         f"💰 <b>{t(language, 'about.features')}:</b>\n"
-        "• быстрый ввод доходов и расходов;\n"
-        "• совместный бюджет семьи;\n"
-        "• история операций;\n"
-        "• баланс и месячная аналитика;\n"
-        "• регулярные платежи;\n"
-        "• статистика по категориям;\n"
-        "• семейные проекты — отпуск, ремонт, дача и другие;\n"
-        "• привязка расходов к проекту через #тег;\n"
-        "• настройки страны, валюты, языка и часового пояса.\n\n"
+        f"{t(language, 'about.features_text')}\n\n"
         f"⚡ <b>{t(language, 'about.input')}:</b>\n"
         "<code>кофе 5\n+2000 зарплата\nкраска 40 #ремонт</code>\n\n"
         f"👨‍💻 {t(language, 'about.developer')}: {escape(DEVELOPER_NAME)}\n"
@@ -137,7 +130,7 @@ async def family_settings_callback(
     current = await get_current_family_settings(callback.from_user.id)
     if current is None:
         await state.clear()
-        await callback.answer("Пользователь или семья не найдены.", show_alert=True)
+        await callback.answer(t("ru", "settings.not_found"), show_alert=True)
         return
     language = normalize_language(current.get("language"))
     if action in {"home", "cancel"}:
@@ -147,15 +140,15 @@ async def family_settings_callback(
         await state.clear()
         await message.delete()
     elif action == "language":
-        await message.edit_text(t(language, "settings.select_language"), reply_markup=language_keyboard)
+        await message.edit_text(t(language, "settings.select_language"), reply_markup=language_keyboard_for(language))
     elif action == "timezone":
         await message.edit_text(t(language, "settings.select_timezone"), reply_markup=timezone_keyboard)
     elif action == "currency":
         await message.edit_text(t(language, "settings.select_currency"), reply_markup=currency_keyboard)
     elif action == "temporary_ttl":
         await message.edit_text(
-            "🧹 <b>Автоудаление экранов</b>\n\n"
-            "Через сколько удалять информационные экраны?",
+            f"🧹 <b>{t(language, 'settings.ttl_title').removeprefix('🧹 ')}</b>\n\n"
+            f"{t(language, 'settings.ttl_question')}",
             reply_markup=temporary_screen_ttl_keyboard(current["temporary_screen_ttl"], language),
             parse_mode="HTML",
         )
@@ -175,7 +168,7 @@ async def family_settings_callback(
     elif action == "city":
         await state.set_state(FamilySettingsState.waiting_for_city)
         await message.edit_text(
-            "Введите город (до 100 символов):", reply_markup=settings_cancel_keyboard,
+            t(language, "settings.enter_city"), reply_markup=settings_cancel_keyboard,
         )
     elif action == "set_country":
         try:
@@ -188,7 +181,7 @@ async def family_settings_callback(
             return
         await _show_current_settings(
             message, callback.from_user.id,
-            "✅ Страна сохранена.\nВалюта и часовой пояс установлены автоматически.",
+            t(language, "settings.saved_country"),
         )
     elif action == "set_temporary_ttl":
         try:
@@ -206,7 +199,8 @@ async def family_settings_callback(
         if not updated:
             await callback.answer("Пользователь или семья не найдены.", show_alert=True)
             return
-        notice = "✅ Автоудаление выключено." if ttl == 0 else f"✅ Автоудаление: {ttl} сек."
+        ttl_value = t(language, "settings.off") if ttl == 0 else t(language, "settings.seconds", value=ttl)
+        notice = t(language, "settings.ttl_saved", value=ttl_value)
         await _show_current_settings(message, callback.from_user.id, notice)
     elif action.startswith("set_"):
         field = action.removeprefix("set_")
@@ -220,7 +214,15 @@ async def family_settings_callback(
             return
         updated_language = value if field == "language" else language
         notices = {"language": "settings.saved_language", "timezone": "settings.saved_timezone", "currency": "settings.saved_currency"}
-        await _show_current_settings(message, callback.from_user.id, t(updated_language, notices[field]))
+        notice = t(updated_language, notices[field])
+        if field == "language":
+            await _show_current_settings(message, callback.from_user.id)
+            await message.answer(
+                notice,
+                reply_markup=main_menu_keyboard(updated_language),
+            )
+        else:
+            await _show_current_settings(message, callback.from_user.id, notice)
     else:
         await callback.answer("Неизвестное действие.", show_alert=True)
         return
@@ -246,7 +248,8 @@ async def _save_location(message: Message, state: FSMContext, field: str) -> Non
         return
     await state.clear()
     data = await get_current_family_settings(message.from_user.id)
-    notice = "✅ Страна сохранена." if field == "country" else "✅ Город сохранён."
+    language = normalize_language(data.get("language"))
+    notice = t(language, "settings.saved_country") if field == "country" else t(language, "settings.saved_city")
     await message.answer(
         family_settings_text(data, notice),
         reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"], data["language"]),

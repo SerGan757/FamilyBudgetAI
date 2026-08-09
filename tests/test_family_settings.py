@@ -8,8 +8,10 @@ from app.keyboards.settings_menu import (
     FamilySettingsCallback, country_keyboard, currency_keyboard, family_settings_keyboard,
     language_keyboard, temporary_screen_ttl_keyboard,
 )
+from app.keyboards.main_menu import main_menu_keyboard
 from app.services import settings_service
 from app.services.country_catalog import COUNTRIES, COUNTRIES_BY_CODE
+from app.services.country_catalog import get_country_default_language
 
 
 DATA = {
@@ -63,7 +65,7 @@ class FakeState:
 
 class FamilySettingsValidationTests(unittest.TestCase):
     def test_all_supported_languages_timezones_and_currencies(self):
-        for value in ("ru", "uk", "de", "en", "be"):
+        for value in ("ru", "uk", "de", "en", "be", "pl", "cs", "sk", "ro", "bg", "hu"):
             self.assertEqual(settings_service.validate_family_setting("language", value), value)
         for value in settings_service.TIMEZONE_VALUES:
             self.assertEqual(settings_service.validate_family_setting("timezone", value), value)
@@ -98,12 +100,12 @@ class FamilySettingsValidationTests(unittest.TestCase):
             self.assertIn(value, text)
 
     def test_language_list_is_exact_and_belarusian_is_human_readable(self):
-        self.assertEqual(settings_service.LANGUAGE_CODES, {"ru", "uk", "de", "en", "be"})
+        self.assertEqual(settings_service.LANGUAGE_CODES, {"ru", "uk", "de", "en", "be", "pl", "cs", "sk", "ro", "bg", "hu"})
         self.assertIn("Беларуская", settings.family_settings_text({**DATA, "language": "be"}))
         language_buttons = [row[0] for row in language_keyboard.inline_keyboard[:-1]]
         self.assertEqual(
             [button.text for button in language_buttons],
-            ["🇷🇺 Русский", "🇺🇦 Українська", "🇩🇪 Deutsch", "🇬🇧 English", "🇧🇾 Беларуская"],
+            ["🇷🇺 Русский", "🇺🇦 Українська", "🇩🇪 Deutsch", "🇬🇧 English", "🇧🇾 Беларуская", "🇵🇱 Polski", "🇨🇿 Čeština", "🇸🇰 Slovenčina", "🇷🇴 Română", "🇧🇬 Български", "🇭🇺 Magyar"],
         )
 
     def test_null_country_and_city_are_displayed_separately(self):
@@ -126,9 +128,9 @@ class FamilySettingsValidationTests(unittest.TestCase):
         )
 
     def test_country_catalog_and_pagination(self):
-        self.assertEqual(len(COUNTRIES), 20)
-        self.assertEqual(len(COUNTRIES_BY_CODE), 20)
-        self.assertEqual([len(country.code) for country in COUNTRIES], [2] * 20)
+        self.assertEqual(len(COUNTRIES), 22)
+        self.assertEqual(len(COUNTRIES_BY_CODE), 22)
+        self.assertEqual([len(country.code) for country in COUNTRIES], [2] * 22)
         first = country_keyboard(0)
         second = country_keyboard(1)
         self.assertEqual(len(first.inline_keyboard[:10]), 10)
@@ -148,8 +150,15 @@ class FamilySettingsValidationTests(unittest.TestCase):
                 ("GB", "GBP", "Europe/London"), ("CH", "CHF", "Europe/Zurich"),
                 ("HU", "HUF", "Europe/Budapest"), ("SE", "SEK", "Europe/Stockholm"),
                 ("NO", "NOK", "Europe/Oslo"), ("DK", "DKK", "Europe/Copenhagen"),
+                ("US", "USD", "America/New_York"), ("BY", "EUR", "Europe/Minsk"),
             ],
         )
+
+    def test_country_market_defaults_do_not_couple_manual_settings(self):
+        expected = {"DE":"de", "UA":"uk", "PL":"pl", "CZ":"cs", "SK":"sk", "RO":"ro", "BG":"bg", "HU":"hu", "GB":"en", "US":"en", "BY":"be"}
+        for code, language in expected.items():
+            self.assertEqual(get_country_default_language(code), language)
+            self.assertEqual(COUNTRIES_BY_CODE[code].default_language, language)
 
     def test_legacy_country_value_is_safe(self):
         text = settings.family_settings_text({**DATA, "country": "Germany legacy"})
@@ -157,6 +166,41 @@ class FamilySettingsValidationTests(unittest.TestCase):
 
 
 class FamilySettingsHandlerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_language_change_immediately_replaces_main_reply_keyboard(self):
+        for old_language, new_language in (("ru", "de"), ("de", "uk"), ("uk", "pl"), ("pl", "cs")):
+            with self.subTest(old=old_language, new=new_language):
+                callback, state = FakeCallback(), FakeState()
+                stored = {**DATA, "language": old_language}
+
+                async def update_language(telegram_id, field, value):
+                    self.assertEqual((telegram_id, field), (123, "language"))
+                    stored["language"] = value
+                    return True
+
+                with patch.object(
+                    settings, "get_current_family_settings",
+                    AsyncMock(side_effect=lambda telegram_id: dict(stored)),
+                ), patch.object(
+                    settings, "update_current_family_setting",
+                    AsyncMock(side_effect=update_language),
+                ):
+                    await settings.family_settings_callback(
+                        callback,
+                        FamilySettingsCallback(action="set_language", value=new_language),
+                        state,
+                    )
+
+                self.assertEqual(stored["language"], new_language)
+                self.assertIn(settings.t(new_language, "settings.title"), callback.message.edits[-1][0])
+                confirmation, kwargs = callback.message.answers[-1]
+                self.assertEqual(confirmation, settings.t(new_language, "settings.saved_language"))
+                self.assertIs(kwargs["reply_markup"], main_menu_keyboard(new_language))
+                self.assertTrue(kwargs["reply_markup"].one_time_keyboard)
+                self.assertTrue(kwargs["reply_markup"].resize_keyboard)
+                buttons = [button.text for row in kwargs["reply_markup"].keyboard for button in row]
+                self.assertIn(settings.t(new_language, "menu.settings"), buttons)
+                self.assertNotIn(settings.t(old_language, "menu.settings"), buttons)
+
     async def test_view_uses_current_telegram_user_and_does_not_touch(self):
         message = FakeMessage("⚙️ Настройки")
         with patch.object(settings, "get_current_family_settings", AsyncMock(return_value=DATA)) as get_data, \
