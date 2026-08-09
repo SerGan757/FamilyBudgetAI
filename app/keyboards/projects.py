@@ -1,5 +1,6 @@
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from app.i18n import t
 
 
 class ProjectCallback(CallbackData, prefix="project"):
@@ -22,7 +23,7 @@ def button(text: str, action: str, project_id: int = 0, page: int = 0):
     )
 
 
-def projects_keyboard(projects, total: int, page: int, *, active: bool):
+def projects_keyboard(projects, total: int, page: int, *, active: bool, language: str = "ru"):
     rows = [
         [button(f"🏷 {project.name} — #{project.tag}", "card", project.id, page)]
         for project in projects
@@ -36,21 +37,21 @@ def projects_keyboard(projects, total: int, page: int, *, active: bool):
         rows.append(navigation)
     if active:
         rows.extend([
-            [button("➕ Новый проект", "new")],
-            [button("📦 Архив", "archive")],
+            [button(t(language, "projects.new"), "new")],
+            [button(t(language, "projects.archive"), "archive")],
         ])
     else:
         rows.append([button("⬅️ К активным", "list")])
-    rows.append([button("⬅️ Назад", "settings")])
+    rows.append([button(t(language, "nav.back"), "settings")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def project_card_keyboard(project):
+def project_card_keyboard(project, language: str = "ru"):
     rows = [
-        [button("✏️ Название", "rename", project.id)],
-        [button("✏️ Тег", "retag", project.id)],
-        [button("📊 Операции проекта", "transactions", project.id)],
-        [button("📴 Завершить проект" if project.is_active else "✅ Возобновить", "toggle", project.id)],
+        [button(f"✏️ {t(language, 'projects.name')}", "rename", project.id)],
+        [button(f"✏️ {t(language, 'projects.tag')}", "retag", project.id)],
+        [button(t(language, "projects.transactions"), "transactions", project.id)],
+        [button(t(language, "projects.finish") if project.is_active else t(language, "projects.resume"), "toggle", project.id)],
         [button("⬅️ К проектам", "list" if project.is_active else "archive")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=rows)

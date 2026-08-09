@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, KeyboardButton, Message, ReplyKeyboardMarkup
 
 from app.handlers.recurring_states import RecurringState
-from app.keyboards.main_menu import main_menu
+from app.keyboards.main_menu import main_menu_keyboard
 from app.keyboards.recurring_inline import delete_keyboard
 from app.services.recurring_manager import (
     create_payment,
@@ -18,28 +18,28 @@ from app.services.family_context_service import require_family_for_chat
 from app.services.user_service import get_user_by_telegram_id
 from app.utils.fsm import cancel_state
 from app.utils.currency import family_currency, format_money, format_signed_money
+from app.i18n import all_texts, family_language, t
 
 router = Router()
 
 
-recurring_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
+def recurring_keyboard_for(language: str = "ru") -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(keyboard=[
         [
-            KeyboardButton(text="➕ Добавить шаблон"),
-            KeyboardButton(text="✏️ Изменить"),
+            KeyboardButton(text=t(language, "recurring.add")),
+            KeyboardButton(text=t(language, "recurring.edit")),
         ],
         [
-            KeyboardButton(text="🗑 Удалить"),
-            KeyboardButton(text="📅 Платежи"),
+            KeyboardButton(text=t(language, "recurring.delete")),
+            KeyboardButton(text=t(language, "recurring.payments")),
         ],
         [
-            KeyboardButton(text="📅 Создать операции месяца"),
-            KeyboardButton(text="⬅️ Главное меню"),
+            KeyboardButton(text=t(language, "recurring.create_month")),
+            KeyboardButton(text=t(language, "menu.back")),
         ],
-    ],
-    resize_keyboard=True,
-    is_persistent=True,
-)
+    ], resize_keyboard=True, is_persistent=True)
+
+recurring_keyboard = recurring_keyboard_for()
 
 
 async def _validate_recurring_fsm_family(
@@ -66,30 +66,27 @@ async def _validate_recurring_fsm_family(
 
 async def recurring_menu(message: Message):
 
-    await require_family_for_chat(
+    family = await require_family_for_chat(
         message.chat.id, chat_type=message.chat.type,
         telegram_id=message.from_user.id,
     )
 
     await message.answer(
-        "<b>🔁 Регулярные платежи</b>\n\n"
-        "Выберите действие.",
-        reply_markup=recurring_keyboard,
+        f"<b>🔁 {t(family_language(family), 'recurring.title')}</b>",
+        reply_markup=recurring_keyboard_for(family_language(family)),
     )
 
 
-@router.message(F.text == "⬅️ Главное меню")
+@router.message(F.text.in_(all_texts("menu.back")))
 async def back_to_main(message: Message, state: FSMContext):
 
     await cancel_state(state)
 
-    await message.answer(
-        "Главное меню",
-        reply_markup=main_menu,
-    )
+    family = await require_family_for_chat(message.chat.id, chat_type=message.chat.type, telegram_id=message.from_user.id)
+    await message.answer(t(family_language(family), "menu.title"), reply_markup=main_menu_keyboard(family_language(family)))
 
 
-@router.message(F.text == "➕ Добавить шаблон")
+@router.message(F.text.in_(all_texts("recurring.add")))
 async def add_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
@@ -229,7 +226,7 @@ async def save_template(message: Message, state: FSMContext):
     )
 
 
-@router.message(F.text == "📅 Платежи")
+@router.message(F.text.in_(all_texts("recurring.payments")))
 async def month_recurring(message: Message, state: FSMContext):
 
     from datetime import date
@@ -347,7 +344,7 @@ async def month_recurring(message: Message, state: FSMContext):
     )
 
 
-@router.message(F.text == "🗑 Удалить")
+@router.message(F.text.in_(all_texts("recurring.delete")))
 async def delete_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
@@ -390,7 +387,7 @@ async def delete_template_callback(callback: CallbackQuery):
     await callback.answer("Шаблон не найден", show_alert=True)
 
 
-@router.message(F.text == "✏️ Изменить")
+@router.message(F.text.in_(all_texts("recurring.edit")))
 async def edit_template(message: Message, state: FSMContext):
 
     await cancel_state(state)
@@ -468,7 +465,7 @@ async def save_edited_template(message: Message, state: FSMContext):
     )
 
 
-@router.message(F.text == "📅 Создать операции месяца")
+@router.message(F.text.in_(all_texts("recurring.create_month")))
 async def create_month(message: Message, state: FSMContext):
 
     from datetime import date

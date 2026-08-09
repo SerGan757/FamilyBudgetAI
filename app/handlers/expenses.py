@@ -9,7 +9,7 @@ from aiogram.types import CallbackQuery, Message
 from app.handlers.user_states import RegistrationState
 from app.handlers.project_states import ProjectTransactionState
 from app.keyboards.projects import PendingProjectCallback, pending_project_keyboard
-from app.keyboards.main_menu import back_to_main_menu_keyboard
+from app.keyboards.main_menu import back_to_main_menu
 from app.services.family_context_service import (
     FamilyContextConflictError,
     FamilyContextNotFoundError,
@@ -22,6 +22,7 @@ from app.services.expense_service import (
 from app.services.project_service import get_project
 from app.services.user_service import get_user_by_telegram_id
 from app.utils.currency import family_currency, format_money
+from app.i18n import category_label, family_language, t
 
 router = Router()
 
@@ -64,6 +65,7 @@ async def add_transaction(
     user = await get_user_by_telegram_id(
         telegram_id
     )
+    language = family_language(family)
 
     if user is not None and user.family_id != family.id:
         await message.answer(
@@ -134,6 +136,7 @@ async def add_transaction(
                 pending_project_parsed=result.parsed,
                 pending_project_tag=result.tag,
                 pending_project_currency=family_currency(family),
+                pending_project_language=language,
             )
             await state.set_state(ProjectTransactionState.waiting_for_resolution)
             if result.status == "inactive":
@@ -167,30 +170,30 @@ async def add_transaction(
     if saved:
 
         text += (
-            f"✅ Сохранено операций: {len(saved)}\n"
+            f"✅ {t(language, 'quick.saved', count=len(saved))}\n"
         )
 
         for transaction in saved:
             project_name = getattr(transaction, "project_name", None)
             if project_name:
-                text += f"🏷 Проект: {escape(str(project_name))}\n"
+                text += f"🏷 {t(language, 'quick.project')}: {escape(str(project_name))}\n"
 
         text += "══════════════════════════════\n\n"
 
-        for t in saved:
+        for saved_transaction in saved:
 
-            sign = "+" if t.type == "income" else "-"
+            sign = "+" if saved_transaction.type == "income" else "-"
 
             text += (
-                f"{t.category:<18}"
-                f"{t.title[:20]:<20}"
-                f"{sign}{format_money(t.amount, family_currency(family))}\n"
+                f"{category_label(language, saved_transaction.category):<18}"
+                f"{saved_transaction.title[:20]:<20}"
+                f"{sign}{format_money(saved_transaction.amount, family_currency(family))}\n"
             )
 
         text += (
             "\n──────────────────────────────\n"
-            f"💰 Доходы : {format_money(total_income, family_currency(family))}\n"
-            f"💸 Расходы: {format_money(total_expense, family_currency(family))}\n"
+            f"💰 {t(language, 'quick.income')} : {format_money(total_income, family_currency(family))}\n"
+            f"💸 {t(language, 'quick.expense')}: {format_money(total_expense, family_currency(family))}\n"
         )
 
     if failed:
@@ -207,7 +210,7 @@ async def add_transaction(
 
     await message.answer(
         text,
-        reply_markup=back_to_main_menu_keyboard,
+        reply_markup=back_to_main_menu(language),
     )
 
 
@@ -268,7 +271,7 @@ async def resolve_pending_project_transaction(
     await state.clear()
     sign = "+" if transaction.type == "income" else "-"
     project_header = (
-        f"🏷 Проект: {escape(str(project_name))}\n\n" if project_name else ""
+        f"🏷 {t(data.get('pending_project_language'), 'quick.project')}: {escape(str(project_name))}\n\n" if project_name else ""
     )
     await message.edit_text(
         f"✅ Операция сохранена.\n{project_header}"

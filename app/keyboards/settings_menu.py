@@ -5,6 +5,7 @@ from aiogram.types import (
 from app.services.country_catalog import COUNTRIES
 from app.keyboards.projects import button as project_button
 from app.utils.currency import CURRENCY_SYMBOLS
+from app.i18n import t
 
 
 class FamilySettingsCallback(CallbackData, prefix="fset"):
@@ -19,35 +20,35 @@ def _inline(text: str, action: str, value: str = "") -> InlineKeyboardButton:
     )
 
 
-def temporary_screen_ttl_label(ttl: int) -> str:
-    value = "выключено" if ttl == 0 else f"{ttl} сек."
-    return f"🧹 Автоудаление экранов: {value}"
+def temporary_screen_ttl_label(ttl: int, language: str = "ru") -> str:
+    value = t(language, "settings.off") if ttl == 0 else t(language, "settings.seconds", value=ttl)
+    return t(language, "settings.ttl", value=value)
 
 
-def family_settings_keyboard_for_ttl(ttl: int = 20) -> InlineKeyboardMarkup:
+def family_settings_keyboard_for_ttl(ttl: int = 20, language: str = "ru") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [_inline("🌐 Язык", "language")],
-        [_inline("🌍 Страна", "country")],
-        [_inline("🏙 Город", "city")],
-        [_inline("🕓 Часовой пояс", "timezone")],
-        [_inline("💶 Валюта", "currency")],
-        [_inline(temporary_screen_ttl_label(ttl), "temporary_ttl")],
-        [project_button("🏷 Проекты", "list")],
-        [_inline("ℹ️ О боте", "about")],
-        [_inline("⬅️ Назад", "close")],
+        [_inline(t(language, "settings.language"), "language")],
+        [_inline(t(language, "settings.country"), "country")],
+        [_inline(t(language, "settings.city"), "city")],
+        [_inline(t(language, "settings.timezone"), "timezone")],
+        [_inline(t(language, "settings.currency"), "currency")],
+        [_inline(temporary_screen_ttl_label(ttl, language), "temporary_ttl")],
+        [project_button(t(language, "settings.projects"), "list")],
+        [_inline(t(language, "settings.about"), "about")],
+        [_inline(t(language, "nav.back"), "close")],
     ])
 
 
 family_settings_keyboard = family_settings_keyboard_for_ttl()
 
 
-def temporary_screen_ttl_keyboard(current_ttl: int) -> InlineKeyboardMarkup:
+def temporary_screen_ttl_keyboard(current_ttl: int, language: str = "ru") -> InlineKeyboardMarkup:
     rows = []
     for ttl in (5, 10, 20, 30, 60, 0):
-        label = "Выключено" if ttl == 0 else f"{ttl} сек."
+        label = t(language, "settings.off") if ttl == 0 else t(language, "settings.seconds", value=ttl)
         marker = "●" if ttl == current_ttl else "○"
         rows.append([_inline(f"{marker} {label}", "set_temporary_ttl", str(ttl))])
-    rows.append([_inline("⬅️ Назад", "home")])
+    rows.append([_inline(t(language, "nav.back"), "home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -93,9 +94,10 @@ settings_cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [_inline("❌ Отмена", "cancel")],
 ])
 
-settings_about_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [_inline("⬅️ Назад", "home")],
-])
+def settings_about_keyboard_for(language: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[_inline(t(language, "nav.back"), "home")]])
+
+settings_about_keyboard = settings_about_keyboard_for()
 
 
 COUNTRIES_PER_PAGE = 10

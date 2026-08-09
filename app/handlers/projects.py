@@ -17,21 +17,22 @@ from app.services.project_service import (
 )
 from app.services.settings_service import get_current_family_settings
 from app.utils.currency import format_money
+from app.i18n import normalize_language, t
 
 
 router = Router()
 
 
 def project_card_text(
-    project, spent: float, operations: int, currency_code: str = "EUR",
+    project, spent: float, operations: int, currency_code: str = "EUR", language: str = "ru",
 ) -> str:
     status = "🟢 Активен" if project.is_active else "⚪ Завершён"
     return (
         f"🏷 <b>{escape(project.name)}</b>\n\n"
-        f"Тег: #{escape(project.tag)}\n"
+        f"{t(language, 'projects.tag')}: #{escape(project.tag)}\n"
         f"Статус: {status}\n\n"
-        f"Потрачено: {format_money(spent, currency_code)}\n"
-        f"Операций: {operations}"
+        f"{t(language, 'projects.spent')}: {format_money(spent, currency_code)}\n"
+        f"{t(language, 'common.operations')}: {operations}"
     )
 
 
@@ -41,11 +42,13 @@ async def _show_projects(message, telegram_id: int, *, active: bool, page: int =
         await message.edit_text("⚠️ Пользователь или семья не найдены.")
         return
     projects, total = result
+    settings = await get_current_family_settings(telegram_id)
+    language = normalize_language(settings.get("language") if settings else None)
     title = "🏷 <b>Проекты</b>" if active else "📦 <b>Архив проектов</b>"
     empty = "Активных проектов пока нет." if active else "Завершённых проектов пока нет."
     text = title + ("\n\n" + empty if not projects else "")
     await message.edit_text(
-        text, reply_markup=projects_keyboard(projects, total, page, active=active),
+        text, reply_markup=projects_keyboard(projects, total, page, active=active, language=language),
         parse_mode="HTML",
     )
 
@@ -58,10 +61,11 @@ async def _show_card(message, telegram_id: int, project_id: int, notice: str | N
     project, spent, operations = result
     settings = await get_current_family_settings(telegram_id)
     currency_code = settings["currency"] if settings else "EUR"
-    text = project_card_text(project, spent, operations, currency_code)
+    language = normalize_language(settings.get("language") if settings else None)
+    text = project_card_text(project, spent, operations, currency_code, language)
     if notice:
         text = f"{notice}\n\n{text}"
-    await message.edit_text(text, reply_markup=project_card_keyboard(project), parse_mode="HTML")
+    await message.edit_text(text, reply_markup=project_card_keyboard(project, language), parse_mode="HTML")
 
 
 @router.callback_query(ProjectCallback.filter())
@@ -89,7 +93,7 @@ async def project_callback(
         else:
             await message.edit_text(
                 family_settings_text(data),
-                reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
+                reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"], data["language"]),
                 parse_mode="HTML",
             )
     elif action == "new":
@@ -216,9 +220,10 @@ async def project_tag(message: Message, state: FSMContext):
     project, spent, operations = result
     settings = await get_current_family_settings(message.from_user.id)
     currency_code = settings["currency"] if settings else "EUR"
+    language = normalize_language(settings.get("language") if settings else None)
     await message.answer(
-        "✅ Проект создан.\n\n" + project_card_text(project, spent, operations, currency_code),
-        reply_markup=project_card_keyboard(project), parse_mode="HTML",
+        "✅ Проект создан.\n\n" + project_card_text(project, spent, operations, currency_code, language),
+        reply_markup=project_card_keyboard(project, language), parse_mode="HTML",
     )
 
 
@@ -253,9 +258,10 @@ async def _edit_project_value(message: Message, state: FSMContext, *, field: str
     project, spent, operations = result
     settings = await get_current_family_settings(message.from_user.id)
     currency_code = settings["currency"] if settings else "EUR"
+    language = normalize_language(settings.get("language") if settings else None)
     await message.answer(
-        notice + "\n\n" + project_card_text(project, spent, operations, currency_code),
-        reply_markup=project_card_keyboard(project), parse_mode="HTML",
+        notice + "\n\n" + project_card_text(project, spent, operations, currency_code, language),
+        reply_markup=project_card_keyboard(project, language), parse_mode="HTML",
     )
 
 

@@ -143,7 +143,7 @@ class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
         message = incoming_message()
         await menu.show_menu(message)
         message.answer.assert_awaited_once()
-        self.assertIs(message.answer.await_args.kwargs["reply_markup"], main_menu)
+        self.assertEqual(message.answer.await_args.kwargs["reply_markup"], main_menu)
         self.assertTrue(main_menu.is_persistent)
         self.assertNotIn("\u2063", message.answer.await_args.args[0])
 

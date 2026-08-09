@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from app.constants import APP_VERSION
 from app.handlers import settings
 from app.keyboards.main_menu import main_menu
-from app.keyboards.settings_menu import family_settings_keyboard, settings_menu
+from app.keyboards.settings_menu import family_settings_keyboard, family_settings_keyboard_for_ttl, settings_menu
 
 
 class Message:
@@ -47,7 +47,10 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
             await settings.open_settings(message)
         self.assertIn("Українська", message.answers[0][0])
         self.assertIn("Berlin", message.answers[0][0])
-        self.assertEqual(message.answers[0][1]["reply_markup"], family_settings_keyboard)
+        self.assertEqual(
+            message.answers[0][1]["reply_markup"],
+            family_settings_keyboard_for_ttl(20, "uk"),
+        )
         get_data.assert_awaited_once_with(1)
 
     async def test_members_and_about(self):

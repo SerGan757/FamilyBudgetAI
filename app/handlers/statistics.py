@@ -19,13 +19,18 @@ from app.utils.navigation import answer_with_navigation
 from app.utils.transaction_format import project_suffix
 from app.utils.temporary_screens import refresh_temporary_message, schedule_temporary_message
 from app.utils.currency import family_currency, format_money
+from app.i18n import category_label, family_language, month_name, t
 
 router = Router()
 
 LIMIT = 20
 
 
-def days_text(value: int) -> str:
+def days_text(value: int, language: str = "ru") -> str:
+    if language == "en":
+        return f"{value} day" if value == 1 else f"{value} days"
+    if language == "de":
+        return f"{value} Tag" if value == 1 else f"{value} Tage"
     if value % 10 == 1 and value % 100 != 11:
         word = "день"
     elif value % 10 in (2, 3, 4) and value % 100 not in (12, 13, 14):
@@ -39,7 +44,7 @@ def money(value: float, currency_code: str = "EUR") -> str:
     return format_money(value, currency_code)
 
 
-def format_transaction(transaction, currency_code: str = "EUR"):
+def format_transaction(transaction, currency_code: str = "EUR", language: str = "ru"):
 
     sign = "+" if transaction.type == "income" else "-"
 
@@ -50,7 +55,8 @@ def format_transaction(transaction, currency_code: str = "EUR"):
     if transaction.is_recurring:
         amount_text += "/мес"
 
-    base_icon = "💰" if transaction.type == "income" else escape(transaction.category.split()[0])
+    localized_category = category_label(language, transaction.category)
+    base_icon = "💰" if transaction.type == "income" else escape(localized_category.split()[0])
     icon = f"🔁 {base_icon}" if transaction.is_recurring else base_icon
 
     author = (
@@ -79,13 +85,14 @@ def format_today(
     selected_date: date,
     offset: int = 0,
     currency_code: str = "EUR",
+    language: str = "ru",
 ):
 
     text = (
         f"📅 <b>{selected_date.strftime('%d.%m.%Y')}</b>\n\n"
-        f"💰 Доходы     {money(data['income'], currency_code)}\n"
-        f"💸 Расходы    {money(data['expense'], currency_code)}\n"
-        f"📈 Баланс     {money(data['balance'], currency_code)}\n"
+        f"💰 {t(language, 'common.income')}     {money(data['income'], currency_code)}\n"
+        f"💸 {t(language, 'common.expense')}    {money(data['expense'], currency_code)}\n"
+        f"📈 {t(language, 'common.balance')}     {money(data['balance'], currency_code)}\n"
     )
 
     text += "\n"
@@ -95,14 +102,14 @@ def format_today(
     total = data["total"]
     if not regular:
 
-        text += "Операций нет."
+        text += t(language, "common.none")
 
     else:
 
         for transaction in regular:
 
             text += (
-                format_transaction(transaction, currency_code)
+                format_transaction(transaction, currency_code, language)
                 + "\n"
             )
 
@@ -112,7 +119,7 @@ def format_today(
     )
 
     text += (
-        f"\n<b>Показано: {shown} из {total}</b>"
+        f"\n<b>{t(language, 'common.shown', shown=shown, total=total)}</b>"
     )
 
     return text
@@ -142,9 +149,10 @@ async def today(message: Message):
             selected_date,
             offset=0,
             currency_code=family_currency(family),
+            language=family_language(family),
         ),
         parse_mode="HTML",
-        inline_markup=day_keyboard(selected_date, 0, total),
+        inline_markup=day_keyboard(selected_date, 0, total, family_language(family)),
     )
     schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
 
@@ -185,9 +193,10 @@ async def today_page(
             selected_date,
             offset=offset,
             currency_code=family_currency(family),
+            language=family_language(family),
         ),
         parse_mode="HTML",
-        reply_markup=day_keyboard(selected_date, offset, total),
+        reply_markup=day_keyboard(selected_date, offset, total, family_language(family)),
     )
     refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
@@ -199,6 +208,7 @@ def format_month(
     month: int,
     offset: int = 0,
     currency_code: str = "EUR",
+    language: str = "ru",
 ):
 
     months = [
@@ -219,11 +229,11 @@ def format_month(
 
     text = (
         f"📅 <b>{months[month]} {year}</b>\n\n"
-        f"💰 Доходы: {money(data['ordinary_income'], currency_code)}\n"
-        f"💸 Расходы: {money(data['ordinary_expense'], currency_code)}\n\n"
-        f"🔁 Регулярные расходы: {money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})\n"
-        f"🔁 Регулярные доходы: {money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})\n\n"
-        f"📈 Баланс: {money(data['balance'], currency_code)}\n\n"
+        f"💰 {t(language, 'common.income')}: {money(data['ordinary_income'], currency_code)}\n"
+        f"💸 {t(language, 'common.expense')}: {money(data['ordinary_expense'], currency_code)}\n\n"
+        f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})\n"
+        f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})\n\n"
+        f"📈 {t(language, 'common.balance')}: {money(data['balance'], currency_code)}\n\n"
     )
 
     regular = data["transactions"]
@@ -232,14 +242,14 @@ def format_month(
 
     if not regular:
 
-        text += "Операций за этот месяц нет."
+        text += t(language, "month.empty")
 
     else:
 
         for transaction in regular:
 
             text += (
-                format_transaction(transaction, currency_code)
+                format_transaction(transaction, currency_code, language)
                 + "\n"
             )
 
@@ -249,22 +259,22 @@ def format_month(
     )
 
     text += (
-        f"\n<b>Показано: {shown} из {total}</b>"
+        f"\n<b>{t(language, 'common.shown', shown=shown, total=total)}</b>"
     )
 
     return text
 
 
-def day_keyboard(selected_date: date, offset: int, total: int) -> InlineKeyboardMarkup:
+def day_keyboard(selected_date: date, offset: int, total: int, language: str = "ru") -> InlineKeyboardMarkup:
     rows = [[
-        InlineKeyboardButton(text="⬅️ Предыдущий день", callback_data=f"day:{(selected_date - timedelta(days=1)).isoformat()}"),
-        InlineKeyboardButton(text="➡️ Следующий день", callback_data=f"day:{(selected_date + timedelta(days=1)).isoformat()}"),
+        InlineKeyboardButton(text=t(language, "nav.prev_day"), callback_data=f"day:{(selected_date - timedelta(days=1)).isoformat()}"),
+        InlineKeyboardButton(text=t(language, "nav.next_day"), callback_data=f"day:{(selected_date + timedelta(days=1)).isoformat()}"),
     ]]
     page = []
     if offset > 0:
-        page.append(InlineKeyboardButton(text="⬅️ Предыдущие 20", callback_data=f"today:{selected_date.isoformat()}:page:{max(0, offset-LIMIT)}"))
+        page.append(InlineKeyboardButton(text=t(language, "nav.prev_20"), callback_data=f"today:{selected_date.isoformat()}:page:{max(0, offset-LIMIT)}"))
     if offset + LIMIT < total:
-        page.append(InlineKeyboardButton(text="➡️ Следующие 20", callback_data=f"today:{selected_date.isoformat()}:page:{offset+LIMIT}"))
+        page.append(InlineKeyboardButton(text=t(language, "nav.next_20"), callback_data=f"today:{selected_date.isoformat()}:page:{offset+LIMIT}"))
     if page:
         rows.append(page)
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -275,18 +285,18 @@ def _shift_month(year: int, month: int, delta: int) -> tuple[int, int]:
     return index // 12, index % 12 + 1
 
 
-def month_keyboard(year: int, month: int, offset: int, total: int) -> InlineKeyboardMarkup:
+def month_keyboard(year: int, month: int, offset: int, total: int, language: str = "ru") -> InlineKeyboardMarkup:
     previous_year, previous_month = _shift_month(year, month, -1)
     next_year, next_month = _shift_month(year, month, 1)
     rows = [[
-        InlineKeyboardButton(text="⬅️ Предыдущий месяц", callback_data=f"month:{previous_year}:{previous_month:02d}"),
-        InlineKeyboardButton(text="➡️ Следующий месяц", callback_data=f"month:{next_year}:{next_month:02d}"),
+        InlineKeyboardButton(text=t(language, "nav.prev_month"), callback_data=f"month:{previous_year}:{previous_month:02d}"),
+        InlineKeyboardButton(text=t(language, "nav.next_month"), callback_data=f"month:{next_year}:{next_month:02d}"),
     ]]
     page = []
     if offset > 0:
-        page.append(InlineKeyboardButton(text="⬅️ Предыдущие 20", callback_data=f"month:{year}:{month:02d}:{max(0, offset-LIMIT)}"))
+        page.append(InlineKeyboardButton(text=t(language, "nav.prev_20"), callback_data=f"month:{year}:{month:02d}:{max(0, offset-LIMIT)}"))
     if offset + LIMIT < total:
-        page.append(InlineKeyboardButton(text="➡️ Следующие 20", callback_data=f"month:{year}:{month:02d}:{offset+LIMIT}"))
+        page.append(InlineKeyboardButton(text=t(language, "nav.next_20"), callback_data=f"month:{year}:{month:02d}:{offset+LIMIT}"))
     if page:
         rows.append(page)
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -319,9 +329,10 @@ async def month(message: Message):
             today.month,
             offset=0,
             currency_code=family_currency(family),
+            language=family_language(family),
         ),
         parse_mode="HTML",
-        inline_markup=month_keyboard(today.year, today.month, 0, total),
+        inline_markup=month_keyboard(today.year, today.month, 0, total, family_language(family)),
     )
     schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
     return
@@ -366,9 +377,10 @@ async def month_page(
             month,
             offset=offset,
             currency_code=family_currency(family),
+            language=family_language(family),
         ),
         parse_mode="HTML",
-        reply_markup=month_keyboard(year, month, offset, total),
+        reply_markup=month_keyboard(year, month, offset, total, family_language(family)),
     )
     refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
@@ -381,14 +393,15 @@ async def balance(message: Message):
         telegram_id=message.from_user.id,
     )
     data = await get_balance(family.id)
+    language = family_language(family)
 
     text = (
-        f"<b>💰 ТЕКУЩИЙ БАЛАНС</b>\n\n"
-        f"💰 Доходы: {money(data['ordinary_income'], family_currency(family))}\n"
-        f"💸 Расходы: {money(data['ordinary_expense'], family_currency(family))}\n\n"
-        f"🔁 Регулярные расходы: {money(data['recurring_expense'], family_currency(family))}/мес ({data['recurring_expense_count']})\n"
-        f"🔁 Регулярные доходы: {money(data['recurring_income'], family_currency(family))}/мес ({data['recurring_income_count']})\n\n"
-        f"<b>💎 Остаток     : {money(data['balance'], family_currency(family))}</b>"
+        f"<b>{t(language, 'balance.title')}</b>\n\n"
+        f"💰 {t(language, 'common.income')}: {money(data['ordinary_income'], family_currency(family))}\n"
+        f"💸 {t(language, 'common.expense')}: {money(data['ordinary_expense'], family_currency(family))}\n\n"
+        f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], family_currency(family))}/мес ({data['recurring_expense_count']})\n"
+        f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], family_currency(family))}/мес ({data['recurring_income_count']})\n\n"
+        f"<b>💎 {t(language, 'balance.remaining')}: {money(data['balance'], family_currency(family))}</b>"
     )
 
     sent_message = await message.answer(
@@ -408,6 +421,7 @@ async def analytics(
     edit_existing: bool = False,
     temporary_screen_ttl: int = 20,
     currency_code: str = "EUR",
+    language: str = "ru",
 ):
     if family_id is None:
         family = await require_family_for_chat(
@@ -417,6 +431,7 @@ async def analytics(
         family_id = family.id
         temporary_screen_ttl = family.temporary_screen_ttl
         currency_code = family_currency(family)
+        language = family_language(family)
 
     months = [
         "",
@@ -444,51 +459,50 @@ async def analytics(
     )
 
     forecast_lines = [
-        f"📅 До конца месяца: {days_text(forecast.days_remaining)} "
-        f"({forecast.elapsed_percent}%)",
+        f"📅 {t(language, 'analytics.days_left', days=days_text(forecast.days_remaining, language), percent=forecast.elapsed_percent)}",
     ]
     if forecast.spent_percent is not None:
-        forecast_lines.append(f"💸 Потрачено бюджета: {forecast.spent_percent}%")
+        forecast_lines.append(f"💸 {t(language, 'analytics.spent', percent=forecast.spent_percent)}")
     if forecast.forecast_expenses is not None:
         forecast_lines.append(
-            f"📈 Прогноз расходов: {money(forecast.forecast_expenses, currency_code)}"
+            f"📈 {t(language, 'analytics.forecast_expense')}: {money(forecast.forecast_expenses, currency_code)}"
         )
     if forecast.forecast_balance is not None:
         if forecast.forecast_balance >= 0:
             forecast_lines.append(
-                f"🟢 Прогноз остатка: {money(forecast.forecast_balance, currency_code)}"
+                f"🟢 {t(language, 'analytics.forecast_remaining')}: {money(forecast.forecast_balance, currency_code)}"
             )
         else:
             forecast_lines.append(
-                f"🔴 Прогноз дефицита: {money(abs(forecast.forecast_balance), currency_code)}"
+                f"🔴 {t(language, 'analytics.forecast_deficit')}: {money(abs(forecast.forecast_balance), currency_code)}"
             )
     if forecast.pace_delta is not None:
         if forecast.pace_delta > 2:
-            pace = f"⚠️ Превышение темпа расходов: {forecast.pace_delta}%"
+            pace = f"⚠️ {t(language, 'analytics.pace_high', percent=forecast.pace_delta)}"
         elif forecast.pace_delta < -2:
-            pace = f"✅ Темп расходов ниже плана: {abs(forecast.pace_delta)}%"
+            pace = f"✅ {t(language, 'analytics.pace_low', percent=abs(forecast.pace_delta))}"
         else:
-            pace = "✅ Темп расходов: по плану"
+            pace = f"✅ {t(language, 'analytics.pace_ok')}"
         forecast_lines.append(pace)
     forecast_text = "\n".join(forecast_lines)
 
     text = (
-        f"📊 <b>Аналитика • {months[month]} {year}</b>\n\n"
+        f"📊 <b>{t(language, 'analytics.title')} • {month_name(language, month)} {year}</b>\n\n"
 
-        f"💰 Обычные доходы: <b>{money(data['ordinary_income'], currency_code)}</b>\n"
-        f"💸 Обычные расходы: <b>{money(data['ordinary_expense'], currency_code)}</b>\n\n"
-        f"🔁 Регулярные доходы: <b>{money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})</b>\n"
-        f"🔁 Регулярные расходы: <b>{money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})</b>\n\n"
-        f"💎 Остаток месяца: <b>{money(data['balance'], currency_code)}</b>\n\n"
+        f"💰 {t(language, 'analytics.ordinary_income')}: <b>{money(data['ordinary_income'], currency_code)}</b>\n"
+        f"💸 {t(language, 'analytics.ordinary_expense')}: <b>{money(data['ordinary_expense'], currency_code)}</b>\n\n"
+        f"🔁 {t(language, 'analytics.reg_income')}: <b>{money(data['recurring_income'], currency_code)}/мес ({data['recurring_income_count']})</b>\n"
+        f"🔁 {t(language, 'analytics.reg_expense')}: <b>{money(data['recurring_expense'], currency_code)}/мес ({data['recurring_expense_count']})</b>\n\n"
+        f"💎 {t(language, 'analytics.month_balance')}: <b>{money(data['balance'], currency_code)}</b>\n\n"
         f"{forecast_text}\n\n"
 
-        f"📋 Операций: <b>{data['operations']}</b>\n"
-        f"🧾 Средний чек: <b>{money(data['average_check'], currency_code)}</b>\n"
-        f"📅 В день: <b>{money(data['average_day'], currency_code)}</b>\n"
+        f"📋 {t(language, 'common.operations')}: <b>{data['operations']}</b>\n"
+        f"🧾 {t(language, 'analytics.average')}: <b>{money(data['average_check'], currency_code)}</b>\n"
+        f"📅 {t(language, 'analytics.per_day')}: <b>{money(data['average_day'], currency_code)}</b>\n"
     )
     if data["users"]:
 
-        text += "\n👨 <b>Расходы участников</b>\n"
+        text += f"\n👨 <b>{t(language, 'analytics.members')}</b>\n"
 
         medals = [
             "🥇",
@@ -506,12 +520,12 @@ async def analytics(
 
     if data["categories"]:
 
-        text += "\n🏆 <b>Категории</b>\n"
+        text += f"\n🏆 <b>{t(language, 'analytics.categories')}</b>\n"
 
         for i, (category, amount) in enumerate(data["categories"][:5], 1):
 
             text += (
-                f"{i}. {escape(category)} — <b>{money(amount, currency_code)}</b>\n"
+                f"{i}. {escape(category_label(language, category))} — <b>{money(amount, currency_code)}</b>\n"
             )
 
     if data["biggest"]:
@@ -521,13 +535,13 @@ async def analytics(
         purchase_date = purchase.created_at.strftime("%d.%m")
 
         text += (
-            "\n🔥 <b>Крупнейшая покупка</b>\n"
+            f"\n🔥 <b>{t(language, 'analytics.biggest')}</b>\n"
             f"{purchase_date} • {escape(purchase.title)}\n"
             f"<b>{money(purchase.amount, currency_code)}</b>"
         )
 
     if data["projects"]:
-        text += "\n\n🏷 <b>Проекты</b>\n"
+        text += f"\n\n🏷 <b>{t(language, 'analytics.projects')}</b>\n"
         for index, (project_name, amount) in enumerate(data["projects"], 1):
             text += (
                 f"{index}. {escape(project_name)} — <b>{money(amount, currency_code)}</b>\n"
@@ -535,34 +549,34 @@ async def analytics(
 
     if edit_existing:
         await message.edit_text(
-            text, parse_mode="HTML", reply_markup=analytics_keyboard(year, month),
+            text, parse_mode="HTML", reply_markup=analytics_keyboard(year, month, language),
         )
     else:
         sent_message = await answer_with_navigation(
             message, text, parse_mode="HTML",
-            inline_markup=analytics_keyboard(year, month),
+            inline_markup=analytics_keyboard(year, month, language),
         )
         schedule_temporary_message(sent_message, ttl=temporary_screen_ttl)
 
 
-def analytics_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
+def analytics_keyboard(year: int, month: int, language: str = "ru") -> InlineKeyboardMarkup:
     previous_year, previous_month = _shift_month(year, month, -1)
     next_year, next_month = _shift_month(year, month, 1)
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="⬅️ Предыдущий месяц", callback_data=f"analytics:{previous_year}:{previous_month:02d}"),
-            InlineKeyboardButton(text="➡️ Следующий месяц", callback_data=f"analytics:{next_year}:{next_month:02d}"),
+            InlineKeyboardButton(text=t(language, "nav.prev_month"), callback_data=f"analytics:{previous_year}:{previous_month:02d}"),
+            InlineKeyboardButton(text=t(language, "nav.next_month"), callback_data=f"analytics:{next_year}:{next_month:02d}"),
         ],
         [InlineKeyboardButton(
-            text="❓ Что означают показатели?",
+            text=t(language, "analytics.help_button"),
             callback_data=f"analytics_help:{year}:{month:02d}",
         )],
     ])
 
 
-def analytics_help_keyboard(year: int, month: int) -> InlineKeyboardMarkup:
+def analytics_help_keyboard(year: int, month: int, language: str = "ru") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-        text="⬅️ Назад к аналитике",
+        text=t(language, "analytics.back"),
         callback_data=f"analytics_back:{year}:{month:02d}",
     )]])
 
@@ -599,9 +613,9 @@ async def analytics_help(callback: CallbackQuery):
         telegram_id=callback.from_user.id,
     )
     await callback.message.edit_text(
-        ANALYTICS_HELP_TEXT,
+        f"📊 <b>{t(family_language(family), 'analytics.help_title').removeprefix('📊 ')}</b>\n\n{t(family_language(family), 'analytics.help')}",
         parse_mode="HTML",
-        reply_markup=analytics_help_keyboard(year, month),
+        reply_markup=analytics_help_keyboard(year, month, family_language(family)),
     )
     refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
@@ -623,7 +637,7 @@ async def analytics_back(callback: CallbackQuery):
     )
     await analytics(
         callback.message, year, month, family.id,
-        edit_existing=True, currency_code=family_currency(family),
+        edit_existing=True, currency_code=family_currency(family), language=family_language(family),
     )
     refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
@@ -646,7 +660,7 @@ async def analytics_page(callback: CallbackQuery):
     try:
         await analytics(
             callback.message, year, month, family.id,
-            edit_existing=True, currency_code=family_currency(family),
+            edit_existing=True, currency_code=family_currency(family), language=family_language(family),
         )
     except TelegramBadRequest as error:
         if "message is not modified" not in str(error).lower():

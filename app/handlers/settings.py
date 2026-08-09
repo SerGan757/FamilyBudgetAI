@@ -10,7 +10,7 @@ from app.keyboards.main_menu import back_to_main_menu_keyboard
 from app.handlers.settings_states import FamilySettingsState
 from app.keyboards.settings_menu import (
     FamilySettingsCallback, currency_keyboard, family_settings_keyboard_for_ttl,
-    country_keyboard, language_keyboard, settings_about_keyboard,
+    country_keyboard, language_keyboard, settings_about_keyboard_for,
     settings_cancel_keyboard, settings_menu,
     temporary_screen_ttl_keyboard, timezone_keyboard,
 )
@@ -23,6 +23,7 @@ from app.services.settings_service import (
 )
 from app.services.family_context_service import require_family_for_chat
 from app.utils.currency import currency_symbol, normalize_currency_code
+from app.i18n import all_texts, normalize_language, t
 
 
 router = Router()
@@ -51,30 +52,29 @@ LANGUAGE_LABELS = {
     "be": "Беларуская",
 }
 def family_settings_text(data: dict, notice: str | None = None) -> str:
-    language = LANGUAGE_LABELS.get(data["language"], data["language"])
+    language_code = normalize_language(data.get("language"))
+    language = LANGUAGE_LABELS.get(language_code, language_code)
     currency = normalize_currency_code(data["currency"])
     country = get_country(data["country"])
     country_label = f"{country.flag} {country.name}" if country else (data["country"] or "—")
     prefix = f"{notice}\n\n" if notice else ""
     return (
-        f"{prefix}⚙️ <b>Настройки семьи</b>\n\n"
-        f"🌐 Язык: {escape(language)}\n"
-        f"🌍 Страна: {escape(country_label)}\n"
-        f"🏙 Город: {escape(data['city'] or '—')}\n"
-        f"🕓 Часовой пояс: {escape(data['timezone'])}\n"
-        f"💶 Валюта: {escape(currency)} ({currency_symbol(currency)})"
+        f"{prefix}⚙️ <b>{t(language_code, 'settings.title')}</b>\n\n"
+        f"{t(language_code, 'settings.language')}: {escape(language)}\n"
+        f"{t(language_code, 'settings.country')}: {escape(country_label)}\n"
+        f"{t(language_code, 'settings.city')}: {escape(data['city'] or '—')}\n"
+        f"{t(language_code, 'settings.timezone')}: {escape(data['timezone'])}\n"
+        f"{t(language_code, 'settings.currency')}: {escape(currency)} ({currency_symbol(currency)})"
     )
 
 
-def about_text() -> str:
+def about_text(language: str = "ru") -> str:
     return (
-        "ℹ️ <b>О боте</b>\n\n"
+        f"ℹ️ <b>{t(language, 'about.title')}</b>\n\n"
         f"🤖 <b>{escape(APP_NAME)}</b>\n\n"
-        "Семейный Telegram-бот для простого совместного\n"
-        "учёта домашних финансов.\n\n"
-        "👨‍👩‍👧‍👦 Создайте группу в Telegram, добавьте семью\n"
-        "и этого бота — и ведите семейный бюджет вместе.\n\n"
-        "💰 <b>Возможности:</b>\n"
+        f"{t(language, 'about.description')}\n\n"
+        f"👨‍👩‍👧‍👦 {t(language, 'about.family')}\n\n"
+        f"💰 <b>{t(language, 'about.features')}:</b>\n"
         "• быстрый ввод доходов и расходов;\n"
         "• совместный бюджет семьи;\n"
         "• история операций;\n"
@@ -84,11 +84,11 @@ def about_text() -> str:
         "• семейные проекты — отпуск, ремонт, дача и другие;\n"
         "• привязка расходов к проекту через #тег;\n"
         "• настройки страны, валюты, языка и часового пояса.\n\n"
-        "⚡ <b>Простой ввод:</b>\n"
+        f"⚡ <b>{t(language, 'about.input')}:</b>\n"
         "<code>кофе 5\n+2000 зарплата\nкраска 40 #ремонт</code>\n\n"
-        f"👨‍💻 Разработчик: {escape(DEVELOPER_NAME)}\n"
+        f"👨‍💻 {t(language, 'about.developer')}: {escape(DEVELOPER_NAME)}\n"
         f"✈️ Telegram: {escape(DEVELOPER_TELEGRAM)}\n\n"
-        f"🏷 Версия: {escape(APP_VERSION)}"
+        f"🏷 {t(language, 'about.version')}: {escape(APP_VERSION)}"
     )
 
 
@@ -102,14 +102,14 @@ async def _current_settings_or_error(message: Message, telegram_id: int):
     return data
 
 
-@router.message(StateFilter(None), F.text == "⚙️ Настройки")
+@router.message(StateFilter(None), F.text.in_(all_texts("menu.settings")))
 async def open_settings(message: Message):
     data = await _current_settings_or_error(message, message.from_user.id)
     if data is None:
         return
     await message.answer(
         family_settings_text(data),
-        reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
+        reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"], data["language"]),
         parse_mode="HTML",
     )
 
@@ -119,7 +119,7 @@ async def _show_current_settings(message: Message, telegram_id: int, notice: str
     if data is not None:
         await message.edit_text(
             family_settings_text(data, notice),
-            reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
+            reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"], data["language"]),
             parse_mode="HTML",
         )
     return data
@@ -139,6 +139,7 @@ async def family_settings_callback(
         await state.clear()
         await callback.answer("Пользователь или семья не найдены.", show_alert=True)
         return
+    language = normalize_language(current.get("language"))
     if action in {"home", "cancel"}:
         await state.clear()
         await _show_current_settings(message, callback.from_user.id)
@@ -146,23 +147,23 @@ async def family_settings_callback(
         await state.clear()
         await message.delete()
     elif action == "language":
-        await message.edit_text("🌐 Выберите язык семьи:", reply_markup=language_keyboard)
+        await message.edit_text(t(language, "settings.select_language"), reply_markup=language_keyboard)
     elif action == "timezone":
-        await message.edit_text("🕓 Выберите часовой пояс:", reply_markup=timezone_keyboard)
+        await message.edit_text(t(language, "settings.select_timezone"), reply_markup=timezone_keyboard)
     elif action == "currency":
-        await message.edit_text("💶 Выберите валюту:", reply_markup=currency_keyboard)
+        await message.edit_text(t(language, "settings.select_currency"), reply_markup=currency_keyboard)
     elif action == "temporary_ttl":
         await message.edit_text(
             "🧹 <b>Автоудаление экранов</b>\n\n"
             "Через сколько удалять информационные экраны?",
-            reply_markup=temporary_screen_ttl_keyboard(current["temporary_screen_ttl"]),
+            reply_markup=temporary_screen_ttl_keyboard(current["temporary_screen_ttl"], language),
             parse_mode="HTML",
         )
     elif action == "country":
-        await message.edit_text("🌍 Выберите страну:", reply_markup=country_keyboard())
+        await message.edit_text(t(language, "settings.select_country"), reply_markup=country_keyboard())
     elif action == "about":
         await message.edit_text(
-            about_text(), reply_markup=settings_about_keyboard, parse_mode="HTML",
+            about_text(language), reply_markup=settings_about_keyboard_for(language), parse_mode="HTML",
         )
     elif action == "country_page":
         try:
@@ -170,7 +171,7 @@ async def family_settings_callback(
         except ValueError:
             await callback.answer("Недопустимая страница.", show_alert=True)
             return
-        await message.edit_text("🌍 Выберите страну:", reply_markup=country_keyboard(page))
+        await message.edit_text(t(language, "settings.select_country"), reply_markup=country_keyboard(page))
     elif action == "city":
         await state.set_state(FamilySettingsState.waiting_for_city)
         await message.edit_text(
@@ -217,8 +218,9 @@ async def family_settings_callback(
         if not updated:
             await callback.answer("Пользователь или семья не найдены.", show_alert=True)
             return
-        notices = {"language": "✅ Язык сохранён.", "timezone": "✅ Часовой пояс сохранён.", "currency": "✅ Валюта сохранена."}
-        await _show_current_settings(message, callback.from_user.id, notices[field])
+        updated_language = value if field == "language" else language
+        notices = {"language": "settings.saved_language", "timezone": "settings.saved_timezone", "currency": "settings.saved_currency"}
+        await _show_current_settings(message, callback.from_user.id, t(updated_language, notices[field]))
     else:
         await callback.answer("Неизвестное действие.", show_alert=True)
         return
@@ -247,7 +249,7 @@ async def _save_location(message: Message, state: FSMContext, field: str) -> Non
     notice = "✅ Страна сохранена." if field == "country" else "✅ Город сохранён."
     await message.answer(
         family_settings_text(data, notice),
-        reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"]),
+        reply_markup=family_settings_keyboard_for_ttl(data["temporary_screen_ttl"], data["language"]),
         parse_mode="HTML",
     )
 

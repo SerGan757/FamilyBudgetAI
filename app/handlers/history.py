@@ -14,13 +14,14 @@ from app.utils.navigation import answer_with_navigation
 from app.utils.temporary_screens import refresh_temporary_message, schedule_temporary_message
 from app.utils.transaction_format import project_suffix
 from app.utils.currency import family_currency, format_money
+from app.i18n import category_label, family_language, t
 
 router = Router()
 
 LIMIT = 20
 
 
-def format_transaction(transaction, currency_code: str = "EUR") -> str:
+def format_transaction(transaction, currency_code: str = "EUR", language: str = "ru") -> str:
 
     sign = "+" if transaction.type == "income" else "-"
 
@@ -34,7 +35,7 @@ def format_transaction(transaction, currency_code: str = "EUR") -> str:
     base_icon = (
         "💰"
         if transaction.type == "income"
-        else escape(transaction.category.split()[0])
+        else escape(category_label(language, transaction.category).split()[0])
     )
 
     icon = (
@@ -60,7 +61,7 @@ def format_transaction(transaction, currency_code: str = "EUR") -> str:
     )
 
 
-async def build_history_text(family_id: int, offset: int = 0, currency_code: str = "EUR"):
+async def build_history_text(family_id: int, offset: int = 0, currency_code: str = "EUR", language: str = "ru"):
 
     total = await get_transactions_count(family_id)
 
@@ -71,15 +72,15 @@ async def build_history_text(family_id: int, offset: int = 0, currency_code: str
     )
 
     if not transactions:
-        return "📋 История пуста."
+        return t(language, "history.empty")
 
     text = (
-        "<b>📋 История операций</b>\n\n"
+        f"<b>{t(language, 'history.title')}</b>\n\n"
     )
 
     for transaction in transactions:
         text += (
-            format_transaction(transaction, currency_code)
+            format_transaction(transaction, currency_code, language)
             + "\n"
         )
 
@@ -89,7 +90,7 @@ async def build_history_text(family_id: int, offset: int = 0, currency_code: str
     )
 
     text += (
-        f"\n<b>Показано: {shown} из {total}</b>"
+        f"\n<b>{t(language, 'common.shown', shown=shown, total=total)}</b>"
     )
 
     return text
@@ -104,12 +105,13 @@ async def history(message: Message):
 
     sent_message = await answer_with_navigation(
         message,
-        await build_history_text(family.id, 0, family_currency(family)),
+        await build_history_text(family.id, 0, family_currency(family), family_language(family)),
         inline_markup=pagination_keyboard(
             prefix="history",
             offset=0,
             total=total,
             limit=LIMIT,
+            language=family_language(family),
         ),
     )
     schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
@@ -133,12 +135,13 @@ async def history_page(
     total = await get_transactions_count(family.id)
 
     await callback.message.edit_text(
-        await build_history_text(family.id, offset, family_currency(family)),
+        await build_history_text(family.id, offset, family_currency(family), family_language(family)),
         reply_markup=pagination_keyboard(
             prefix="history",
             offset=offset,
             total=total,
             limit=LIMIT,
+            language=family_language(family),
         ),
     )
 

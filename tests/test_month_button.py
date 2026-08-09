@@ -23,7 +23,7 @@ class _Message:
 class MonthButtonTests(unittest.IsolatedAsyncioTestCase):
     def test_menu_filter_matches_main_keyboard_text(self):
         source = inspect.getsource(menu)
-        self.assertIn('F.text == "📅 Месяц"', source)
+        self.assertIn('F.text.in_(all_texts("menu.month"))', source)
         self.assertIn("StateFilter(None)", source)
 
     async def test_month_menu_delegates_to_month_handler(self):
