@@ -96,7 +96,7 @@ class FamilySettingsValidationTests(unittest.TestCase):
 
     def test_screen_contains_all_fields(self):
         text = settings.family_settings_text(DATA)
-        for value in ("Русский", "🌍 Страна: 🇩🇪 Германия", "🏙 Город: Berlin", "Europe/Berlin", "EUR (€)"):
+        for value in ("Русский", "🌍 Страна: 🇩🇪 Германия", "🏙 Город: Berlin", "Берлин", "EUR (€)"):
             self.assertIn(value, text)
 
     def test_language_list_is_exact_and_belarusian_is_human_readable(self):

@@ -5,7 +5,7 @@ from aiogram.types import (
 from app.services.country_catalog import COUNTRIES
 from app.keyboards.projects import button as project_button
 from app.utils.currency import CURRENCY_SYMBOLS
-from app.i18n import t
+from app.i18n import country_name, t, timezone_name
 from app.keyboards.savings_goal import GoalCallback
 
 
@@ -90,24 +90,36 @@ TIMEZONE_OPTIONS = (
     ("🇳🇴 Oslo", "Europe/Oslo"), ("🇩🇰 Copenhagen", "Europe/Copenhagen"),
     ("🌐 UTC", "UTC"),
 )
-timezone_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    *[[_inline(label, "set_timezone", value)] for label, value in TIMEZONE_OPTIONS],
-    [_inline("⬅️ Назад", "home")],
-])
+def timezone_keyboard_for(language: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        *[[_inline(f"{label.split()[0]} {timezone_name(language, value)}", "set_timezone", value)] for label, value in TIMEZONE_OPTIONS],
+        [_inline(t(language, "nav.back"), "home")],
+    ])
+
+
+timezone_keyboard = timezone_keyboard_for()
 
 
 CURRENCY_OPTIONS = tuple(
     (f"{code} ({symbol})", code) for code, symbol in CURRENCY_SYMBOLS.items()
 )
-currency_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    *[[_inline(label, "set_currency", value)] for label, value in CURRENCY_OPTIONS],
-    [_inline("⬅️ Назад", "home")],
-])
+def currency_keyboard_for(language: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        *[[_inline(label, "set_currency", value)] for label, value in CURRENCY_OPTIONS],
+        [_inline(t(language, "nav.back"), "home")],
+    ])
 
 
-settings_cancel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [_inline("❌ Отмена", "cancel")],
-])
+currency_keyboard = currency_keyboard_for()
+
+
+def settings_cancel_keyboard_for(language: str = "ru") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [_inline(t(language, "goal.cancel"), "cancel")],
+    ])
+
+
+settings_cancel_keyboard = settings_cancel_keyboard_for()
 
 def settings_about_keyboard_for(language: str = "ru") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[_inline(t(language, "nav.back"), "home")]])
@@ -118,12 +130,12 @@ settings_about_keyboard = settings_about_keyboard_for()
 COUNTRIES_PER_PAGE = 10
 
 
-def country_keyboard(page: int = 0) -> InlineKeyboardMarkup:
+def country_keyboard(page: int = 0, language: str = "ru") -> InlineKeyboardMarkup:
     last_page = max(0, (len(COUNTRIES) - 1) // COUNTRIES_PER_PAGE)
     page = min(max(page, 0), last_page)
     start = page * COUNTRIES_PER_PAGE
     rows = [
-        [_inline(f"{country.flag} {country.name}", "set_country", country.code)]
+        [_inline(f"{country.flag} {country_name(language, country.code)}", "set_country", country.code)]
         for country in COUNTRIES[start:start + COUNTRIES_PER_PAGE]
     ]
     navigation = []
@@ -133,7 +145,7 @@ def country_keyboard(page: int = 0) -> InlineKeyboardMarkup:
         navigation.append(_inline("➡️", "country_page", str(page + 1)))
     if navigation:
         rows.append(navigation)
-    rows.append([_inline("⬅️ Назад", "home")])
+    rows.append([_inline(t(language, "nav.back"), "home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

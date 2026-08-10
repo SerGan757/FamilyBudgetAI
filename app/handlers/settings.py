@@ -9,10 +9,10 @@ from app.constants import APP_NAME, APP_VERSION, DEVELOPER_NAME, DEVELOPER_TELEG
 from app.keyboards.main_menu import back_to_main_menu_keyboard, main_menu_keyboard
 from app.handlers.settings_states import FamilySettingsState
 from app.keyboards.settings_menu import (
-    FamilySettingsCallback, currency_keyboard, family_settings_keyboard_for_ttl,
+    FamilySettingsCallback, currency_keyboard_for, family_settings_keyboard_for_ttl,
     country_keyboard, language_keyboard, language_keyboard_for, settings_about_keyboard_for,
-    settings_cancel_keyboard, settings_menu,
-    temporary_screen_ttl_keyboard, timezone_keyboard,
+    settings_cancel_keyboard_for, settings_menu,
+    temporary_screen_ttl_keyboard, timezone_keyboard_for,
 )
 from app.services.country_catalog import get_country
 from app.services.settings_service import (
@@ -23,7 +23,7 @@ from app.services.settings_service import (
 )
 from app.services.family_context_service import require_family_for_chat
 from app.utils.currency import currency_symbol, normalize_currency_code
-from app.i18n import all_texts, normalize_language, t
+from app.i18n import all_texts, country_name, normalize_language, t, timezone_name
 
 
 router = Router()
@@ -57,14 +57,14 @@ def family_settings_text(data: dict, notice: str | None = None) -> str:
     language = LANGUAGE_LABELS.get(language_code, language_code)
     currency = normalize_currency_code(data["currency"])
     country = get_country(data["country"])
-    country_label = f"{country.flag} {country.name}" if country else (data["country"] or "—")
+    country_label = f"{country.flag} {country_name(language_code, country.code)}" if country else (data["country"] or "—")
     prefix = f"{notice}\n\n" if notice else ""
     return (
         f"{prefix}⚙️ <b>{t(language_code, 'settings.title')}</b>\n\n"
         f"{t(language_code, 'settings.language')}: {escape(language)}\n"
         f"{t(language_code, 'settings.country')}: {escape(country_label)}\n"
         f"{t(language_code, 'settings.city')}: {escape(data['city'] or '—')}\n"
-        f"{t(language_code, 'settings.timezone')}: {escape(data['timezone'])}\n"
+        f"{t(language_code, 'settings.timezone')}: {escape(timezone_name(language_code, data['timezone']))}\n"
         f"{t(language_code, 'settings.currency')}: {escape(currency)} ({currency_symbol(currency)})"
     )
 
@@ -78,7 +78,7 @@ def about_text(language: str = "ru") -> str:
         f"💰 <b>{t(language, 'about.features')}:</b>\n"
         f"{t(language, 'about.features_text')}\n\n"
         f"⚡ <b>{t(language, 'about.input')}:</b>\n"
-        "<code>кофе 5\n+2000 зарплата\nкраска 40 #ремонт</code>\n\n"
+        f"{t(language, 'about.examples')}\n\n"
         f"👨‍💻 {t(language, 'about.developer')}: {escape(DEVELOPER_NAME)}\n"
         f"✈️ Telegram: {escape(DEVELOPER_TELEGRAM)}\n\n"
         f"🏷 {t(language, 'about.version')}: {escape(APP_VERSION)}"
@@ -142,9 +142,9 @@ async def family_settings_callback(
     elif action == "language":
         await message.edit_text(t(language, "settings.select_language"), reply_markup=language_keyboard_for(language))
     elif action == "timezone":
-        await message.edit_text(t(language, "settings.select_timezone"), reply_markup=timezone_keyboard)
+        await message.edit_text(t(language, "settings.select_timezone"), reply_markup=timezone_keyboard_for(language))
     elif action == "currency":
-        await message.edit_text(t(language, "settings.select_currency"), reply_markup=currency_keyboard)
+        await message.edit_text(t(language, "settings.select_currency"), reply_markup=currency_keyboard_for(language))
     elif action == "temporary_ttl":
         await message.edit_text(
             f"🧹 <b>{t(language, 'settings.ttl_title').removeprefix('🧹 ')}</b>\n\n"
@@ -153,7 +153,7 @@ async def family_settings_callback(
             parse_mode="HTML",
         )
     elif action == "country":
-        await message.edit_text(t(language, "settings.select_country"), reply_markup=country_keyboard())
+        await message.edit_text(t(language, "settings.select_country"), reply_markup=country_keyboard(language=language))
     elif action == "about":
         await message.edit_text(
             about_text(language), reply_markup=settings_about_keyboard_for(language), parse_mode="HTML",
@@ -164,11 +164,13 @@ async def family_settings_callback(
         except ValueError:
             await callback.answer("Недопустимая страница.", show_alert=True)
             return
-        await message.edit_text(t(language, "settings.select_country"), reply_markup=country_keyboard(page))
+        await message.edit_text(t(language, "settings.select_country"), reply_markup=country_keyboard(page, language))
     elif action == "city":
         await state.set_state(FamilySettingsState.waiting_for_city)
+        if hasattr(state, "update_data"):
+            await state.update_data(settings_language=language)
         await message.edit_text(
-            t(language, "settings.enter_city"), reply_markup=settings_cancel_keyboard,
+            t(language, "settings.enter_city"), reply_markup=settings_cancel_keyboard_for(language),
         )
     elif action == "set_country":
         try:
@@ -230,12 +232,16 @@ async def family_settings_callback(
 
 
 async def _save_location(message: Message, state: FSMContext, field: str) -> None:
+    language = "ru"
+    if hasattr(state, "get_data"):
+        state_data = await state.get_data()
+        language = normalize_language(state_data.get("settings_language"))
     try:
         value = validate_family_setting(field, message.text or "")
     except ValueError:
         await message.answer(
             "Введите непустое значение до 100 символов. Команды использовать нельзя.",
-            reply_markup=settings_cancel_keyboard,
+            reply_markup=settings_cancel_keyboard_for(language),
         )
         return
     updated = await update_current_family_setting(message.from_user.id, field, value)

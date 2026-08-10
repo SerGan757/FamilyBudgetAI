@@ -8,12 +8,13 @@ from sqlalchemy import inspect
 
 from app.database.models import GoalContribution, SavingsGoal
 from app.handlers import expenses, statistics
-from app.handlers.savings_goal import goal_card
+from app.handlers.savings_goal import goal_card, goal_edit_text
 from app.i18n import t
 from app.i18n.translations import SUPPORTED_LANGUAGES
 from app.services import delete_service, savings_goal_service
 from app.services.parser import parse_message
 from app.services.savings_goal_service import GoalSnapshot, calculate_observed_pace, progress_bar
+from app.keyboards.savings_goal import GoalCallback, goal_edit_deadline_keyboard, goal_edit_keyboard
 
 
 class SavingsGoalParserTests(unittest.TestCase):
@@ -82,8 +83,34 @@ class SavingsGoalFormattingTests(unittest.TestCase):
 
     def test_goal_translation_catalog_covers_all_languages(self):
         for language in SUPPORTED_LANGUAGES:
-            for key in ("settings.savings_goal", "goal.create", "goal.saved", "goal.no_active_for_contribution"):
+            for key in (
+                "settings.savings_goal", "goal.create", "goal.saved", "goal.no_active_for_contribution",
+                "goal.edit_title", "goal.edit_name", "goal.edit_amount", "goal.edit_deadline",
+                "goal.current_amount", "goal.current_deadline", "goal.enter_new_name",
+                "goal.enter_new_amount", "goal.enter_new_deadline", "goal.no_deadline",
+                "goal.deadline_not_set", "goal.name_saved", "goal.amount_saved",
+                "goal.deadline_saved", "goal.deadline_removed",
+            ):
                 self.assertNotEqual(t(language, key), key)
+
+    def test_edit_menu_has_three_fields_and_back_to_goal_card(self):
+        keyboard = goal_edit_keyboard(9, "en")
+        callbacks = [GoalCallback.unpack(row[0].callback_data) for row in keyboard.inline_keyboard]
+        self.assertEqual([item.action for item in callbacks], ["edit_name", "edit_amount", "edit_deadline", "show"])
+        self.assertTrue(all(item.goal_id == 9 for item in callbacks))
+
+    def test_deadline_menu_supports_change_clear_and_back(self):
+        keyboard = goal_edit_deadline_keyboard(9, "en")
+        callbacks = [GoalCallback.unpack(row[0].callback_data) for row in keyboard.inline_keyboard]
+        self.assertEqual([item.action for item in callbacks], ["enter_edit_deadline", "clear_deadline", "edit"])
+
+    def test_edit_screen_escapes_name_and_recalculates_progress(self):
+        goal = SimpleNamespace(id=9, name="Car <X>", target_amount=500, deadline=None)
+        snapshot = GoalSnapshot(goal=goal, saved=600, remaining=0, percentage=120)
+        text = goal_edit_text(snapshot, "EUR", "en")
+        self.assertIn("Car &lt;X&gt;", text)
+        self.assertIn("120%", text)
+        self.assertIn(t("en", "goal.deadline_not_set"), text)
 
 
 def analytics_data(goal=None):
@@ -151,6 +178,59 @@ class _Session:
     def add(self, value): self.added.append(value)
     async def commit(self): self.committed = True
     async def refresh(self, value): value.id = 1
+
+
+class SavingsGoalFieldUpdateTests(unittest.IsolatedAsyncioTestCase):
+    async def test_rename_changes_only_name(self):
+        goal = SimpleNamespace(id=9, name="Car", target_amount=10000, deadline=date(2027, 12, 31))
+        session = _Session([goal])
+        with patch.object(savings_goal_service, "SessionLocal", return_value=session):
+            updated = await savings_goal_service.update_goal_name(7, 9, "House")
+        self.assertEqual(updated.name, "House")
+        self.assertEqual(updated.target_amount, 10000)
+        self.assertEqual(updated.deadline, date(2027, 12, 31))
+        self.assertTrue(session.committed)
+
+    async def test_amount_changes_only_target_and_keeps_contributions_external(self):
+        goal = SimpleNamespace(id=9, name="Car", target_amount=10000, deadline=date(2027, 12, 31))
+        session = _Session([goal])
+        with patch.object(savings_goal_service, "SessionLocal", return_value=session):
+            updated = await savings_goal_service.update_goal_amount(7, 9, 500)
+        self.assertEqual(updated.name, "Car")
+        self.assertEqual(updated.target_amount, 500)
+        self.assertEqual(updated.deadline, date(2027, 12, 31))
+        self.assertEqual(session.added, [])
+
+    async def test_deadline_change_does_not_change_name_or_amount(self):
+        goal = SimpleNamespace(id=9, name="Car", target_amount=10000, deadline=None)
+        session = _Session([goal])
+        with patch.object(savings_goal_service, "SessionLocal", return_value=session):
+            updated = await savings_goal_service.update_goal_deadline(7, 9, date(2028, 1, 1))
+        self.assertEqual(updated.name, "Car")
+        self.assertEqual(updated.target_amount, 10000)
+        self.assertEqual(updated.deadline, date(2028, 1, 1))
+
+    async def test_deadline_can_be_removed(self):
+        goal = SimpleNamespace(id=9, name="Car", target_amount=10000, deadline=date(2028, 1, 1))
+        session = _Session([goal])
+        with patch.object(savings_goal_service, "SessionLocal", return_value=session):
+            updated = await savings_goal_service.update_goal_deadline(7, 9, None)
+        self.assertIsNone(updated.deadline)
+        self.assertEqual(updated.name, "Car")
+        self.assertEqual(updated.target_amount, 10000)
+
+    async def test_other_family_cannot_update_goal(self):
+        for updater, value in (
+            (savings_goal_service.update_goal_name, "House"),
+            (savings_goal_service.update_goal_amount, 5000),
+            (savings_goal_service.update_goal_deadline, date(2028, 1, 1)),
+        ):
+            session = _Session([None])
+            with self.subTest(updater=updater.__name__), \
+                 patch.object(savings_goal_service, "SessionLocal", return_value=session):
+                updated = await updater(99, 9, value)
+            self.assertIsNone(updated)
+            self.assertFalse(session.committed)
 
 
 class SavingsGoalIsolationTests(unittest.IsolatedAsyncioTestCase):

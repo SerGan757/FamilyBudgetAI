@@ -26,26 +26,29 @@ router = Router()
 def project_card_text(
     project, spent: float, operations: int, currency_code: str = "EUR", language: str = "ru",
 ) -> str:
-    status = "🟢 Активен" if project.is_active else "⚪ Завершён"
+    status = (
+        f"🟢 {t(language, 'projects.active')}"
+        if project.is_active else f"⚪ {t(language, 'projects.completed')}"
+    )
     return (
         f"🏷 <b>{escape(project.name)}</b>\n\n"
         f"{t(language, 'projects.tag')}: #{escape(project.tag)}\n"
-        f"Статус: {status}\n\n"
+        f"{t(language, 'projects.status')}: {status}\n\n"
         f"{t(language, 'projects.spent')}: {format_money(spent, currency_code)}\n"
         f"{t(language, 'common.operations')}: {operations}"
     )
 
 
 async def _show_projects(message, telegram_id: int, *, active: bool, page: int = 0):
-    result = await list_projects(telegram_id, active=active, page=page)
-    if result is None:
-        await message.edit_text("⚠️ Пользователь или семья не найдены.")
-        return
-    projects, total = result
     settings = await get_current_family_settings(telegram_id)
     language = normalize_language(settings.get("language") if settings else None)
-    title = "🏷 <b>Проекты</b>" if active else "📦 <b>Архив проектов</b>"
-    empty = "Активных проектов пока нет." if active else "Завершённых проектов пока нет."
+    result = await list_projects(telegram_id, active=active, page=page)
+    if result is None:
+        await message.edit_text(t(language, "projects.user_not_found"))
+        return
+    projects, total = result
+    title = f"🏷 <b>{t(language, 'projects.title')}</b>" if active else f"📦 <b>{t(language, 'projects.archive_title')}</b>"
+    empty = t(language, "projects.active_empty") if active else t(language, "projects.archive_empty")
     text = title + ("\n\n" + empty if not projects else "")
     await message.edit_text(
         text, reply_markup=projects_keyboard(projects, total, page, active=active, language=language),
@@ -54,14 +57,14 @@ async def _show_projects(message, telegram_id: int, *, active: bool, page: int =
 
 
 async def _show_card(message, telegram_id: int, project_id: int, notice: str | None = None):
+    settings = await get_current_family_settings(telegram_id)
+    language = normalize_language(settings.get("language") if settings else None)
     result = await get_project_card(telegram_id, project_id)
     if result is None:
-        await message.edit_text("Объект не найден.")
+        await message.edit_text(t(language, "projects.not_found"))
         return
     project, spent, operations = result
-    settings = await get_current_family_settings(telegram_id)
     currency_code = settings["currency"] if settings else "EUR"
-    language = normalize_language(settings.get("language") if settings else None)
     text = project_card_text(project, spent, operations, currency_code, language)
     if notice:
         text = f"{notice}\n\n{text}"
@@ -89,7 +92,7 @@ async def project_callback(
         from app.keyboards.settings_menu import family_settings_keyboard_for_ttl
         data = await get_current_family_settings(callback.from_user.id)
         if data is None:
-            await message.edit_text("⚠️ Пользователь или семья не найдены.")
+            await message.edit_text(t("ru", "projects.user_not_found"))
         else:
             await message.edit_text(
                 family_settings_text(data),
@@ -98,9 +101,11 @@ async def project_callback(
             )
     elif action == "new":
         await state.clear()
+        settings = await get_current_family_settings(callback.from_user.id)
+        language = normalize_language(settings.get("language") if settings else None)
         await state.set_state(ProjectState.waiting_for_name)
         await message.edit_text(
-            "Введите название проекта:", reply_markup=project_cancel_keyboard(),
+            t(language, "projects.enter_name"), reply_markup=project_cancel_keyboard(language),
         )
     elif action == "cancel":
         await state.clear()
@@ -109,44 +114,49 @@ async def project_callback(
         await state.clear()
         await _show_card(message, callback.from_user.id, callback_data.project_id)
     elif action in {"rename", "retag"}:
+        settings = await get_current_family_settings(callback.from_user.id)
+        language = normalize_language(settings.get("language") if settings else None)
         project = await get_project(callback.from_user.id, callback_data.project_id)
         if project is None:
-            await callback.answer("Объект не найден.", show_alert=True)
+            await callback.answer(t(language, "projects.not_found"), show_alert=True)
             return
         await state.clear()
         await state.update_data(project_id=project.id)
         if action == "rename":
             await state.set_state(ProjectState.waiting_for_rename)
-            prompt = "Введите новое название проекта:"
+            prompt = t(language, "projects.enter_new_name")
         else:
             await state.set_state(ProjectState.waiting_for_retag)
-            prompt = "Введите новый тег без #:"
-        await message.edit_text(prompt, reply_markup=project_cancel_keyboard())
+            prompt = t(language, "projects.enter_new_tag")
+        await message.edit_text(prompt, reply_markup=project_cancel_keyboard(language))
     elif action == "toggle":
+        settings = await get_current_family_settings(callback.from_user.id)
+        language = normalize_language(settings.get("language") if settings else None)
         project = await get_project(callback.from_user.id, callback_data.project_id)
         if project is None:
-            await callback.answer("Объект не найден.", show_alert=True)
+            await callback.answer(t(language, "projects.not_found"), show_alert=True)
             return
         updated = await set_project_active(callback.from_user.id, project.id, not project.is_active)
         if updated is None:
-            await callback.answer("Объект не найден.", show_alert=True)
+            await callback.answer(t(language, "projects.not_found"), show_alert=True)
             return
-        notice = "✅ Проект возобновлён." if updated.is_active else "✅ Проект завершён."
+        notice = t(language, "projects.reopened") if updated.is_active else t(language, "projects.finished")
         await _show_card(message, callback.from_user.id, updated.id, notice)
     elif action == "transactions":
+        settings = await get_current_family_settings(callback.from_user.id)
+        language = normalize_language(settings.get("language") if settings else None)
         result = await get_project_transactions(
             callback.from_user.id, callback_data.project_id, page=callback_data.page,
         )
         if result is None:
-            await callback.answer("Объект не найден.", show_alert=True)
+            await callback.answer(t(language, "projects.not_found"), show_alert=True)
             return
         transactions, total = result
         project = await get_project(callback.from_user.id, callback_data.project_id)
-        settings = await get_current_family_settings(callback.from_user.id)
         currency_code = settings["currency"] if settings else "EUR"
-        text = f"📊 <b>Операции проекта: {escape(project.name)}</b>\n\n"
+        text = f"📊 <b>{t(language, 'projects.transactions_title')}: {escape(project.name)}</b>\n\n"
         if not transactions:
-            text += "Операций пока нет."
+            text += t(language, "projects.no_transactions")
         for transaction in transactions:
             sign = "+" if transaction.type == "income" else "-"
             author = escape(transaction.user.name) if transaction.user else "—"
@@ -154,7 +164,7 @@ async def project_callback(
                 f"{transaction.created_at:%d.%m.%Y} · {escape(transaction.title)} · "
                 f"{sign}{format_money(transaction.amount, currency_code)} · {author}\n"
             )
-        keyboard = project_back_keyboard(project.id)
+        keyboard = project_back_keyboard(project.id, language)
         if total > 10:
             from app.keyboards.projects import button
             rows = []
@@ -169,60 +179,64 @@ async def project_callback(
             keyboard = type(keyboard)(inline_keyboard=rows)
         await message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     else:
-        await callback.answer("Неизвестное действие.", show_alert=True)
+        settings = await get_current_family_settings(callback.from_user.id)
+        language = normalize_language(settings.get("language") if settings else None)
+        await callback.answer(t(language, "projects.unknown"), show_alert=True)
         return
     await callback.answer()
 
 
 @router.message(ProjectState.waiting_for_name)
 async def project_name(message: Message, state: FSMContext):
+    settings = await get_current_family_settings(message.from_user.id)
+    language = normalize_language(settings.get("language") if settings else None)
     try:
         name = validate_project_name(message.text or "")
     except ValueError:
         await message.answer(
-            "Введите непустое название до 100 символов. Команды использовать нельзя.",
-            reply_markup=project_cancel_keyboard(),
+            t(language, "projects.invalid_name"),
+            reply_markup=project_cancel_keyboard(language),
         )
         return
     await state.update_data(project_name=name)
     await state.set_state(ProjectState.waiting_for_tag)
     await message.answer(
-        "Введите короткий тег без #.\nНапример: дача",
-        reply_markup=project_cancel_keyboard(),
+        t(language, "projects.enter_tag"),
+        reply_markup=project_cancel_keyboard(language),
     )
 
 
 @router.message(ProjectState.waiting_for_tag)
 async def project_tag(message: Message, state: FSMContext):
     data = await state.get_data()
+    settings = await get_current_family_settings(message.from_user.id)
+    language = normalize_language(settings.get("language") if settings else None)
     try:
         tag = normalize_project_tag(message.text or "")
     except ValueError:
         await message.answer(
-            "Тег должен содержать 2–30 букв или цифр без пробелов.",
-            reply_markup=project_cancel_keyboard(),
+            t(language, "projects.invalid_tag"),
+            reply_markup=project_cancel_keyboard(language),
         )
         return
     try:
         project = await create_project(message.from_user.id, data.get("project_name", ""), tag)
     except DuplicateProjectTagError:
         await message.answer(
-            "⚠️ Такой тег уже используется. Введите другой.",
-            reply_markup=project_cancel_keyboard(),
+            t(language, "projects.duplicate_tag"),
+            reply_markup=project_cancel_keyboard(language),
         )
         return
     if project is None:
         await state.clear()
-        await message.answer("⚠️ Пользователь или семья не найдены.")
+        await message.answer(t(language, "projects.user_not_found"))
         return
     await state.clear()
     result = await get_project_card(message.from_user.id, project.id)
     project, spent, operations = result
-    settings = await get_current_family_settings(message.from_user.id)
     currency_code = settings["currency"] if settings else "EUR"
-    language = normalize_language(settings.get("language") if settings else None)
     await message.answer(
-        "✅ Проект создан.\n\n" + project_card_text(project, spent, operations, currency_code, language),
+        t(language, "projects.created") + "\n\n" + project_card_text(project, spent, operations, currency_code, language),
         reply_markup=project_card_keyboard(project, language), parse_mode="HTML",
     )
 
@@ -230,35 +244,35 @@ async def project_tag(message: Message, state: FSMContext):
 async def _edit_project_value(message: Message, state: FSMContext, *, field: str):
     data = await state.get_data()
     project_id = data.get("project_id")
+    settings = await get_current_family_settings(message.from_user.id)
+    language = normalize_language(settings.get("language") if settings else None)
     try:
         if field == "name":
             updated = await update_project_name(message.from_user.id, project_id, message.text or "")
-            notice = "✅ Название проекта изменено."
+            notice = t(language, "projects.renamed")
         else:
             updated = await update_project_tag(message.from_user.id, project_id, message.text or "")
-            notice = "✅ Тег проекта изменён."
+            notice = t(language, "projects.retagged")
     except DuplicateProjectTagError:
         await message.answer(
-            "⚠️ Такой тег уже используется. Введите другой.",
-            reply_markup=project_cancel_keyboard(),
+            t(language, "projects.duplicate_tag"),
+            reply_markup=project_cancel_keyboard(language),
         )
         return
     except ValueError:
         await message.answer(
-            "Некорректное значение. Проверьте длину и формат.",
-            reply_markup=project_cancel_keyboard(),
+            t(language, "projects.invalid_edit"),
+            reply_markup=project_cancel_keyboard(language),
         )
         return
     if updated is None:
         await state.clear()
-        await message.answer("Объект не найден.")
+        await message.answer(t(language, "projects.not_found"))
         return
     await state.clear()
     result = await get_project_card(message.from_user.id, updated.id)
     project, spent, operations = result
-    settings = await get_current_family_settings(message.from_user.id)
     currency_code = settings["currency"] if settings else "EUR"
-    language = normalize_language(settings.get("language") if settings else None)
     await message.answer(
         notice + "\n\n" + project_card_text(project, spent, operations, currency_code, language),
         reply_markup=project_card_keyboard(project, language), parse_mode="HTML",

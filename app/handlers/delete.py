@@ -11,10 +11,11 @@ from app.services.delete_service import (
 )
 from app.services.history_service import get_last_transactions
 from app.handlers.user_states import DeleteState
-from app.keyboards.main_menu import back_to_main_menu_keyboard
+from app.keyboards.main_menu import back_to_main_menu
 from app.services.family_context_service import require_family_for_chat
 from app.utils.transaction_format import project_suffix
 from app.utils.currency import family_currency, format_money
+from app.i18n import all_texts, family_language, t
 
 router = Router()
 
@@ -23,7 +24,7 @@ router = Router()
 # -------------------------------------------------------------------
 
 
-def operation_card(transaction, currency_code: str = "EUR") -> str:
+def operation_card(transaction, currency_code: str = "EUR", language: str = "ru") -> str:
 
     sign = "+" if transaction.type == "income" else "-"
 
@@ -34,17 +35,17 @@ def operation_card(transaction, currency_code: str = "EUR") -> str:
 
     return (
         "<pre>"
-        "🗑️ Операция удалена\n"
+        f"{t(language, 'delete.operation_deleted')}\n"
         "────────────────────────────\n\n"
         f"{icon} {escape(transaction.title)}\n"
         f"{sign}{format_money(transaction.amount, currency_code)}"
         "</pre>"
     )
 
-def format_history_line(transaction, currency_code: str = "EUR") -> str:
+def format_history_line(transaction, currency_code: str = "EUR", language: str = "ru") -> str:
     sign = "+" if transaction.type == "income" else "-"
     amount = (
-        f"{sign}{format_money(transaction.amount, currency_code)}/мес"
+        f"{sign}{format_money(transaction.amount, currency_code)}/{t(language, 'common.monthly')}"
         if transaction.is_recurring
         else f"{sign}{format_money(transaction.amount, currency_code)}"
     )
@@ -67,20 +68,25 @@ def format_history_line(transaction, currency_code: str = "EUR") -> str:
 # Удалить последнюю операцию
 # -------------------------------------------------------------------
 
-@router.message(F.text == "🗑️ Удалить")
+@router.message(F.text.in_(all_texts("menu.delete")))
 async def delete(message: Message, state: FSMContext):
+
+    family = await require_family_for_chat(
+        message.chat.id, chat_type=message.chat.type, telegram_id=message.from_user.id,
+    )
+    language = family_language(family)
 
     await state.set_state(DeleteState.waiting_for_ids)
 
     await message.answer(
-        "<b>🗑 Удаление операций</b>\n\n"
-        "Введите ID операции.\n\n"
-        "Можно указать несколько ID через пробел.\n\n"
+        f"<b>{t(language, 'delete.title')}</b>\n\n"
+        f"{t(language, 'delete.instruction')}\n\n"
+        f"{t(language, 'delete.multiple')}\n\n"
         "<pre>"
         "125\n"
         "125 126 130"
         "</pre>",
-        reply_markup=back_to_main_menu_keyboard,
+        reply_markup=back_to_main_menu(language),
     )
 
 
@@ -95,6 +101,7 @@ async def delete_multiple(message: Message, state: FSMContext):
         message.chat.id, chat_type=message.chat.type,
         telegram_id=message.from_user.id,
     )
+    language = family_language(family)
 
     await state.clear()
 
@@ -119,12 +126,12 @@ async def delete_multiple(message: Message, state: FSMContext):
 
     if not deleted:
         await message.answer(
-            "Ни одной операции не найдено.",
-            reply_markup=back_to_main_menu_keyboard,
+            t(language, "delete.not_found"),
+            reply_markup=back_to_main_menu(language),
         )
         return
 
-    result = f"🗑 Удалено операций: {len(deleted)}\n\n"
+    result = f"{t(language, 'delete.deleted_count', count=len(deleted))}\n\n"
 
     for transaction in deleted:
         sign = "+" if transaction.type in ("income", "goal_contribution") else "-"
@@ -137,24 +144,24 @@ async def delete_multiple(message: Message, state: FSMContext):
 
     await message.answer(
         result,
-        reply_markup=back_to_main_menu_keyboard,
+        reply_markup=back_to_main_menu(language),
     )
 
     transactions = await get_last_transactions(family.id)
 
     if transactions:
 
-        history_text = "<b>📋 Последние операции</b>\n\n"
+        history_text = f"<b>{t(language, 'delete.recent')}</b>\n\n"
 
         for transaction in transactions:
             history_text += (
-                format_history_line(transaction, family_currency(family))
+                format_history_line(transaction, family_currency(family), language)
                 + "\n"
             )
 
         await message.answer(
             history_text,
-            reply_markup=back_to_main_menu_keyboard,
+            reply_markup=back_to_main_menu(language),
         )
 # -------------------------------------------------------------------
 # Новое удаление из истории
@@ -175,21 +182,22 @@ async def history_delete_callback(
         callback.message.chat.id, chat_type=callback.message.chat.type,
         telegram_id=callback.from_user.id,
     )
+    language = family_language(family)
     transaction = await delete_transaction_by_id(transaction_id, family.id)
 
     if transaction is None:
 
         await callback.answer(
-            "Операция уже удалена.",
+            t(language, "delete.already_deleted"),
             show_alert=True,
         )
 
         return
 
     await callback.message.edit_text(
-        operation_card(transaction, family_currency(family))
+        operation_card(transaction, family_currency(family), language)
     )
 
     await callback.answer(
-        "Удалено"
+        t(language, "delete.deleted")
     )

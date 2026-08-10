@@ -141,7 +141,11 @@ class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_main_menu_installs_persistent_reply_keyboard_once(self):
         message = incoming_message()
-        await menu.show_menu(message)
+        with patch.object(
+            menu, "require_family_for_chat",
+            AsyncMock(return_value=SimpleNamespace(language="ru")),
+        ):
+            await menu.show_menu(message)
         message.answer.assert_awaited_once()
         self.assertEqual(message.answer.await_args.kwargs["reply_markup"], main_menu)
         self.assertTrue(main_menu.is_persistent)

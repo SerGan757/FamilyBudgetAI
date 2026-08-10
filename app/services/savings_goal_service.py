@@ -102,6 +102,53 @@ async def update_goal(family_id: int, goal_id: int, name: str, target_amount: fl
         return goal
 
 
+async def update_goal_name(family_id: int, goal_id: int, name: str):
+    name = name.strip()
+    if not name or len(name) > 100:
+        raise ValueError("invalid goal name")
+    async with SessionLocal() as session:
+        goal = await session.scalar(select(SavingsGoal).where(
+            SavingsGoal.id == goal_id,
+            SavingsGoal.family_id == family_id,
+            SavingsGoal.is_active.is_(True),
+        ))
+        if goal is None:
+            return None
+        goal.name = name
+        await session.commit()
+        return goal
+
+
+async def update_goal_amount(family_id: int, goal_id: int, target_amount: float):
+    if target_amount <= 0 or not math.isfinite(target_amount):
+        raise ValueError("invalid goal amount")
+    async with SessionLocal() as session:
+        goal = await session.scalar(select(SavingsGoal).where(
+            SavingsGoal.id == goal_id,
+            SavingsGoal.family_id == family_id,
+            SavingsGoal.is_active.is_(True),
+        ))
+        if goal is None:
+            return None
+        goal.target_amount = target_amount
+        await session.commit()
+        return goal
+
+
+async def update_goal_deadline(family_id: int, goal_id: int, deadline: date | None):
+    async with SessionLocal() as session:
+        goal = await session.scalar(select(SavingsGoal).where(
+            SavingsGoal.id == goal_id,
+            SavingsGoal.family_id == family_id,
+            SavingsGoal.is_active.is_(True),
+        ))
+        if goal is None:
+            return None
+        goal.deadline = deadline
+        await session.commit()
+        return goal
+
+
 async def add_contribution(family_id: int, telegram_id: int, amount: float):
     if amount <= 0 or not math.isfinite(amount):
         raise ValueError("invalid contribution")
