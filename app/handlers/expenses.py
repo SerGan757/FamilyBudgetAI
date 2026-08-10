@@ -21,6 +21,8 @@ from app.services.expense_service import (
 )
 from app.services.project_service import get_project
 from app.services.user_service import get_user_by_telegram_id
+from app.services.parser import parse_message
+from app.services.savings_goal_service import add_contribution, get_goal_snapshot, progress_bar
 from app.utils.currency import family_currency, format_money
 from app.i18n import category_label, family_language, normalize_telegram_language, t
 
@@ -108,11 +110,29 @@ async def add_transaction(
 
     saved = []
     failed = []
+    goal_messages = []
 
     total_income = 0.0
     total_expense = 0.0
 
     for line in lines:
+
+        parsed_line = parse_message(line)
+        if parsed_line and parsed_line["type"] == "goal_contribution":
+            contribution = await add_contribution(
+                family.id, telegram_id, parsed_line["amount"],
+            )
+            if contribution is None:
+                goal_messages.append(t(language, "goal.no_active_for_contribution"))
+                continue
+            snapshot = await get_goal_snapshot(family.id)
+            goal_messages.append(
+                f"✅ {t(language, 'goal.contributed', name=escape(snapshot.goal.name), amount=format_money(contribution.amount, family_currency(family)))}\n\n"
+                f"🏦 {t(language, 'goal.saved')}: {format_money(snapshot.saved, family_currency(family))} / {format_money(snapshot.goal.target_amount, family_currency(family))}\n"
+                f"{progress_bar(snapshot.saved, snapshot.goal.target_amount)}\n"
+                f"💰 {t(language, 'goal.remaining_short')}: {format_money(snapshot.remaining, family_currency(family))}"
+            )
+            continue
 
         result = await save_transaction(
             line,
@@ -164,6 +184,9 @@ async def add_transaction(
             total_income += result.amount
         else:
             total_expense += result.amount
+
+    if goal_messages:
+        await message.answer("\n\n".join(goal_messages), reply_markup=back_to_main_menu(language))
 
     if not saved and not failed:
         return

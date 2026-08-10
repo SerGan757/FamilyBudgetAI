@@ -15,7 +15,16 @@ async def init_db():
      
         # Пока проект в разработке —
         # пересоздаем таблицу автоматически.
-        await conn.run_sync(Base.metadata.create_all)
+        # Savings Goal v1 is deployed only through its controlled migration;
+        # startup must not create those production tables implicitly.
+        controlled_tables = {"savings_goals", "goal_contributions"}
+        existing_tables = [
+            table for table in Base.metadata.sorted_tables
+            if table.name not in controlled_tables
+        ]
+        await conn.run_sync(
+            lambda sync_conn: Base.metadata.create_all(sync_conn, tables=existing_tables)
+        )
 
         # Backward-compatible Family metadata migration. Existing rows and
         # related user/transaction/payment data are preserved.

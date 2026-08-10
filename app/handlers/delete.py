@@ -127,7 +127,7 @@ async def delete_multiple(message: Message, state: FSMContext):
     result = f"🗑 Удалено операций: {len(deleted)}\n\n"
 
     for transaction in deleted:
-        sign = "+" if transaction.type == "income" else "-"
+        sign = "+" if transaction.type in ("income", "goal_contribution") else "-"
 
         result += (
             f"✅ ID {transaction.id} "

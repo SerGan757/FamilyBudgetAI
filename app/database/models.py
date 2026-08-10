@@ -8,6 +8,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Index,
     String,
     text,
     UniqueConstraint,
@@ -105,6 +106,10 @@ class Family(Base):
         cascade="all, delete-orphan",
     )
 
+    savings_goals = relationship(
+        "SavingsGoal", back_populates="family", cascade="all, delete-orphan",
+    )
+
     def __repr__(self):
         return (
             f"<Family(id={self.id}, name='{self.name}')>"
@@ -156,6 +161,10 @@ class User(Base):
         "Transaction",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+    goal_contributions = relationship(
+        "GoalContribution", back_populates="user", cascade="all, delete-orphan",
     )
 
     def __repr__(self):
@@ -407,3 +416,58 @@ class Project(Base):
 
     def __repr__(self):
         return f"<Project(id={self.id}, family_id={self.family_id}, tag='{self.tag}')>"
+
+
+class SavingsGoal(Base):
+    __tablename__ = "savings_goals"
+    __table_args__ = (
+        Index(
+            "uq_savings_goals_one_active_per_family", "family_id", unique=True,
+            postgresql_where=text("is_active = true"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    target_amount: Mapped[float] = mapped_column(Float, nullable=False)
+    deadline: Mapped[date | None] = mapped_column(Date, nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow,
+        server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"), nullable=False,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    family = relationship("Family", back_populates="savings_goals")
+    contributions = relationship(
+        "GoalContribution", back_populates="goal", cascade="all, delete-orphan",
+    )
+
+
+class GoalContribution(Base):
+    __tablename__ = "goal_contributions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    goal_id: Mapped[int] = mapped_column(
+        ForeignKey("savings_goals.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow,
+        server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"),
+        nullable=False, index=True,
+    )
+
+    goal = relationship("SavingsGoal", back_populates="contributions")
+    user = relationship("User", back_populates="goal_contributions")

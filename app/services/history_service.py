@@ -3,6 +3,7 @@ from sqlalchemy.orm import contains_eager
 
 from app.database.db import SessionLocal
 from app.database.models import Project, Transaction, User
+from app.services.financial_feed_service import get_display_feed
 
 
 def _family_scope(family_id: int):
@@ -10,14 +11,8 @@ def _family_scope(family_id: int):
 
 
 async def get_transactions_count(family_id: int):
-
-    async with SessionLocal() as session:
-
-        result = await session.execute(
-            select(func.count(Transaction.id)).where(_family_scope(family_id))
-        )
-
-        return result.scalar() or 0
+    _, total, _ = await get_display_feed(family_id, limit=0)
+    return total
 
 
 async def get_last_transactions(
@@ -26,38 +21,10 @@ async def get_last_transactions(
     offset: int = 0,
 ):
 
-    async with SessionLocal() as session:
-
-        result = await session.execute(
-            select(Transaction, User)
-            .join(
-                User,
-                Transaction.user_id == User.id,
-            )
-            .outerjoin(
-                Project,
-                and_(Project.id == Transaction.project_id, Project.family_id == family_id),
-            )
-            .options(contains_eager(Transaction.project))
-            .where(Transaction.family_id == family_id)
-            .order_by(
-                desc(Transaction.id)
-            )
-            .offset(offset)
-            .limit(limit)
-        )
-
-        rows = result.all()
-
-        transactions = []
-
-        for transaction, user in rows:
-
-            transaction.user_name = user.name
-
-            transactions.append(transaction)
-
-        return transactions
+    operations, _, _ = await get_display_feed(
+        family_id, limit=limit, offset=offset,
+    )
+    return operations
 
 
 async def get_transactions_by_category(

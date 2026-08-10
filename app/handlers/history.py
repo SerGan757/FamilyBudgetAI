@@ -23,6 +23,13 @@ LIMIT = 20
 
 def format_transaction(transaction, currency_code: str = "EUR", language: str = "ru") -> str:
 
+    if getattr(transaction, "kind", "transaction") == "goal_contribution":
+        return (
+            f"{transaction.id} 🎯 {escape(transaction.title)} "
+            f"+{format_money(transaction.amount, currency_code)} "
+            f"{escape(transaction.user_name[:3]) if transaction.user_name else ''}"
+        )
+
     sign = "+" if transaction.type == "income" else "-"
 
     amount = abs(transaction.amount)
@@ -57,7 +64,7 @@ def format_transaction(transaction, currency_code: str = "EUR", language: str = 
 
     return (
         f"{transaction.id} {icon} {title} {amount_text} {user}"
-        f"{project_suffix(transaction)}"
+        f"{(' 🏷 ' + escape(transaction.project_name)) if getattr(transaction, 'project_name', None) else project_suffix(transaction)}"
     )
 
 

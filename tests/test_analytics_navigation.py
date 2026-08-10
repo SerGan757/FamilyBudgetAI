@@ -120,7 +120,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
             statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
         ) as get_analytics:
             await statistics.analytics_back(back)
-        get_analytics.assert_awaited_once_with(7, 2026, 7)
+        get_analytics.assert_awaited_once_with(7, 2026, 7, include_goal=True)
         text = back.message.edit_text.await_args.args[0]
         self.assertIn("Аналитика • Июль 2026", text)
         callbacks = [

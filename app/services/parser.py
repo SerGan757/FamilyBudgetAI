@@ -122,6 +122,19 @@ def parse_message(text: str):
 
     text = normalize(text)
 
+    goal = re.match(
+        r"^\+\+\s*(\d+(?:\.\d+)?)(?:\s*(?:€|\$|₴|£|zł|Kč|lei|CHF|Ft|kr|eur|EUR))?(?:\s+.*)?$",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if goal:
+        return {
+            "type": "goal_contribution",
+            "title": "",
+            "amount": float(goal.group(1)),
+            "category": None,
+        }
+
     # Explicit plus sign is the only income marker.  This also accepts
     # "+ Зарплата 1500" while keeping "Зарплата 1500" an expense.
     income = re.search(
@@ -207,7 +220,7 @@ def parse_message(text: str):
         amount = float(expense.group(2))
 
         if not title:
-            return None
+            title = "Расход"
 
         title = re.sub(
             r"[+]+",

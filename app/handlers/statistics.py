@@ -20,6 +20,7 @@ from app.utils.transaction_format import project_suffix
 from app.utils.temporary_screens import refresh_temporary_message, schedule_temporary_message
 from app.utils.currency import family_currency, format_money
 from app.i18n import category_label, family_language, month_name, t
+from app.services.savings_goal_service import progress_bar
 
 router = Router()
 
@@ -65,6 +66,13 @@ def money(value: float, currency_code: str = "EUR") -> str:
 
 def format_transaction(transaction, currency_code: str = "EUR", language: str = "ru"):
 
+    if getattr(transaction, "kind", "transaction") == "goal_contribution":
+        author = escape(transaction.user_name)[:3] if transaction.user_name else ""
+        return (
+            f"{transaction.id} 🎯 {escape(transaction.title)} "
+            f"+{money(transaction.amount, currency_code)} {author}"
+        )
+
     sign = "+" if transaction.type == "income" else "-"
 
     amount = abs(transaction.amount)
@@ -95,7 +103,7 @@ def format_transaction(transaction, currency_code: str = "EUR", language: str = 
         f"{title} "
         f"{amount_text} "
         f"{author}"
-        f"{project_suffix(transaction)}"
+        f"{(' 🏷 ' + escape(transaction.project_name)) if getattr(transaction, 'project_name', None) else project_suffix(transaction)}"
     )
 
 
@@ -112,6 +120,8 @@ def format_today(
         f"💰 {t(language, 'common.income')}     {money(data['income'], currency_code)}\n"
         f"💸 {t(language, 'common.expense')}    {money(data['expense'], currency_code)}\n"
         f"📈 {t(language, 'common.balance')}     {money(data['balance'], currency_code)}\n"
+        f"🎯 {t(language, 'goal.to_goal')}     {money(data.get('goal_contributions', 0), currency_code)}\n"
+        f"💶 {t(language, 'goal.free_balance')}     {money(data['balance'] - data.get('goal_contributions', 0), currency_code)}\n"
     )
 
     text += "\n"
@@ -235,7 +245,9 @@ def format_month(
         f"💸 {t(language, 'common.expense')}: {money(data['ordinary_expense'], currency_code)}\n\n"
         f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], currency_code)}/{t(language, 'common.monthly')} ({data['recurring_expense_count']})\n"
         f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], currency_code)}/{t(language, 'common.monthly')} ({data['recurring_income_count']})\n\n"
-        f"📈 {t(language, 'common.balance')}: {money(data['balance'], currency_code)}\n\n"
+        f"📈 {t(language, 'common.balance')}: {money(data['balance'], currency_code)}\n"
+        f"🎯 {t(language, 'goal.to_goal')}: {money(data.get('goal_contributions', 0), currency_code)}\n"
+        f"💶 {t(language, 'goal.free_balance')}: {money(data['balance'] - data.get('goal_contributions', 0), currency_code)}\n\n"
     )
 
     regular = data["transactions"]
@@ -403,6 +415,8 @@ async def balance(message: Message):
         f"💸 {t(language, 'common.expense')}: {money(data['ordinary_expense'], family_currency(family))}\n\n"
         f"🔁 {t(language, 'balance.reg_expense')}: {money(data['recurring_expense'], family_currency(family))}/{t(language, 'common.monthly')} ({data['recurring_expense_count']})\n"
         f"🔁 {t(language, 'balance.reg_income')}: {money(data['recurring_income'], family_currency(family))}/{t(language, 'common.monthly')} ({data['recurring_income_count']})\n\n"
+        f"🎯 {t(language, 'goal.reserved')}: {money(data.get('goal_contributions', 0), family_currency(family))}\n"
+        f"💶 {t(language, 'goal.free_balance')}: {money(data.get('free_balance', data['balance']), family_currency(family))}\n\n"
         f"<b>💎 {t(language, 'balance.remaining')}: {money(data['balance'], family_currency(family))}</b>"
     )
 
@@ -453,7 +467,8 @@ async def analytics(
 
     today = date.today()
     year, month = year or today.year, month or today.month
-    data = await get_analytics(family_id, year, month)
+    data = await get_analytics(family_id, year, month, include_goal=True)
+    goal_snapshot = data.get("goal")
     total_income = data["ordinary_income"] + data["recurring_income"]
     forecast = calculate_analytics_forecast(
         year, month, total_income,
@@ -548,6 +563,48 @@ async def analytics(
             text += (
                 f"{index}. {escape(project_name)} — <b>{money(amount, currency_code)}</b>\n"
             )
+
+    if goal_snapshot is not None:
+        goal = goal_snapshot.goal
+        free_balance = data["balance"] - goal_snapshot.month_contributions
+        text += (
+            f"\n\n🎯 <b>{t(language, 'goal.title')}: {escape(goal.name)}</b>\n\n"
+            f"🏦 {t(language, 'goal.saved')}: {money(goal_snapshot.saved, currency_code)} / {money(goal.target_amount, currency_code)}\n"
+            f"{progress_bar(goal_snapshot.saved, goal.target_amount)}\n"
+        )
+        if goal_snapshot.remaining > 0:
+            text += f"💰 {t(language, 'goal.remaining')}: {money(goal_snapshot.remaining, currency_code)}\n"
+        else:
+            text += f"🎉 {t(language, 'goal.reached')}\n"
+        text += (
+            f"📥 {t(language, 'goal.month')}: +{money(goal_snapshot.month_contributions, currency_code)}\n"
+            f"💶 {t(language, 'goal.free_balance')}: {money(free_balance, currency_code)}\n"
+        )
+        if goal_snapshot.days_to_goal is None:
+            text += f"📈 {t(language, 'goal.no_forecast')}\n"
+        else:
+            text += f"⏳ {t(language, 'goal.current_pace', days=goal_snapshot.days_to_goal)}\n"
+            if goal_snapshot.expected_date:
+                text += (
+                    f"📅 {t(language, 'goal.expected')}: "
+                    f"{month_name(language, goal_snapshot.expected_date.month)} {goal_snapshot.expected_date.year}\n"
+                )
+        if goal.deadline and goal_snapshot.required_per_month is not None:
+            text += f"📌 {t(language, 'goal.required_month')}: {money(goal_snapshot.required_per_month, currency_code)}/{t(language, 'common.monthly')}\n"
+            if goal_snapshot.current_per_month is not None:
+                text += f"📈 {t(language, 'goal.current_month')}: ~{money(goal_snapshot.current_per_month, currency_code)}/{t(language, 'common.monthly')}\n"
+                difference = abs(goal_snapshot.pace_difference or 0)
+                if (goal_snapshot.pace_difference or 0) < 0:
+                    text += f"⚠️ {t(language, 'goal.pace_short')}: {money(difference, currency_code)}/{t(language, 'common.monthly')}\n"
+                else:
+                    text += f"✅ {t(language, 'goal.pace_ahead')}: {money(difference, currency_code)}/{t(language, 'common.monthly')}\n"
+            if goal_snapshot.schedule_months is not None:
+                if goal_snapshot.schedule_months > 0:
+                    text += f"🕒 {t(language, 'goal.delay')}: ~{goal_snapshot.schedule_months} {t(language, 'common.monthly')}\n"
+                elif goal_snapshot.schedule_months < 0:
+                    text += f"🚀 {t(language, 'goal.ahead')}: ~{abs(goal_snapshot.schedule_months)} {t(language, 'common.monthly')}\n"
+                else:
+                    text += f"✅ {t(language, 'goal.on_schedule')}\n"
 
     if edit_existing:
         await message.edit_text(

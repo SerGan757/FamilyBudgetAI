@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from app.handlers.history import format_transaction as history_format
 from app.handlers.statistics import format_transaction as statistics_format
-from app.services import history_service, statistics_service
+from app.services import financial_feed_service, history_service, statistics_service
 from app.utils.transaction_format import project_suffix
 
 
@@ -60,8 +60,11 @@ class ProjectDisplayTests(unittest.TestCase):
         self.assertIn("left outer join projects", stats_sql)
         self.assertIn("projects.family_id", stats_sql)
         history_source = inspect.getsource(history_service.get_last_transactions)
-        self.assertIn("outerjoin", history_source)
-        self.assertIn("Project.family_id == family_id", history_source)
+        self.assertIn("get_display_feed", history_source)
+        feed_sql = str(financial_feed_service._feed_query(7)).lower()
+        self.assertIn("left outer join projects", feed_sql)
+        self.assertIn("projects.family_id", feed_sql)
+        self.assertIn("union all", feed_sql)
         helper_source = inspect.getsource(project_suffix)
         self.assertNotIn("SessionLocal", helper_source)
         self.assertNotIn("execute", helper_source)

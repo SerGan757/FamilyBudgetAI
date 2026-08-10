@@ -5,6 +5,7 @@ from sqlalchemy import and_, func, select
 from app.database.db import SessionLocal
 from app.database.models import Project, Transaction, User
 from sqlalchemy.orm import contains_eager, selectinload
+from app.services.financial_feed_service import get_display_feed
 
 
 def _transaction_list_query(family_id: int):
@@ -110,6 +111,9 @@ async def get_today_statistics(
         tomorrow,
         recurring=True,
     )
+    display_operations, display_total, goal_total = await get_display_feed(
+        family_id, start=today, end=tomorrow, offset=offset, limit=limit,
+    )
 
     async with SessionLocal() as session:
 
@@ -160,8 +164,9 @@ async def get_today_statistics(
             "recurring": recurring,
             "recurring_count": recurring_count,
             "balance": income - expense,
-            "transactions": transactions,
-            "total": total,
+            "transactions": display_operations,
+            "total": display_total,
+            "goal_contributions": goal_total,
         }
     
 
@@ -199,6 +204,9 @@ async def get_month_statistics(
     ordinary_expense = await _sum(family_id, "expense", month_start, next_month, recurring=False)
     recurring_income = await _sum(family_id, "income", month_start, next_month, recurring=True)
     recurring_expense = await _sum(family_id, "expense", month_start, next_month, recurring=True)
+    display_operations, display_total, goal_total = await get_display_feed(
+        family_id, start=month_start, end=next_month, offset=offset, limit=limit,
+    )
 
     async with SessionLocal() as session:
         count_result = await session.execute(
@@ -261,8 +269,9 @@ async def get_month_statistics(
         "recurring_income_count": recurring_income_count,
         "recurring_expense_count": recurring_expense_count,
         "balance": ordinary_income + recurring_income - ordinary_expense - recurring_expense,
-        "transactions": transactions,
-        "total": total,
+        "transactions": display_operations,
+        "total": display_total,
+        "goal_contributions": goal_total,
     }
 
 def build_balance_data(transactions):
@@ -297,7 +306,13 @@ async def get_balance(family_id: int):
                 Transaction.created_at < next_month,
             )
         )
-        return build_balance_data(result.scalars().all())
+        data = build_balance_data(result.scalars().all())
+    _, _, goal_total = await get_display_feed(
+        family_id, start=month_start, end=next_month, limit=0,
+    )
+    data["goal_contributions"] = goal_total
+    data["free_balance"] = data["balance"] - goal_total
+    return data
 
 
 async def get_category_statistics():
@@ -537,12 +552,24 @@ async def get_project_expense_statistics(family_id: int, year: int, month: int):
         return [(name, float(amount)) for name, amount in result.all()]
 
 
-async def get_analytics(family_id: int, year: int | None = None, month: int | None = None):
+async def get_analytics(
+    family_id: int, year: int | None = None, month: int | None = None,
+    *, include_goal: bool = False,
+):
     today = date.today()
     year, month = year or today.year, month or today.month
     stats = await get_month_statistics(family_id, year, month)
     transactions = await get_month_transactions(family_id, year, month)
     projects = await get_project_expense_statistics(family_id, year, month)
+    goal = None
+    if include_goal:
+        from app.services.savings_goal_service import get_goal_snapshot
+        try:
+            goal = await get_goal_snapshot(family_id, year, month)
+        except Exception:
+            # Existing analytics stays available during a controlled rollout
+            # before the new tables are migrated.
+            goal = None
     expenses = [t for t in transactions if t.type == "expense"]
     incomes = [t for t in transactions if t.type == "income"]
     users, categories, by_day_expense, by_day_income = {}, {}, {}, {}
@@ -563,6 +590,6 @@ async def get_analytics(family_id: int, year: int | None = None, month: int | No
             "users": sorted(users.items(), key=lambda x: x[1], reverse=True),
             "categories": sorted(categories.items(), key=lambda x: x[1], reverse=True),
             "biggest": biggest_expense, "biggest_income": biggest_income,
-            "projects": projects,
+            "projects": projects, "goal": goal,
             "costliest_day": max(by_day_expense.items(), key=lambda x: x[1]) if by_day_expense else None,
             "best_income_day": max(by_day_income.items(), key=lambda x: x[1]) if by_day_income else None}
