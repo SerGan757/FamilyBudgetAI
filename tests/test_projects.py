@@ -353,7 +353,7 @@ class ProjectHandlerTests(unittest.IsolatedAsyncioTestCase):
                                        "type": "expense", "category": "📦 Прочее"},
         })
         user = SimpleNamespace(id=1, family_id=7)
-        transaction = SimpleNamespace(type="expense", title="Краска", amount=45.0)
+        transaction = SimpleNamespace(id=101, type="expense", title="Краска", amount=45.0, category="📦 Прочее")
         with patch.object(expenses, "get_user_by_telegram_id", AsyncMock(return_value=user)), \
              patch.object(expenses, "create_transaction", AsyncMock(return_value=transaction)) as create:
             await expenses.resolve_pending_project_transaction(
@@ -371,7 +371,7 @@ class ProjectHandlerTests(unittest.IsolatedAsyncioTestCase):
         })
         user = SimpleNamespace(id=1, family_id=7)
         project = SimpleNamespace(id=5, family_id=7, is_active=True)
-        transaction = SimpleNamespace(type="expense", title="Краска", amount=45.0)
+        transaction = SimpleNamespace(id=102, type="expense", title="Краска", amount=45.0, category="📦 Прочее")
         with patch.object(expenses, "get_user_by_telegram_id", AsyncMock(return_value=user)), \
              patch.object(expenses, "get_project", AsyncMock(return_value=project)), \
              patch.object(expenses, "create_transaction", AsyncMock(return_value=transaction)) as create:

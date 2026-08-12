@@ -10,6 +10,7 @@ from app.handlers.user_states import RegistrationState
 from app.handlers.project_states import ProjectTransactionState
 from app.keyboards.projects import PendingProjectCallback, pending_project_keyboard
 from app.keyboards.main_menu import back_to_main_menu
+from app.keyboards.undo import UndoOperationCallback, undo_operation_keyboard
 from app.services.family_context_service import (
     FamilyContextConflictError,
     FamilyContextNotFoundError,
@@ -23,10 +24,43 @@ from app.services.project_service import get_project
 from app.services.user_service import get_user_by_telegram_id
 from app.services.parser import parse_message
 from app.services.savings_goal_service import add_contribution, get_goal_snapshot, progress_bar
+from app.services.undo_service import undo_recent_operation
 from app.utils.currency import family_currency, format_money
 from app.i18n import category_label, family_language, normalize_telegram_language, t
 
 router = Router()
+
+
+def quick_confirmation_text(saved, language: str, currency: str, failed=None) -> str:
+    """Build a compact HTML confirmation without code/pre blocks."""
+    failed = failed or []
+    rows = [f"✅ {t(language, 'quick.saved', count=len(saved))}"] if saved else []
+    types = {transaction.type for transaction in saved}
+    income_total = sum(transaction.amount for transaction in saved if transaction.type == "income")
+    expense_total = sum(transaction.amount for transaction in saved if transaction.type == "expense")
+
+    for transaction in saved:
+        sign = "+" if transaction.type == "income" else "-"
+        kind = t(language, "quick.income_item" if transaction.type == "income" else "quick.expense_item")
+        project_name = getattr(transaction, "project_name", None)
+        project = (
+            f"   🏷 {t(language, 'quick.project')}: {escape(str(project_name))}"
+            if project_name else ""
+        )
+        rows.append(
+            f"{escape(category_label(language, transaction.category))}   "
+            f"{escape(transaction.title[:20])}   {kind}   "
+            f"{sign}{format_money(transaction.amount, currency)}{project}"
+        )
+
+    if "income" in types:
+        rows.append(f"💰 {t(language, 'quick.income')}: {format_money(income_total, currency)}")
+    if "expense" in types:
+        rows.append(f"💸 {t(language, 'quick.expense')}: {format_money(expense_total, currency)}")
+    if failed:
+        rows.append(t(language, "quick.unrecognized"))
+        rows.extend(f"• {escape(line)}" for line in failed)
+    return "\n".join(rows)
 
 
 @router.message(StateFilter(None))
@@ -123,15 +157,16 @@ async def add_transaction(
                 family.id, telegram_id, parsed_line["amount"],
             )
             if contribution is None:
-                goal_messages.append(t(language, "goal.no_active_for_contribution"))
+                goal_messages.append((t(language, "goal.no_active_for_contribution"), None))
                 continue
             snapshot = await get_goal_snapshot(family.id)
-            goal_messages.append(
+            goal_messages.append((
                 f"✅ {t(language, 'goal.contributed', name=escape(snapshot.goal.name), amount=format_money(contribution.amount, family_currency(family)))}\n\n"
                 f"🏦 {t(language, 'goal.saved')}: {format_money(snapshot.saved, family_currency(family))} / {format_money(snapshot.goal.target_amount, family_currency(family))}\n"
                 f"{progress_bar(snapshot.saved, snapshot.goal.target_amount)}\n"
-                f"💰 {t(language, 'goal.remaining_short')}: {format_money(snapshot.remaining, family_currency(family))}"
-            )
+                f"💰 {t(language, 'goal.remaining_short')}: {format_money(snapshot.remaining, family_currency(family))}",
+                contribution,
+            ))
             continue
 
         result = await save_transaction(
@@ -186,57 +221,31 @@ async def add_transaction(
             total_expense += result.amount
 
     if goal_messages:
-        await message.answer("\n\n".join(goal_messages), reply_markup=back_to_main_menu(language))
+        created_count = len(saved) + sum(contribution is not None for _, contribution in goal_messages)
+        only_contribution = goal_messages[0][1] if len(goal_messages) == 1 else None
+        markup = (
+            undo_operation_keyboard("goal", only_contribution.id, language)
+            if created_count == 1 and only_contribution is not None and not failed
+            else back_to_main_menu(language)
+        )
+        await message.answer("\n\n".join(text for text, _ in goal_messages), reply_markup=markup)
 
     if not saved and not failed:
         return
 
-    text = "<pre>"
+    text = quick_confirmation_text(
+        saved, language, family_currency(family), failed,
+    )
 
-    if saved:
-
-        text += (
-            f"✅ {t(language, 'quick.saved', count=len(saved))}\n"
-        )
-
-        for transaction in saved:
-            project_name = getattr(transaction, "project_name", None)
-            if project_name:
-                text += f"🏷 {t(language, 'quick.project')}: {escape(str(project_name))}\n"
-
-        text += "══════════════════════════════\n\n"
-
-        for saved_transaction in saved:
-
-            sign = "+" if saved_transaction.type == "income" else "-"
-
-            text += (
-                f"{category_label(language, saved_transaction.category):<18}"
-                f"{saved_transaction.title[:20]:<20}"
-                f"{sign}{format_money(saved_transaction.amount, family_currency(family))}\n"
-            )
-
-        text += (
-            "\n──────────────────────────────\n"
-            f"💰 {t(language, 'quick.income')} : {format_money(total_income, family_currency(family))}\n"
-            f"💸 {t(language, 'quick.expense')}: {format_money(total_expense, family_currency(family))}\n"
-        )
-
-    if failed:
-
-        text += (
-            "\n══════════════════════════════\n"
-            "⚠️ Не распознано:\n\n"
-        )
-
-        for line in failed:
-            text += f"• {line}\n"
-
-    text += "</pre>"
-
+    undo_markup = (
+        undo_operation_keyboard("transaction", saved[0].id, language)
+        if len(saved) == 1 and not goal_messages and not failed
+        else back_to_main_menu(language)
+    )
     await message.answer(
         text,
-        reply_markup=back_to_main_menu(language),
+        reply_markup=undo_markup,
+        parse_mode="HTML",
     )
 
 
@@ -295,13 +304,53 @@ async def resolve_pending_project_transaction(
         project_id=project_id,
     )
     await state.clear()
-    sign = "+" if transaction.type == "income" else "-"
-    project_header = (
-        f"🏷 {t(data.get('pending_project_language'), 'quick.project')}: {escape(str(project_name))}\n\n" if project_name else ""
-    )
+    transaction.project_name = project_name
     await message.edit_text(
-        f"✅ Операция сохранена.\n{project_header}"
-        f"{escape(transaction.title)} · {sign}"
-        f"{format_money(transaction.amount, data.get('pending_project_currency'))}"
+        quick_confirmation_text(
+            [transaction], data.get("pending_project_language"),
+            data.get("pending_project_currency"),
+        ),
+        reply_markup=undo_operation_keyboard(
+            "transaction", transaction.id, data.get("pending_project_language"),
+        ),
+        parse_mode="HTML",
     )
     await callback.answer()
+
+
+@router.callback_query(UndoOperationCallback.filter())
+async def undo_operation_callback(
+    callback: CallbackQuery,
+    callback_data: UndoOperationCallback,
+):
+    message = callback.message
+    if message is None:
+        await callback.answer()
+        return
+    family = await require_family_for_chat(
+        message.chat.id,
+        chat_type=message.chat.type,
+        telegram_id=callback.from_user.id,
+    )
+    language = family_language(family)
+    user = await get_user_by_telegram_id(callback.from_user.id)
+    if user is None or user.family_id != family.id:
+        await callback.answer(t(language, "undo.forbidden"), show_alert=True)
+        return
+
+    result = await undo_recent_operation(
+        callback_data.kind,
+        callback_data.operation_id,
+        family.id,
+        user.id,
+    )
+    if result.status == "deleted":
+        await message.edit_text(t(language, "undo.done"))
+        await callback.answer()
+        return
+    key = {
+        "expired": "undo.expired",
+        "already_deleted": "undo.deleted",
+        "not_author": "undo.author_only",
+    }.get(result.status, "undo.forbidden")
+    await callback.answer(t(language, key), show_alert=True)

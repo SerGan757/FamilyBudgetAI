@@ -130,7 +130,7 @@ class UserFlowCurrencyTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("-20.00 zł", expense_text)
         self.assertIn("Расходы: 20.00 zł", expense_text)
         self.assertIn("+20.00 zł", income_text)
-        self.assertIn("Доходы : 20.00 zł", income_text)
+        self.assertIn("Доходы: 20.00 zł", income_text)
         self.assertNotIn("€", expense_text + income_text)
 
     async def test_recurring_and_project_card_use_family_currency(self):

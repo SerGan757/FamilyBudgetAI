@@ -174,6 +174,48 @@ GOAL_DISPLAY_TEXTS = {
     "hu": {"goal.to_goal": "A célra", "goal.reserved": "A célra félretéve"},
 }
 
+UNDO_TEXTS = {
+    "ru": {"undo.button":"↩️ Отменить операцию","undo.done":"↩️ Операция отменена.","undo.expired":"⏳ Время быстрой отмены истекло.\nИспользуйте 🗑 Удалить для старых операций.","undo.deleted":"ℹ️ Операция уже удалена.","undo.forbidden":"⚠️ Нельзя отменить эту операцию.","undo.author_only":"⚠️ Эту операцию может отменить только её автор."},
+    "uk": {"undo.button":"↩️ Скасувати операцію","undo.done":"↩️ Операцію скасовано.","undo.expired":"⏳ Час швидкого скасування минув.\nВикористайте 🗑 Видалити для старих операцій.","undo.deleted":"ℹ️ Операцію вже видалено.","undo.forbidden":"⚠️ Не можна скасувати цю операцію."},
+    "de": {"undo.button":"↩️ Vorgang rückgängig machen","undo.done":"↩️ Vorgang rückgängig gemacht.","undo.expired":"⏳ Die Zeit für das schnelle Rückgängigmachen ist abgelaufen.\nVerwenden Sie 🗑 Löschen für ältere Vorgänge.","undo.deleted":"ℹ️ Der Vorgang wurde bereits gelöscht.","undo.forbidden":"⚠️ Dieser Vorgang kann nicht rückgängig gemacht werden."},
+    "en": {"undo.button":"↩️ Undo operation","undo.done":"↩️ Operation undone.","undo.expired":"⏳ The quick undo period has expired.\nUse 🗑 Delete for older operations.","undo.deleted":"ℹ️ The operation has already been deleted.","undo.forbidden":"⚠️ This operation cannot be undone."},
+    "be": {"undo.button":"↩️ Адмяніць аперацыю","undo.done":"↩️ Аперацыя адменена.","undo.expired":"⏳ Час хуткай адмены скончыўся.\nВыкарыстайце 🗑 Выдаліць для старых аперацый.","undo.deleted":"ℹ️ Аперацыя ўжо выдалена.","undo.forbidden":"⚠️ Нельга адмяніць гэтую аперацыю."},
+    "pl": {"undo.button":"↩️ Cofnij operację","undo.done":"↩️ Operacja została cofnięta.","undo.expired":"⏳ Czas na szybkie cofnięcie minął.\nUżyj 🗑 Usuń dla starszych operacji.","undo.deleted":"ℹ️ Operacja została już usunięta.","undo.forbidden":"⚠️ Nie można cofnąć tej operacji."},
+    "cs": {"undo.button":"↩️ Vrátit operaci","undo.done":"↩️ Operace byla vrácena.","undo.expired":"⏳ Čas pro rychlé vrácení vypršel.\nPro starší operace použijte 🗑 Smazat.","undo.deleted":"ℹ️ Operace již byla smazána.","undo.forbidden":"⚠️ Tuto operaci nelze vrátit."},
+    "sk": {"undo.button":"↩️ Vrátiť operáciu","undo.done":"↩️ Operácia bola vrátená.","undo.expired":"⏳ Čas na rýchle vrátenie vypršal.\nPre staršie operácie použite 🗑 Vymazať.","undo.deleted":"ℹ️ Operácia už bola vymazaná.","undo.forbidden":"⚠️ Túto operáciu nemožno vrátiť."},
+    "ro": {"undo.button":"↩️ Anulează operațiunea","undo.done":"↩️ Operațiunea a fost anulată.","undo.expired":"⏳ Perioada de anulare rapidă a expirat.\nFolosiți 🗑 Șterge pentru operațiunile vechi.","undo.deleted":"ℹ️ Operațiunea a fost deja ștearsă.","undo.forbidden":"⚠️ Această operațiune nu poate fi anulată."},
+    "bg": {"undo.button":"↩️ Отмени операцията","undo.done":"↩️ Операцията е отменена.","undo.expired":"⏳ Времето за бърза отмяна изтече.\nИзползвайте 🗑 Изтрий за стари операции.","undo.deleted":"ℹ️ Операцията вече е изтрита.","undo.forbidden":"⚠️ Тази операция не може да бъде отменена."},
+    "hu": {"undo.button":"↩️ Művelet visszavonása","undo.done":"↩️ A művelet visszavonva.","undo.expired":"⏳ A gyors visszavonási idő lejárt.\nRégebbi műveletekhez használja a 🗑 Törlés funkciót.","undo.deleted":"ℹ️ A műveletet már törölték.","undo.forbidden":"⚠️ Ez a művelet nem vonható vissza."},
+}
+UNDO_AUTHOR_ONLY_TEXTS = {
+    "uk":"⚠️ Цю операцію може скасувати лише її автор.",
+    "de":"⚠️ Nur der Autor kann diesen Vorgang rückgängig machen.",
+    "en":"⚠️ Only the author can undo this operation.",
+    "be":"⚠️ Гэтую аперацыю можа адмяніць толькі яе аўтар.",
+    "pl":"⚠️ Tylko autor może cofnąć tę operację.",
+    "cs":"⚠️ Tuto operaci může vrátit pouze její autor.",
+    "sk":"⚠️ Túto operáciu môže vrátiť iba jej autor.",
+    "ro":"⚠️ Doar autorul poate anula această operațiune.",
+    "bg":"⚠️ Само авторът може да отмени тази операция.",
+    "hu":"⚠️ Ezt a műveletet csak a szerzője vonhatja vissza.",
+}
+for _undo_language, _undo_author_text in UNDO_AUTHOR_ONLY_TEXTS.items():
+    UNDO_TEXTS[_undo_language]["undo.author_only"] = _undo_author_text
+
+COMPACT_CONFIRMATION_TEXTS = {
+    "ru": {"quick.income_item":"Доход","quick.expense_item":"Расход","quick.unrecognized":"⚠️ Не распознано:"},
+    "uk": {"quick.income_item":"Дохід","quick.expense_item":"Витрата","quick.unrecognized":"⚠️ Не розпізнано:"},
+    "de": {"quick.income_item":"Einnahme","quick.expense_item":"Ausgabe","quick.unrecognized":"⚠️ Nicht erkannt:"},
+    "en": {"quick.income_item":"Income","quick.expense_item":"Expense","quick.unrecognized":"⚠️ Not recognized:"},
+    "be": {"quick.income_item":"Даход","quick.expense_item":"Выдатак","quick.unrecognized":"⚠️ Не распазнана:"},
+    "pl": {"quick.income_item":"Dochód","quick.expense_item":"Wydatek","quick.unrecognized":"⚠️ Nie rozpoznano:"},
+    "cs": {"quick.income_item":"Příjem","quick.expense_item":"Výdaj","quick.unrecognized":"⚠️ Nerozpoznáno:"},
+    "sk": {"quick.income_item":"Príjem","quick.expense_item":"Výdavok","quick.unrecognized":"⚠️ Nerozpoznané:"},
+    "ro": {"quick.income_item":"Venit","quick.expense_item":"Cheltuială","quick.unrecognized":"⚠️ Nerecunoscut:"},
+    "bg": {"quick.income_item":"Приход","quick.expense_item":"Разход","quick.unrecognized":"⚠️ Неразпознато:"},
+    "hu": {"quick.income_item":"Bevétel","quick.expense_item":"Kiadás","quick.unrecognized":"⚠️ Nem felismerhető:"},
+}
+
 ABOUT_SAVINGS = {
     "ru": "• цель накопления и отслеживание прогресса;", "uk": "• ціль накопичення та відстеження прогресу;",
     "de": "• Sparziel und Fortschrittsverfolgung;", "en": "• savings goal and progress tracking;",
@@ -238,6 +280,12 @@ def family_language(family):
 
 def t(language, key, **kwargs):
     code = normalize_language(language)
+    if key in COMPACT_CONFIRMATION_TEXTS.get(code, {}):
+        template = COMPACT_CONFIRMATION_TEXTS[code][key]
+        return template.format(**kwargs) if kwargs else template
+    if key in UNDO_TEXTS.get(code, {}):
+        template = UNDO_TEXTS[code][key]
+        return template.format(**kwargs) if kwargs else template
     if key in FLOW_TEXTS.get(code, {}):
         template = FLOW_TEXTS[code][key]
         return template.format(**kwargs) if kwargs else template

@@ -74,7 +74,7 @@ class PrivateFamilyContextHandlerTests(unittest.IsolatedAsyncioTestCase):
         family = SimpleNamespace(id=3)
         user = SimpleNamespace(id=7, telegram_id=123456789, family_id=3)
         transaction = SimpleNamespace(
-            type="expense", amount=5.0, category="☕ Еда", title="кофе",
+            id=174, type="expense", amount=5.0, category="☕ Еда", title="кофе",
         )
         with patch.object(
             family_context_service, "get_family_by_user_telegram_id",

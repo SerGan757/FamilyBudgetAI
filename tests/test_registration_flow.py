@@ -59,7 +59,7 @@ class RegistrationFlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_registered_user_operation_is_saved_once(self):
         message, state = _Message("Кофе 5", 101), _State()
         user = SimpleNamespace(id=1, family_id=1)
-        transaction = SimpleNamespace(type="expense", amount=5.0, category="☕ Еда", title="Кофе")
+        transaction = SimpleNamespace(id=174, type="expense", amount=5.0, category="☕ Еда", title="Кофе")
         with patch.object(expenses, "get_user_by_telegram_id", AsyncMock(return_value=user)), \
              patch.object(expenses, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=1))), \
              patch.object(expenses, "save_transaction", AsyncMock(return_value=transaction)) as save:
