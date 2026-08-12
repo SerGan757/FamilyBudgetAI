@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     text,
     UniqueConstraint,
+    CheckConstraint,
 )
 from sqlalchemy.orm import (
     Mapped,
@@ -108,6 +109,12 @@ class Family(Base):
 
     savings_goals = relationship(
         "SavingsGoal", back_populates="family", cascade="all, delete-orphan",
+    )
+
+    category_keyword_overrides = relationship(
+        "FamilyCategoryKeywordOverride",
+        back_populates="family",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self):
@@ -471,3 +478,30 @@ class GoalContribution(Base):
 
     goal = relationship("SavingsGoal", back_populates="contributions")
     user = relationship("User", back_populates="goal_contributions")
+
+
+class FamilyCategoryKeywordOverride(Base):
+    __tablename__ = "family_category_keyword_overrides"
+    __table_args__ = (
+        CheckConstraint("action IN ('add', 'disable')", name="ck_family_category_keyword_action"),
+        UniqueConstraint(
+            "family_id", "category_key", "normalized_keyword",
+            name="uq_family_category_keyword_override",
+        ),
+        Index("ix_family_category_keyword_family_category", "family_id", "category_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    category_key: Mapped[str] = mapped_column(String(32), nullable=False)
+    keyword: Mapped[str] = mapped_column(String(100), nullable=False)
+    normalized_keyword: Mapped[str] = mapped_column(String(100), nullable=False)
+    action: Mapped[str] = mapped_column(String(10), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow,
+        server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"), nullable=False,
+    )
+
+    family = relationship("Family", back_populates="category_keyword_overrides")

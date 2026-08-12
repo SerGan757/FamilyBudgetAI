@@ -21,6 +21,7 @@ from app.utils.temporary_screens import refresh_temporary_message, schedule_temp
 from app.utils.currency import family_currency, format_money
 from app.i18n import category_label, family_language, month_name, t
 from app.services.savings_goal_service import progress_bar
+from app.keyboards.categories import CategoryCallback
 
 router = Router()
 
@@ -629,6 +630,12 @@ def analytics_keyboard(year: int, month: int, language: str = "ru") -> InlineKey
         [InlineKeyboardButton(
             text=t(language, "analytics.help_button"),
             callback_data=f"analytics_help:{year}:{month:02d}",
+        )],
+        [InlineKeyboardButton(
+            text=f"🏷 {t(language, 'analytics.categories')}",
+            callback_data=CategoryCallback(
+                action="list", value=f"analytics-{year:04d}-{month:02d}",
+            ).pack(),
         )],
     ])
 

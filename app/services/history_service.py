@@ -32,9 +32,20 @@ async def get_transactions_by_category(
     category: str,
     limit: int = 20,
     offset: int = 0,
+    start=None,
+    end=None,
 ):
 
     async with SessionLocal() as session:
+
+        filters = [
+            Transaction.family_id == family_id,
+            Transaction.category == category,
+        ]
+        if start is not None:
+            filters.append(Transaction.created_at >= start)
+        if end is not None:
+            filters.append(Transaction.created_at < end)
 
         result = await session.execute(
             select(Transaction, User)
@@ -47,10 +58,7 @@ async def get_transactions_by_category(
                 and_(Project.id == Transaction.project_id, Project.family_id == family_id),
             )
             .options(contains_eager(Transaction.project))
-            .where(
-                Transaction.family_id == family_id,
-                Transaction.category == category
-            )
+            .where(*filters)
             .order_by(
                 desc(Transaction.id)
             )
@@ -113,3 +121,31 @@ async def get_transactions_by_type(
             transactions.append(transaction)
 
         return transactions
+
+
+async def get_transactions_by_category_page(
+    family_id: int,
+    category: str,
+    limit: int = 20,
+    offset: int = 0,
+    start=None,
+    end=None,
+):
+    transactions = await get_transactions_by_category(
+        family_id, category, limit, offset, start, end,
+    )
+    filters = [
+        Transaction.family_id == family_id,
+        Transaction.category == category,
+    ]
+    if start is not None:
+        filters.append(Transaction.created_at >= start)
+    if end is not None:
+        filters.append(Transaction.created_at < end)
+    async with SessionLocal() as session:
+        total, amount = (
+            await session.execute(select(
+                func.count(Transaction.id), func.coalesce(func.sum(Transaction.amount), 0),
+            ).where(*filters))
+        ).one()
+    return transactions, int(total), float(amount)

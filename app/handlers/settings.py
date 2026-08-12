@@ -315,7 +315,7 @@ async def about(message: Message):
 
 @router.message(
     StateFilter(None),
-    F.text.in_({"🏷 Категории", "💶 Валюта", "📤 Экспорт", "💾 Резервная копия"}),
+    F.text.in_({"💶 Валюта", "📤 Экспорт", "💾 Резервная копия"}),
 )
 async def coming_soon(message: Message):
     await message.answer(

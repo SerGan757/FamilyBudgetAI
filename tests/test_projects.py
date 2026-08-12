@@ -214,6 +214,14 @@ class ProjectServiceTests(unittest.IsolatedAsyncioTestCase):
 
 
 class QuickInputTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.category_detector = patch.object(
+            expense_service, "detect_category_for_family",
+            AsyncMock(return_value=("📦", "Прочее")),
+        )
+        self.category_detector.start()
+        self.addCleanup(self.category_detector.stop)
+
     async def test_plain_input_keeps_null_project(self):
         transaction = SimpleNamespace(project_id=None)
         user = SimpleNamespace(id=1, family_id=7)

@@ -6,6 +6,7 @@ from app.database.db import Base, engine
 from app.database.models import (
     Transaction,
     RecurringPayment,
+    FamilyCategoryKeywordOverride,
 )
 
 
@@ -17,7 +18,10 @@ async def init_db():
         # пересоздаем таблицу автоматически.
         # Savings Goal v1 is deployed only through its controlled migration;
         # startup must not create those production tables implicitly.
-        controlled_tables = {"savings_goals", "goal_contributions"}
+        controlled_tables = {
+            "savings_goals", "goal_contributions",
+            "family_category_keyword_overrides",
+        }
         existing_tables = [
             table for table in Base.metadata.sorted_tables
             if table.name not in controlled_tables

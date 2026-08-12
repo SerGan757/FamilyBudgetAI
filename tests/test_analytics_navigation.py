@@ -67,6 +67,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
         self.assertEqual(callbacks, [
             "analytics:2026:06", "analytics:2026:08", "analytics_help:2026:07",
+            "cat:list::analytics-2026-07",
         ])
 
     async def test_next_month_edits_existing_message(self):
@@ -130,6 +131,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(callbacks, [
             "analytics:2026:06", "analytics:2026:08", "analytics_help:2026:07",
+            "cat:list::analytics-2026-07",
         ])
         back.message.answer.assert_not_awaited()
         back.answer.assert_awaited_once_with()

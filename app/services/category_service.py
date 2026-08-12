@@ -41,6 +41,41 @@ def detect_category(title: str, transaction_type: str = "expense"):
     )
 
 
+async def detect_category_for_family(
+    family_id: int,
+    title: str,
+    transaction_type: str = "expense",
+    *,
+    session=None,
+):
+    """Apply the established scoring algorithm to one family's effective catalog."""
+    if transaction_type == "income":
+        category = CATEGORIES["income"]
+        return category["icon"], category["title"]
+
+    from app.services.category_override_service import get_effective_category_catalog
+
+    text = title.lower().strip()
+    catalog = await get_effective_category_catalog(family_id, session=session)
+    best_key = "other"
+    best_score = 0
+    for key, category in CATEGORIES.items():
+        if key == "income":
+            continue
+        score = 0
+        for entry in catalog.get(key, []):
+            keyword = entry.normalized_keyword
+            if text == keyword:
+                score += 100
+            elif keyword in text:
+                score += 10
+        if score > best_score:
+            best_score = score
+            best_key = key
+    best = CATEGORIES[best_key]
+    return best["icon"], best["title"]
+
+
 def detect_subcategory(title: str):
 
     text = title.lower()

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.database.db import SessionLocal
 from app.database.models import Project, Transaction
 from app.services.parser import parse_message
+from app.services.category_service import detect_category_for_family
 from app.services.user_service import get_user_by_telegram_id
 from app.services.family_activity_service import touch_family_activity
 from app.services.project_service import (
@@ -44,6 +45,12 @@ async def save_transaction(
         return "USER_NOT_FOUND"
     if user.family_id != family_id:
         return "USER_FAMILY_MISMATCH"
+
+    if parsed["type"] in {"income", "expense"}:
+        icon, category = await detect_category_for_family(
+            family_id, parsed["title"], parsed["type"],
+        )
+        parsed["category"] = f"{icon} {category}"
 
     project = None
     if project_tag is not None:

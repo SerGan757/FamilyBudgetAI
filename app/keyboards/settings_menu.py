@@ -7,6 +7,7 @@ from app.keyboards.projects import button as project_button
 from app.utils.currency import CURRENCY_SYMBOLS
 from app.i18n import country_name, t, timezone_name
 from app.keyboards.savings_goal import GoalCallback
+from app.keyboards.categories import CategoryCallback
 
 
 class FamilySettingsCallback(CallbackData, prefix="fset"):
@@ -34,6 +35,10 @@ def family_settings_keyboard_for_ttl(ttl: int = 20, language: str = "ru") -> Inl
         [_inline(t(language, "settings.timezone"), "timezone")],
         [_inline(t(language, "settings.currency"), "currency")],
         [_inline(temporary_screen_ttl_label(ttl, language), "temporary_ttl")],
+        [InlineKeyboardButton(
+            text=t(language, "settings.categories"),
+            callback_data=CategoryCallback(action="list", value="settings").pack(),
+        )],
         [project_button(t(language, "settings.projects"), "list")],
         [InlineKeyboardButton(
             text=t(language, "settings.savings_goal"),
