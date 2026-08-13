@@ -7,6 +7,7 @@ from app.database.models import (
     Transaction,
     RecurringPayment,
     FamilyCategoryKeywordOverride,
+    FamilyCategory, FamilyCategoryKeyword,
 )
 
 
@@ -21,6 +22,7 @@ async def init_db():
         controlled_tables = {
             "savings_goals", "goal_contributions",
             "family_category_keyword_overrides",
+            "family_categories", "family_category_keywords",
         }
         existing_tables = [
             table for table in Base.metadata.sorted_tables

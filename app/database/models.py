@@ -116,6 +116,9 @@ class Family(Base):
         back_populates="family",
         cascade="all, delete-orphan",
     )
+    custom_categories = relationship(
+        "FamilyCategory", back_populates="family", cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return (
@@ -255,6 +258,9 @@ class Transaction(Base):
         nullable=True,
         index=True,
     )
+    custom_category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("family_categories.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -276,6 +282,7 @@ class Transaction(Base):
         "Project",
         back_populates="transactions",
     )
+    custom_category = relationship("FamilyCategory", back_populates="transactions")
 
     def __repr__(self):
         return (
@@ -505,3 +512,34 @@ class FamilyCategoryKeywordOverride(Base):
     )
 
     family = relationship("Family", back_populates="category_keyword_overrides")
+
+
+class FamilyCategory(Base):
+    __tablename__ = "family_categories"
+    __table_args__ = (
+        UniqueConstraint("family_id", "normalized_name", name="uq_family_category_name"),
+        Index("ix_family_categories_family_active", "family_id", "is_active"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    icon: Mapped[str] = mapped_column(String(16), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"), nullable=False)
+    family = relationship("Family", back_populates="custom_categories")
+    keywords = relationship("FamilyCategoryKeyword", back_populates="category", cascade="all, delete-orphan")
+    transactions = relationship("Transaction", back_populates="custom_category")
+
+
+class FamilyCategoryKeyword(Base):
+    __tablename__ = "family_category_keywords"
+    __table_args__ = (UniqueConstraint("family_category_id", "normalized_keyword", name="uq_family_category_keyword"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    family_category_id: Mapped[int] = mapped_column(ForeignKey("family_categories.id", ondelete="CASCADE"), nullable=False, index=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True)
+    keyword: Mapped[str] = mapped_column(String(100), nullable=False)
+    normalized_keyword: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"), nullable=False)
+    category = relationship("FamilyCategory", back_populates="keywords")

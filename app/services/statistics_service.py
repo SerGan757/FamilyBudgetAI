@@ -15,7 +15,7 @@ def _transaction_list_query(family_id: int):
             Project,
             and_(Project.id == Transaction.project_id, Project.family_id == family_id),
         )
-        .options(selectinload(Transaction.user), contains_eager(Transaction.project))
+        .options(selectinload(Transaction.user), selectinload(Transaction.custom_category), contains_eager(Transaction.project))
     )
 
 
@@ -576,7 +576,11 @@ async def get_analytics(
     for t in expenses:
         name = t.user.name if t.user else "Неизвестно"
         users[name] = users.get(name, 0) + t.amount
-        categories[t.category] = categories.get(t.category, 0) + t.amount
+        category = (
+            f"{t.custom_category.icon} {t.custom_category.name}"
+            if t.custom_category is not None else t.category
+        )
+        categories[category] = categories.get(category, 0) + t.amount
         by_day_expense[t.created_at.date()] = by_day_expense.get(t.created_at.date(), 0) + t.amount
     for t in incomes:
         by_day_income[t.created_at.date()] = by_day_income.get(t.created_at.date(), 0) + t.amount

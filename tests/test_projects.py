@@ -216,8 +216,8 @@ class ProjectServiceTests(unittest.IsolatedAsyncioTestCase):
 class QuickInputTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.category_detector = patch.object(
-            expense_service, "detect_category_for_family",
-            AsyncMock(return_value=("📦", "Прочее")),
+            expense_service, "detect_category_reference_for_family",
+            AsyncMock(return_value=("📦", "Прочее", None)),
         )
         self.category_detector.start()
         self.addCleanup(self.category_detector.stop)

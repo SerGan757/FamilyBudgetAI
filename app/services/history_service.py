@@ -34,14 +34,18 @@ async def get_transactions_by_category(
     offset: int = 0,
     start=None,
     end=None,
+    custom_category_id=None,
 ):
 
     async with SessionLocal() as session:
 
         filters = [
             Transaction.family_id == family_id,
-            Transaction.category == category,
         ]
+        filters.append(
+            Transaction.custom_category_id == custom_category_id
+            if custom_category_id is not None else Transaction.category == category
+        )
         if start is not None:
             filters.append(Transaction.created_at >= start)
         if end is not None:
@@ -130,14 +134,18 @@ async def get_transactions_by_category_page(
     offset: int = 0,
     start=None,
     end=None,
+    custom_category_id=None,
 ):
     transactions = await get_transactions_by_category(
-        family_id, category, limit, offset, start, end,
+        family_id, category, limit, offset, start, end, custom_category_id,
     )
     filters = [
         Transaction.family_id == family_id,
-        Transaction.category == category,
     ]
+    filters.append(
+        Transaction.custom_category_id == custom_category_id
+        if custom_category_id is not None else Transaction.category == category
+    )
     if start is not None:
         filters.append(Transaction.created_at >= start)
     if end is not None:

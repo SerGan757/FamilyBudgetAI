@@ -76,6 +76,23 @@ async def detect_category_for_family(
     return best["icon"], best["title"]
 
 
+async def detect_category_reference_for_family(family_id: int, title: str, transaction_type="expense"):
+    icon, label = await detect_category_for_family(family_id, title, transaction_type)
+    if transaction_type == "income": return icon, label, None
+    from app.services.custom_category_service import detect_custom_category
+    custom, custom_score = await detect_custom_category(family_id, title)
+    # System wins equal scores, preserving the established category order.
+    if custom is None: return icon, label, None
+    text=title.lower().strip(); system_score=0
+    from app.services.category_override_service import get_effective_category_catalog
+    catalog=await get_effective_category_catalog(family_id)
+    for entries in catalog.values():
+        score=sum(100 if text==e.normalized_keyword else 10 if e.normalized_keyword in text else 0 for e in entries)
+        system_score=max(system_score,score)
+    if custom_score>system_score:return custom.icon,custom.name,custom.id
+    return icon,label,None
+
+
 def detect_subcategory(title: str):
 
     text = title.lower()

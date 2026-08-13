@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from app.database.db import SessionLocal
-from app.database.models import Project, Transaction
+from app.database.models import FamilyCategory, Project, Transaction
 from app.services.parser import parse_message
-from app.services.category_service import detect_category_for_family
+from app.services.category_service import detect_category_reference_for_family
 from app.services.user_service import get_user_by_telegram_id
 from app.services.family_activity_service import touch_family_activity
 from app.services.project_service import (
@@ -47,10 +47,11 @@ async def save_transaction(
         return "USER_FAMILY_MISMATCH"
 
     if parsed["type"] in {"income", "expense"}:
-        icon, category = await detect_category_for_family(
+        icon, category, custom_category_id = await detect_category_reference_for_family(
             family_id, parsed["title"], parsed["type"],
         )
         parsed["category"] = f"{icon} {category}"
+        parsed["custom_category_id"] = custom_category_id
 
     project = None
     if project_tag is not None:
@@ -73,6 +74,7 @@ async def save_transaction(
         transaction_type=parsed["type"],
         category=parsed["category"],
         project_id=project.id if project is not None else None,
+        custom_category_id=parsed.get("custom_category_id"),
     )
 
     if project is not None:
@@ -92,6 +94,7 @@ async def create_transaction(
     recurring_payment_id: int | None = None,
     recurring_period: date | None = None,
     project_id: int | None = None,
+    custom_category_id: int | None = None,
 ):
 
     async with SessionLocal() as session:
@@ -106,6 +109,17 @@ async def create_transaction(
             if project_result.scalar_one_or_none() is None:
                 raise ValueError("Project does not belong to transaction family")
 
+        if custom_category_id is not None:
+            category_result = await session.execute(
+                select(FamilyCategory).where(
+                    FamilyCategory.id == custom_category_id,
+                    FamilyCategory.family_id == family_id,
+                    FamilyCategory.is_active.is_(True),
+                )
+            )
+            if category_result.scalar_one_or_none() is None:
+                raise ValueError("Custom category does not belong to transaction family")
+
         transaction = Transaction(
             user_id=user_id,
             family_id=family_id,
@@ -117,6 +131,7 @@ async def create_transaction(
             recurring_payment_id=recurring_payment_id,
             recurring_period=recurring_period,
             project_id=project_id,
+            custom_category_id=custom_category_id,
         )
 
         session.add(transaction)
