@@ -3,6 +3,8 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove
+
 from app.handlers import year_analytics
 from app.i18n import all_texts, t
 from app.i18n.translations import SUPPORTED_LANGUAGES
@@ -75,7 +77,8 @@ class YearUiTests(unittest.IsolatedAsyncioTestCase):
             [YearMonth(8,2480,1503.64,1100)],
             categories=(("📦 Other",838.98,None),),
         )
-        message=SimpleNamespace(answer=AsyncMock())
+        sent_message=SimpleNamespace(edit_text=AsyncMock())
+        message=SimpleNamespace(answer=AsyncMock(return_value=sent_message))
         with patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=data)):
             await year_analytics.render_year(message,self.family(),2026)
         text=message.answer.await_args.args[0]
@@ -85,6 +88,54 @@ class YearUiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("🔴 Best result: August — -123.64 €",text)
         self.assertIn("🔴 Worst result: August — -123.64 €",text)
         self.assertIn("August\n💰 2 480.00 € | 💸 1 503.64 € | 🔴 -123.64 €",text)
+
+    async def test_year_entry_hides_reply_keyboard_and_keeps_inline_navigation(self):
+        sent_message=SimpleNamespace(edit_text=AsyncMock())
+        message=SimpleNamespace(answer=AsyncMock(return_value=sent_message))
+        with patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=snapshot())):
+            await year_analytics.render_year(message,self.family(),2026)
+        self.assertIsInstance(message.answer.await_args.kwargs["reply_markup"],ReplyKeyboardRemove)
+        inline=sent_message.edit_text.await_args.kwargs["reply_markup"]
+        self.assertIsInstance(inline,InlineKeyboardMarkup)
+        callbacks=[[button.callback_data for button in row] for row in inline.inline_keyboard]
+        self.assertEqual(callbacks,[
+            ["year:months:2026"],
+            ["year:categories:2026","year:members:2026"],
+            ["year:goals:2026"],
+            ["year:charts:2026"],
+            ["year:main:2025"],
+            ["year:back:0"],
+        ])
+        self.assertEqual(sent_message.edit_text.await_args.args[0],message.answer.await_args.args[0])
+
+    def test_old_year_layout_includes_next_year_without_dead_end(self):
+        keyboard=year_analytics.year_keyboard(2025,2026,"en")
+        callbacks=[[button.callback_data for button in row] for row in keyboard.inline_keyboard]
+        self.assertEqual(callbacks[-2],["year:main:2024","year:main:2026"])
+        self.assertEqual(callbacks[-1],["year:back:0"])
+
+    async def test_year_subscreen_edits_message_without_restoring_main_keyboard(self):
+        data=snapshot([YearMonth(8,100,20,0)])
+        callback=SimpleNamespace(
+            message=SimpleNamespace(chat=SimpleNamespace(id=1,type="private"),edit_text=AsyncMock(),answer=AsyncMock()),
+            from_user=SimpleNamespace(id=2),data="year:months:2026",answer=AsyncMock(),
+        )
+        with patch.object(year_analytics,"_family",AsyncMock(return_value=self.family())),patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=data)):
+            await year_analytics.year_callback(callback)
+        callback.message.answer.assert_not_awaited()
+        self.assertIsInstance(callback.message.edit_text.await_args.kwargs["reply_markup"],InlineKeyboardMarkup)
+
+    async def test_back_deletes_year_screen_and_restores_main_reply_keyboard(self):
+        callback=SimpleNamespace(
+            message=SimpleNamespace(chat=SimpleNamespace(id=1,type="private"),delete=AsyncMock(),answer=AsyncMock()),
+            from_user=SimpleNamespace(id=2),data="year:back:0",answer=AsyncMock(),
+        )
+        with patch.object(year_analytics,"_family",AsyncMock(return_value=self.family())):
+            await year_analytics.year_callback(callback)
+        callback.message.delete.assert_awaited_once()
+        markup=callback.message.answer.await_args.kwargs["reply_markup"]
+        self.assertIsInstance(markup,ReplyKeyboardMarkup)
+        self.assertEqual(markup,main_menu_keyboard("en"))
 
     async def test_member_zero_expense_and_custom_category_render(self):
         data=snapshot(categories=(("🎬 Entertainment",20,17),),members=(("Anna",0),))

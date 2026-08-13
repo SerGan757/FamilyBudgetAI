@@ -328,6 +328,23 @@ YEAR_TEXTS["ro"].update({"year.title":"ANALIZĂ PENTRU ANUL {year}","year.period
 YEAR_TEXTS["bg"].update({"year.title":"АНАЛИЗ ЗА {year} ГОДИНА","year.period":"Период на данните","year.month_count":"Месеци с данни","year.no_data":"Няма данни","year.income":"Приходи","year.expense":"Разходи","year.to_goals":"Към цели","year.result":"Финансов резултат","year.average":"СРЕДНО НА МЕСЕЦ","year.month_highlights":"МЕСЕЦИ","year.best_income":"Най-висок приход","year.highest_expense":"Най-високи разходи","year.best_result":"Най-добър резултат","year.worst_result":"Най-лош резултат","year.dynamics":"ДИНАМИКА","year.categories":"Категории","year.members":"Участници","year.recurring":"РЕДОВНИ","year.current_load":"Текущо натоварване","year.actual_expense":"Реално списано","year.actual_income":"Реално получено","year.goals":"ЦЕЛИ","year.saved":"Спестено за годината","year.months":"По месеци","year.back":"Назад към годината"})
 YEAR_TEXTS["hu"].update({"year.title":"{year}. ÉVI ELEMZÉS","year.period":"Adatidőszak","year.month_count":"Adatokkal rendelkező hónapok","year.no_data":"Nincs adat","year.income":"Bevételek","year.expense":"Kiadások","year.to_goals":"Célokra","year.result":"Pénzügyi eredmény","year.average":"HAVI ÁTLAG","year.month_highlights":"HÓNAPOK","year.best_income":"Legmagasabb bevétel","year.highest_expense":"Legmagasabb kiadás","year.best_result":"Legjobb eredmény","year.worst_result":"Legrosszabb eredmény","year.dynamics":"DINAMIKA","year.categories":"Kategóriák","year.members":"Tagok","year.recurring":"RENDSZERES","year.current_load":"Jelenlegi terhelés","year.actual_expense":"Ténylegesen levonva","year.actual_income":"Ténylegesen beérkezett","year.goals":"CÉLOK","year.saved":"Éves megtakarítás","year.months":"Hónapok szerint","year.back":"Vissza az évhez"})
 
+_CHART_TEXTS = {
+    "ru": ("📊 Графики", "Графики", "Доходы и расходы", "Финансовый результат", "Расходы по категориям", "📊 Недостаточно данных для графика.", "⬅️ К графикам", "⬅️ Год"),
+    "uk": ("📊 Графіки", "Графіки", "Доходи та витрати", "Фінансовий результат", "Витрати за категоріями", "📊 Недостатньо даних для графіка.", "⬅️ До графіків", "⬅️ Рік"),
+    "de": ("📊 Diagramme", "Diagramme", "Einnahmen und Ausgaben", "Finanzergebnis", "Ausgaben nach Kategorien", "📊 Nicht genügend Daten für das Diagramm.", "⬅️ Zu den Diagrammen", "⬅️ Jahr"),
+    "en": ("📊 Charts", "Charts", "Income and expenses", "Financial result", "Expenses by category", "📊 Not enough data for this chart.", "⬅️ Back to charts", "⬅️ Year"),
+    "be": ("📊 Графікі", "Графікі", "Даходы і выдаткі", "Фінансавы вынік", "Выдаткі па катэгорыях", "📊 Недастаткова даных для графіка.", "⬅️ Да графікаў", "⬅️ Год"),
+    "pl": ("📊 Wykresy", "Wykresy", "Dochody i wydatki", "Wynik finansowy", "Wydatki według kategorii", "📊 Za mało danych do wykresu.", "⬅️ Do wykresów", "⬅️ Rok"),
+    "cs": ("📊 Grafy", "Grafy", "Příjmy a výdaje", "Finanční výsledek", "Výdaje podle kategorií", "📊 Pro graf není dostatek dat.", "⬅️ Ke grafům", "⬅️ Rok"),
+    "sk": ("📊 Grafy", "Grafy", "Príjmy a výdavky", "Finančný výsledok", "Výdavky podľa kategórií", "📊 Pre graf nie je dostatok údajov.", "⬅️ Ku grafom", "⬅️ Rok"),
+    "ro": ("📊 Grafice", "Grafice", "Venituri și cheltuieli", "Rezultat financiar", "Cheltuieli pe categorii", "📊 Nu sunt suficiente date pentru grafic.", "⬅️ La grafice", "⬅️ An"),
+    "bg": ("📊 Графики", "Графики", "Приходи и разходи", "Финансов резултат", "Разходи по категории", "📊 Няма достатъчно данни за графика.", "⬅️ Към графиките", "⬅️ Година"),
+    "hu": ("📊 Grafikonok", "Grafikonok", "Bevételek és kiadások", "Pénzügyi eredmény", "Kiadások kategóriánként", "📊 Nincs elég adat a grafikonhoz.", "⬅️ A grafikonokhoz", "⬅️ Év"),
+}
+_CHART_KEYS = ("year.charts", "chart.menu", "chart.income_expense", "chart.result", "chart.categories", "chart.insufficient", "chart.back_charts", "chart.back_year")
+for _chart_language, _chart_values in _CHART_TEXTS.items():
+    YEAR_TEXTS[_chart_language].update(dict(zip(_CHART_KEYS, _chart_values)))
+
 def normalize_language(language):
     code = (language or "").strip().lower()
     return code if code in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE

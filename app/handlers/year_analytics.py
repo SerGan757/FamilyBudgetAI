@@ -1,14 +1,21 @@
+import asyncio
 from datetime import datetime
 from html import escape
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove
 
 from app.i18n import all_texts, category_label, family_language, month_name, t
+from app.keyboards.main_menu import main_menu_keyboard
 from app.services.family_context_service import require_family_for_chat
+from app.services.year_chart_service import (
+    render_categories_chart,
+    render_income_expense_chart,
+    render_result_chart,
+)
 from app.services.year_analytics_service import get_year_analytics, get_year_category_transactions
-from app.utils.currency import family_currency, format_money
+from app.utils.currency import currency_symbol, family_currency, format_money
 
 router = Router()
 
@@ -37,6 +44,7 @@ def year_keyboard(year, current_year, language):
         [InlineKeyboardButton(text=t(language,"year.months"),callback_data=f"year:months:{year}")],
         [InlineKeyboardButton(text=t(language,"year.categories"),callback_data=f"year:categories:{year}"), InlineKeyboardButton(text=t(language,"year.members"),callback_data=f"year:members:{year}")],
         [InlineKeyboardButton(text=t(language,"year.goals"),callback_data=f"year:goals:{year}")],
+        [InlineKeyboardButton(text=t(language,"year.charts"),callback_data=f"year:charts:{year}")],
     ]
     years=[InlineKeyboardButton(text=f"⬅️ {year-1}",callback_data=f"year:main:{year-1}")]
     if year < current_year: years.append(InlineKeyboardButton(text=f"➡️ {year+1}",callback_data=f"year:main:{year+1}"))
@@ -46,6 +54,33 @@ def year_keyboard(year, current_year, language):
 
 def sub_keyboard(year, language):
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t(language,"year.back"),callback_data=f"year:main:{year}")]])
+
+
+def chart_menu_keyboard(year, language):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"📈 {t(language,'chart.income_expense')}",callback_data=f"yearchart:flow:{year}")],
+        [InlineKeyboardButton(text=f"💎 {t(language,'chart.result')}",callback_data=f"yearchart:result:{year}")],
+        [InlineKeyboardButton(text=f"🏆 {t(language,'chart.categories')}",callback_data=f"yearchart:categories:{year}")],
+        [InlineKeyboardButton(text=t(language,"year.back"),callback_data=f"year:main:{year}")],
+    ])
+
+
+def chart_photo_keyboard(year, language):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(language,"chart.back_charts"),callback_data=f"yearchartnav:menu:{year}")],
+        [InlineKeyboardButton(text=t(language,"chart.back_year"),callback_data=f"yearchartnav:year:{year}")],
+    ])
+
+
+def _chart_title(language, key, year):
+    return f"{t(language,key)} • {year}"
+
+
+async def render_chart_menu(message, year, language):
+    return await message.answer(
+        f"📊 <b>{t(language,'chart.menu')} • {year}</b>",
+        parse_mode="HTML", reply_markup=chart_menu_keyboard(year,language),
+    )
 
 
 async def _family(event):
@@ -70,8 +105,13 @@ async def render_year(message, family, year, edit=False):
     if data.members: lines += ["",f"👨‍👩‍👧 <b>{t(language,'year.members')}</b>",*[f"{i}. {escape(name)} — {_money(amount,family)}" for i,(name,amount) in enumerate(data.members,1)]]
     lines += ["",f"🔁 <b>{t(language,'year.recurring')}</b>",f"{t(language,'year.current_load')}:",f"💸 {_money(data.recurring_expense_load,family)}/{t(language,'common.monthly')}",f"💰 {_money(data.recurring_income_load,family)}/{t(language,'common.monthly')}",f"💸 {t(language,'year.actual_expense')}: {_money(data.recurring_actual_expense,family)}",f"💰 {t(language,'year.actual_income')}: {_money(data.recurring_actual_income,family)}"]
     if data.goals: lines += ["",f"🎯 <b>{t(language,'year.goals')}</b>",f"{t(language,'year.saved')}: {_money(data.goal_contributions,family)}",*[f"{name} — {_money(amount,family)}" for name,amount in data.goals[:3]]]
-    kwargs=dict(parse_mode="HTML",reply_markup=year_keyboard(year,_now_year(family.timezone),language))
-    return await (message.edit_text("\n".join(lines),**kwargs) if edit else message.answer("\n".join(lines),**kwargs))
+    inline_keyboard=year_keyboard(year,_now_year(family.timezone),language)
+    if edit:
+        return await message.edit_text("\n".join(lines),parse_mode="HTML",reply_markup=inline_keyboard)
+    text="\n".join(lines)
+    sent_message=await message.answer(text,parse_mode="HTML",reply_markup=ReplyKeyboardRemove())
+    await sent_message.edit_text(text,parse_mode="HTML",reply_markup=inline_keyboard)
+    return sent_message
 
 
 @router.message(F.text.in_(all_texts("menu.year")))
@@ -86,10 +126,17 @@ async def year_callback(callback:CallbackQuery):
     try: _,action,value=callback.data.split(":",2); year=int(value)
     except ValueError:return await callback.answer()
     if action=="back":
-        await callback.message.edit_text(t(language,"menu.title"));await callback.answer();return
+        await callback.message.delete()
+        await callback.message.answer(t(language,"menu.title"),reply_markup=main_menu_keyboard(language))
+        await callback.answer();return
     current=_now_year(family.timezone)
     if year>current: year=current
     if action=="main": await render_year(callback.message,family,year,True)
+    elif action=="charts":
+        await callback.message.edit_text(
+            f"📊 <b>{t(language,'chart.menu')} • {year}</b>",
+            parse_mode="HTML",reply_markup=chart_menu_keyboard(year,language),
+        )
     else:
         data=await get_year_analytics(family.id,year,family.timezone)
         if action=="months": text=f"📊 <b>{t(language,'year.months')} • {year}</b>\n\n"+"\n\n".join(_month_line(row,family,language) for row in data.months)
@@ -102,6 +149,52 @@ async def year_callback(callback:CallbackQuery):
             await callback.message.edit_text(f"🏆 <b>{t(language,'year.categories')} • {year}</b>",parse_mode="HTML",reply_markup=InlineKeyboardMarkup(inline_keyboard=rows));await callback.answer();return
         else:return await callback.answer()
         await callback.message.edit_text(text or t(language,"year.no_data"),parse_mode="HTML",reply_markup=sub_keyboard(year,language))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("yearchart:"))
+async def year_chart(callback:CallbackQuery):
+    if callback.message is None:return await callback.answer()
+    family=await _family(callback);language=family_language(family)
+    try: _,kind,year_text=callback.data.split(":",2);year=int(year_text)
+    except ValueError:return await callback.answer()
+    year=min(year,_now_year(family.timezone))
+    data=await get_year_analytics(family.id,year,family.timezone)
+    months=tuple(month_name(language,index) for index in range(1,13))
+    currency=currency_symbol(family_currency(family))
+    if kind=="flow":
+        key="chart.income_expense"
+        png=await asyncio.to_thread(render_income_expense_chart,data,month_labels=months,title=_chart_title(language,key,year),income_label=t(language,"year.income"),expense_label=t(language,"year.expense"),currency=currency)
+        filename=f"family_budget_{year}_income_expense.png"
+    elif kind=="result":
+        key="chart.result"
+        png=await asyncio.to_thread(render_result_chart,data,month_labels=months,title=_chart_title(language,key,year),currency=currency)
+        filename=f"family_budget_{year}_result.png"
+    elif kind=="categories":
+        key="chart.categories"
+        categories=tuple((_category_display(language,label,custom_id),amount) for label,amount,custom_id in data.categories)
+        png=await asyncio.to_thread(render_categories_chart,categories,title=_chart_title(language,key,year),currency=currency)
+        filename=f"family_budget_{year}_categories.png"
+    else:return await callback.answer()
+    if not png:return await callback.answer(t(language,"chart.insufficient"),show_alert=True)
+    await callback.message.answer_photo(
+        BufferedInputFile(png,filename=filename),caption=f"<b>{_chart_title(language,key,year)}</b>",
+        parse_mode="HTML",reply_markup=chart_photo_keyboard(year,language),
+    )
+    await callback.message.delete()
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("yearchartnav:"))
+async def year_chart_navigation(callback:CallbackQuery):
+    if callback.message is None:return await callback.answer()
+    family=await _family(callback);language=family_language(family)
+    try: _,target,year_text=callback.data.split(":",2);year=int(year_text)
+    except ValueError:return await callback.answer()
+    year=min(year,_now_year(family.timezone))
+    await callback.message.delete()
+    if target=="menu":await render_chart_menu(callback.message,year,language)
+    elif target=="year":await render_year(callback.message,family,year)
     await callback.answer()
 
 
