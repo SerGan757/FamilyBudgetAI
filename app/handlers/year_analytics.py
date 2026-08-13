@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import suppress
 from datetime import datetime
 from html import escape
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -109,9 +110,11 @@ async def render_year(message, family, year, edit=False):
     if edit:
         return await message.edit_text("\n".join(lines),parse_mode="HTML",reply_markup=inline_keyboard)
     text="\n".join(lines)
-    sent_message=await message.answer(text,parse_mode="HTML",reply_markup=ReplyKeyboardRemove())
-    await sent_message.edit_text(text,parse_mode="HTML",reply_markup=inline_keyboard)
-    return sent_message
+    hide_message=await message.answer("…",reply_markup=ReplyKeyboardRemove())
+    year_message=await message.answer(text,parse_mode="HTML",reply_markup=inline_keyboard)
+    with suppress(Exception):
+        await hide_message.delete()
+    return year_message
 
 
 @router.message(F.text.in_(all_texts("menu.year")))

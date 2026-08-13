@@ -77,11 +77,12 @@ class YearUiTests(unittest.IsolatedAsyncioTestCase):
             [YearMonth(8,2480,1503.64,1100)],
             categories=(("📦 Other",838.98,None),),
         )
-        sent_message=SimpleNamespace(edit_text=AsyncMock())
-        message=SimpleNamespace(answer=AsyncMock(return_value=sent_message))
+        hide_message=SimpleNamespace(delete=AsyncMock())
+        year_message=SimpleNamespace(delete=AsyncMock())
+        message=SimpleNamespace(answer=AsyncMock(side_effect=[hide_message,year_message]))
         with patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=data)):
             await year_analytics.render_year(message,self.family(),2026)
-        text=message.answer.await_args.args[0]
+        text=message.answer.await_args_list[1].args[0]
         self.assertNotIn("━━━━━━━━",text)
         self.assertNotIn("\n\n\n",text)
         self.assertIn("🔴 <b>Financial result: -123.64 €</b>",text)
@@ -90,12 +91,14 @@ class YearUiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("August\n💰 2 480.00 € | 💸 1 503.64 € | 🔴 -123.64 €",text)
 
     async def test_year_entry_hides_reply_keyboard_and_keeps_inline_navigation(self):
-        sent_message=SimpleNamespace(edit_text=AsyncMock())
-        message=SimpleNamespace(answer=AsyncMock(return_value=sent_message))
+        hide_message=SimpleNamespace(delete=AsyncMock())
+        year_message=SimpleNamespace(delete=AsyncMock())
+        message=SimpleNamespace(answer=AsyncMock(side_effect=[hide_message,year_message]))
         with patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=snapshot())):
             await year_analytics.render_year(message,self.family(),2026)
-        self.assertIsInstance(message.answer.await_args.kwargs["reply_markup"],ReplyKeyboardRemove)
-        inline=sent_message.edit_text.await_args.kwargs["reply_markup"]
+        self.assertEqual(message.answer.await_count,2)
+        self.assertIsInstance(message.answer.await_args_list[0].kwargs["reply_markup"],ReplyKeyboardRemove)
+        inline=message.answer.await_args_list[1].kwargs["reply_markup"]
         self.assertIsInstance(inline,InlineKeyboardMarkup)
         callbacks=[[button.callback_data for button in row] for row in inline.inline_keyboard]
         self.assertEqual(callbacks,[
@@ -106,7 +109,19 @@ class YearUiTests(unittest.IsolatedAsyncioTestCase):
             ["year:main:2025"],
             ["year:back:0"],
         ])
-        self.assertEqual(sent_message.edit_text.await_args.args[0],message.answer.await_args.args[0])
+        hide_message.delete.assert_awaited_once()
+        year_message.delete.assert_not_awaited()
+
+    async def test_hide_message_delete_failure_does_not_break_year_screen(self):
+        hide_message=SimpleNamespace(delete=AsyncMock(side_effect=RuntimeError("delete failed")))
+        year_message=SimpleNamespace(delete=AsyncMock())
+        message=SimpleNamespace(answer=AsyncMock(side_effect=[hide_message,year_message]))
+        with patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=snapshot())):
+            result=await year_analytics.render_year(message,self.family(),2026)
+        self.assertIs(result,year_message)
+        self.assertEqual(message.answer.await_count,2)
+        self.assertIsInstance(message.answer.await_args_list[1].kwargs["reply_markup"],InlineKeyboardMarkup)
+        year_message.delete.assert_not_awaited()
 
     def test_old_year_layout_includes_next_year_without_dead_end(self):
         keyboard=year_analytics.year_keyboard(2025,2026,"en")
