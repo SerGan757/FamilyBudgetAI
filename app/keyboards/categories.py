@@ -50,9 +50,18 @@ def categories_keyboard(catalog, language: str, *, origin: str = "settings", cus
 def icon_keyboard(language, origin, category_id=""):
     rows=[[button(icon,"custom_icon",category_id,f"{origin}|{icon}") for icon in ICONS[i:i+4]] for i in range(0,len(ICONS),4)]
     rows.append([button(t(language,"custom.other_icon"),"custom_other_icon",category_id,origin)])
-    cancel_action = "custom_card" if category_id else "list"
+    cancel_action = "custom_card" if category_id else "custom_create_cancel"
     rows.append([button(t(language,"goal.cancel"),cancel_action,category_id,origin)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def custom_create_cancel_keyboard(language, origin, category_id=""):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [button(
+            t(language, "goal.cancel"), "custom_create_cancel",
+            str(category_id or ""), origin,
+        )],
+    ])
 
 
 def custom_input_cancel_keyboard(category_id, language, origin):

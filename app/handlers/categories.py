@@ -12,7 +12,7 @@ from app.keyboards.categories import (
     CategoryCallback, cancel_add_keyboard, categories_keyboard,
     category_card_keyboard, keyword_pages_keyboard, operations_keyboard,
     custom_archive_keyboard, custom_card_keyboard, custom_input_cancel_keyboard,
-    custom_manual_icon_cancel_keyboard, icon_keyboard,
+    custom_create_cancel_keyboard, custom_manual_icon_cancel_keyboard, icon_keyboard,
 )
 from app.services.category_override_service import (
     EDITABLE_CATEGORY_KEYS, SETTINGS_CATEGORY_KEYS, add_family_keywords,
@@ -266,7 +266,10 @@ async def category_callback(callback: CallbackQuery, callback_data: CategoryCall
     family = await _family(callback)
     language = family_language(family)
     action, key, value = callback_data.action, callback_data.key, callback_data.value
-    if action not in {"add", "custom_icon", "custom_other_icon", "custom_icon_picker"}:
+    if action not in {
+        "add", "custom_icon", "custom_other_icon", "custom_icon_picker",
+        "custom_create_cancel",
+    }:
         await state.clear()
     if action == "list":
         await show_category_list(message, family, value or "settings")
@@ -334,7 +337,20 @@ async def category_callback(callback: CallbackQuery, callback_data: CategoryCall
     elif action == "custom_new":
         await state.set_state(CategorySettingsState.waiting_for_custom_name)
         await state.update_data(family_id=family.id, category_origin=value or "settings")
-        await message.edit_text(t(language,"custom.enter_name"),reply_markup=cancel_add_keyboard("other",language,value or "settings"))
+        await message.edit_text(
+            t(language,"custom.enter_name"),
+            reply_markup=custom_create_cancel_keyboard(language,value or "settings"),
+        )
+    elif action == "custom_create_cancel":
+        pending = await state.get_data()
+        if (
+            key
+            and pending.get("family_id") == family.id
+            and pending.get("custom_category_id") == int(key)
+        ):
+            await delete_custom_category(family.id,int(key))
+        await state.clear()
+        await show_category_list(message,family,value or "settings")
     elif action == "custom_card":
         if not await show_custom_category_card(message, family, int(key), value or "settings"):
             await callback.answer(t(language,"category.not_found"),show_alert=True);return
@@ -356,7 +372,9 @@ async def category_callback(callback: CallbackQuery, callback_data: CategoryCall
                 f"{t(language, 'category.bulk_example')}\n\n"
                 f"{t(language, 'category.bulk_max')}",
                 parse_mode="HTML",
-                reply_markup=custom_input_cancel_keyboard(result.category.id,language,origin),
+                reply_markup=custom_create_cancel_keyboard(
+                    language,origin,result.category.id,
+                ),
             )
     elif action == "custom_icon_picker":
         await message.edit_text(
@@ -494,7 +512,9 @@ async def custom_icon_input(message:Message,state:FSMContext):
             f"{t(language, 'category.bulk_example')}\n\n"
             f"{t(language, 'category.bulk_max')}",
             parse_mode="HTML",
-            reply_markup=custom_input_cancel_keyboard(cid,language,data.get("category_origin","settings")),
+            reply_markup=custom_create_cancel_keyboard(
+                language,data.get("category_origin","settings"),cid,
+            ),
         )
 
 @router.message(CategorySettingsState.waiting_for_edit_name)

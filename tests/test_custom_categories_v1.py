@@ -10,7 +10,7 @@ from app.i18n import t
 from app.i18n.translations import SUPPORTED_LANGUAGES
 from app.handlers import categories
 from app.keyboards.categories import (
- category_card_keyboard, custom_archive_keyboard, icon_keyboard,
+ category_card_keyboard, custom_archive_keyboard, custom_create_cancel_keyboard, icon_keyboard,
  keyword_pages_keyboard, operations_keyboard, CategoryCallback,
 )
 
@@ -77,6 +77,50 @@ class CategoryUxTests(unittest.IsolatedAsyncioTestCase):
   self.assertEqual(len(kwargs["reply_markup"].inline_keyboard),1)
   cancel=unpack(kwargs["reply_markup"].inline_keyboard[0][0])
   self.assertEqual((cancel.action,cancel.key),("custom_card","17"))
+
+ async def test_create_name_cancel_clears_fsm_and_shows_categories_list(self):
+  callback=self.callback();state=AsyncMock()
+  start=SimpleNamespace(action="custom_new",key="",value="settings")
+  with patch.object(categories,"_family",AsyncMock(return_value=self.family())):
+   await categories.category_callback(callback,start,state)
+  cancel=unpack(callback.message.edit_text.await_args.kwargs["reply_markup"].inline_keyboard[0][0])
+  self.assertEqual((cancel.action,cancel.key,cancel.value),("custom_create_cancel","","settings"))
+  callback.message.edit_text.reset_mock();state.reset_mock()
+  with patch.object(categories,"_family",AsyncMock(return_value=self.family())),patch.object(categories,"show_category_list",AsyncMock()) as show,patch.object(categories,"create_custom_category",AsyncMock()) as create:
+   await categories.category_callback(callback,cancel,state)
+  state.clear.assert_awaited_once();show.assert_awaited_once_with(callback.message,self.family(),"settings")
+  create.assert_not_awaited()
+
+ def test_create_icon_picker_cancel_targets_list_not_system_other(self):
+  cancel=unpack(icon_keyboard("en","settings").inline_keyboard[-1][0])
+  self.assertEqual((cancel.action,cancel.key,cancel.value),("custom_create_cancel","","settings"))
+  self.assertNotEqual(cancel.key,"other")
+
+ async def test_create_manual_emoji_cancel_returns_picker_without_creating(self):
+  callback=self.callback();state=AsyncMock()
+  manual=SimpleNamespace(action="custom_other_icon",key="",value="settings")
+  with patch.object(categories,"_family",AsyncMock(return_value=self.family())),patch.object(categories,"create_custom_category",AsyncMock()) as create:
+   await categories.category_callback(callback,manual,state)
+  cancel=unpack(callback.message.edit_text.await_args.kwargs["reply_markup"].inline_keyboard[0][0])
+  self.assertEqual((cancel.action,cancel.key),("custom_icon_picker",""))
+  create.assert_not_awaited()
+
+ async def test_initial_keywords_cancel_removes_new_empty_category_and_shows_list(self):
+  callback=self.callback();state=AsyncMock()
+  state.get_data.return_value={"family_id":7,"custom_category_id":17}
+  cancel=unpack(custom_create_cancel_keyboard("en","settings",17).inline_keyboard[0][0])
+  with patch.object(categories,"_family",AsyncMock(return_value=self.family())),patch.object(categories,"delete_custom_category",AsyncMock(return_value="deleted")) as delete,patch.object(categories,"show_category_list",AsyncMock()) as show:
+   await categories.category_callback(callback,cancel,state)
+  state.clear.assert_awaited_once();delete.assert_awaited_once_with(7,17)
+  show.assert_awaited_once_with(callback.message,self.family(),"settings")
+
+ async def test_create_cancel_is_family_scoped(self):
+  callback=self.callback();state=AsyncMock()
+  state.get_data.return_value={"family_id":999,"custom_category_id":17}
+  cancel=unpack(custom_create_cancel_keyboard("en","settings",17).inline_keyboard[0][0])
+  with patch.object(categories,"_family",AsyncMock(return_value=self.family())),patch.object(categories,"delete_custom_category",AsyncMock(return_value="not_found")) as delete,patch.object(categories,"show_category_list",AsyncMock()):
+   await categories.category_callback(callback,cancel,state)
+  delete.assert_not_awaited()
 
  async def test_cancel_add_clears_fsm_and_returns_custom_card(self):
   callback=self.callback();state=AsyncMock();data=SimpleNamespace(action="custom_card",key="17",value="settings")
