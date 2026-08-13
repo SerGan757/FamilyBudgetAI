@@ -27,7 +27,7 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
             [[button.text for button in row] for row in main_menu.keyboard],
             [
                 ["📋 История", "📅 Сегодня"],
-                ["📅 Месяц", "💰 Баланс"],
+                ["📅 Месяц", "📈 Год"],
                 ["📊 Аналитика", "🗑️ Удалить"],
                 ["🔁 Регулярные", "⚙️ Настройки"],
             ],

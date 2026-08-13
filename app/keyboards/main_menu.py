@@ -13,7 +13,7 @@ def main_menu_keyboard(language: str = "ru") -> ReplyKeyboardMarkup:
         ],
         [
             KeyboardButton(text=t(language, "menu.month")),
-            KeyboardButton(text=t(language, "menu.balance")),
+            KeyboardButton(text=t(language, "menu.year")),
         ],
         [
             KeyboardButton(text=t(language, "menu.analytics")),

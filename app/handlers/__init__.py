@@ -11,6 +11,7 @@ from .settings import router as settings_router
 from .projects import router as projects_router
 from .savings_goal import router as savings_goal_router
 from .categories import router as categories_router
+from .year_analytics import router as year_analytics_router
 
 
 routers = (
@@ -20,6 +21,7 @@ routers = (
     recurring_router,
     delete_router,
     menu_router,
+    year_analytics_router,
     history_router,
     statistics_router,
     projects_router,
