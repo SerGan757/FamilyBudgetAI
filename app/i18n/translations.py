@@ -345,6 +345,23 @@ _CHART_KEYS = ("year.charts", "chart.menu", "chart.income_expense", "chart.resul
 for _chart_language, _chart_values in _CHART_TEXTS.items():
     YEAR_TEXTS[_chart_language].update(dict(zip(_CHART_KEYS, _chart_values)))
 
+_INCOME_CHART_TEXTS = {
+    "ru": ("💰 Доходы", "Доходы по источникам", "Всего", "💰 Нет данных о доходах за выбранный год."),
+    "uk": ("💰 Доходи", "Доходи за джерелами", "Всього", "💰 Немає даних про доходи за вибраний рік."),
+    "de": ("💰 Einnahmen", "Einnahmen nach Quellen", "Gesamt", "💰 Keine Einnahmedaten für das ausgewählte Jahr."),
+    "en": ("💰 Income", "Income by source", "Total", "💰 No income data for the selected year."),
+    "be": ("💰 Даходы", "Даходы па крыніцах", "Усяго", "💰 Няма даных аб даходах за выбраны год."),
+    "pl": ("💰 Dochody", "Dochody według źródeł", "Razem", "💰 Brak danych o dochodach za wybrany rok."),
+    "cs": ("💰 Příjmy", "Příjmy podle zdrojů", "Celkem", "💰 Pro vybraný rok nejsou údaje o příjmech."),
+    "sk": ("💰 Príjmy", "Príjmy podľa zdrojov", "Spolu", "💰 Pre vybraný rok nie sú údaje o príjmoch."),
+    "ro": ("💰 Venituri", "Venituri după sursă", "Total", "💰 Nu există date despre venituri pentru anul selectat."),
+    "bg": ("💰 Приходи", "Приходи по източници", "Общо", "💰 Няма данни за приходи за избраната година."),
+    "hu": ("💰 Bevételek", "Bevételek forrás szerint", "Összesen", "💰 Nincs bevételi adat a kiválasztott évre."),
+}
+_INCOME_CHART_KEYS = ("chart.income", "chart.income_sources", "chart.total", "chart.no_income")
+for _income_language, _income_values in _INCOME_CHART_TEXTS.items():
+    YEAR_TEXTS[_income_language].update(dict(zip(_INCOME_CHART_KEYS, _income_values)))
+
 def normalize_language(language):
     code = (language or "").strip().lower()
     return code if code in SUPPORTED_LANGUAGES else DEFAULT_LANGUAGE

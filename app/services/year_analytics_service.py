@@ -36,6 +36,7 @@ class YearAnalytics:
     recurring_expense_load: float
     recurring_actual_income: float
     recurring_actual_expense: float
+    income_sources: tuple[tuple[str, float], ...] = ()
 
     @property
     def months_with_data(self): return len(self.months)
@@ -69,6 +70,38 @@ def year_bounds(year: int, timezone_name: str):
     return start, end
 
 
+def year_expense_categories_statement(family_id: int, start: datetime, end: datetime):
+    expense_amount = func.coalesce(func.sum(case(
+        (Transaction.type == "expense", Transaction.amount), else_=0,
+    )), 0)
+    return (select(
+        Transaction.category, Transaction.custom_category_id,
+        FamilyCategory.icon, FamilyCategory.name, expense_amount,
+    ).outerjoin(FamilyCategory, FamilyCategory.id == Transaction.custom_category_id)
+      .where(Transaction.family_id == family_id, Transaction.created_at >= start, Transaction.created_at < end)
+      .group_by(Transaction.category, Transaction.custom_category_id, FamilyCategory.icon, FamilyCategory.name)
+      .having(expense_amount > 0)
+      .order_by(expense_amount.desc()))
+
+
+def normalized_income_title():
+    return func.lower(func.trim(func.regexp_replace(Transaction.title, r"\s+", " ", "g")))
+
+
+def year_income_sources_statement(family_id: int, start: datetime, end: datetime):
+    normalized_title = normalized_income_title().label("normalized_title")
+    total = func.sum(Transaction.amount).label("total")
+    return (select(normalized_title, func.min(func.trim(Transaction.title)), total)
+      .where(
+          Transaction.family_id == family_id,
+          Transaction.type == "income",
+          Transaction.created_at >= start,
+          Transaction.created_at < end,
+      )
+      .group_by(normalized_title)
+      .order_by(total.desc()))
+
+
 async def get_year_analytics(family_id: int, year: int, timezone_name="Europe/Berlin"):
     start, end = year_bounds(year, timezone_name)
     timezone_name = safe_timezone(timezone_name).key
@@ -85,13 +118,12 @@ async def get_year_analytics(family_id: int, year: int, timezone_name="Europe/Be
             extract("month", goal_local_time).label("month"), func.sum(GoalContribution.amount),
         ).where(GoalContribution.family_id == family_id, GoalContribution.created_at >= start, GoalContribution.created_at < end)
           .group_by("month"))).all()
-        category_rows = (await session.execute(select(
-            Transaction.category, Transaction.custom_category_id,
-            FamilyCategory.icon, FamilyCategory.name, func.sum(Transaction.amount),
-        ).outerjoin(FamilyCategory, FamilyCategory.id == Transaction.custom_category_id)
-          .where(Transaction.family_id == family_id, Transaction.type == "expense", Transaction.created_at >= start, Transaction.created_at < end)
-          .group_by(Transaction.category, Transaction.custom_category_id, FamilyCategory.icon, FamilyCategory.name)
-          .order_by(func.sum(Transaction.amount).desc()))).all()
+        category_rows = (await session.execute(
+            year_expense_categories_statement(family_id, start, end)
+        )).all()
+        income_source_rows = (await session.execute(
+            year_income_sources_statement(family_id, start, end)
+        )).all()
         member_rows = (await session.execute(select(User.name, func.sum(Transaction.amount))
           .join(User, User.id == Transaction.user_id)
           .where(Transaction.family_id == family_id, User.family_id == family_id, Transaction.type == "expense", Transaction.created_at >= start, Transaction.created_at < end)
@@ -122,6 +154,7 @@ async def get_year_analytics(family_id: int, year: int, timezone_name="Europe/Be
         tuple((name, float(amount)) for name, amount in goal_rows),
         sum(row.income for row in months), sum(row.expense for row in months), sum(row.goals for row in months),
         loads.get("income", 0), loads.get("expense", 0), actual.get("income", 0), actual.get("expense", 0),
+        tuple((display_title or normalized_title, float(amount)) for normalized_title, display_title, amount in income_source_rows),
     )
 
 

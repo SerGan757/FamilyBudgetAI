@@ -9,7 +9,10 @@ from app.handlers import year_analytics
 from app.i18n import all_texts, t
 from app.i18n.translations import SUPPORTED_LANGUAGES
 from app.keyboards.main_menu import main_menu_keyboard
-from app.services.year_analytics_service import YearAnalytics, YearMonth, year_bounds
+from app.services.year_analytics_service import (
+    YearAnalytics, YearMonth, normalized_income_title, year_bounds,
+    year_expense_categories_statement, year_income_sources_statement,
+)
 
 
 def snapshot(months=(), categories=(), members=(), goals=(), **values):
@@ -24,6 +27,44 @@ def snapshot(months=(), categories=(), members=(), goals=(), **values):
 
 
 class YearCalculationTests(unittest.TestCase):
+    def test_income_source_aggregation_is_family_year_and_income_scoped(self):
+        start,end=year_bounds(2026,"Europe/Berlin")
+        statement=year_income_sources_statement(7,start,end)
+        compiled=statement.compile();sql=str(compiled).lower()
+        self.assertIn("transactions.family_id",sql)
+        self.assertIn("transactions.type",sql)
+        self.assertIn("regexp_replace",sql)
+        self.assertIn("lower",sql);self.assertIn("trim",sql);self.assertIn("group by",sql)
+        self.assertIn("income",compiled.params.values())
+
+    def test_income_title_normalization_expression_collapses_whitespace(self):
+        sql=str(normalized_income_title().compile()).lower()
+        self.assertIn("regexp_replace",sql);self.assertIn("lower",sql);self.assertIn("trim",sql)
+
+    def test_category_aggregation_sums_only_expense_type(self):
+        start,end=year_bounds(2026,"Europe/Berlin")
+        statement=year_expense_categories_statement(7,start,end)
+        compiled=statement.compile()
+        sql=str(compiled).lower()
+        self.assertIn("case when",sql)
+        self.assertIn("transactions.type",sql)
+        self.assertIn("having",sql)
+        self.assertIn("expense",compiled.params.values())
+        self.assertNotIn("доход",sql)
+
+    def test_expected_expense_category_fixture_excludes_income(self):
+        transactions=(
+            ("expense","Продукты",360),
+            ("expense","Животные",200),
+            ("income","Доход",2300),
+            ("income","Продукты",500),
+        )
+        totals={}
+        for kind,category,amount in transactions:
+            if kind == "expense":totals[category]=totals.get(category,0)+amount
+        self.assertEqual(totals,{"Продукты":360,"Животные":200})
+        self.assertNotIn("Доход",totals)
+
     def test_empty_year_is_safe(self):
         data=snapshot();self.assertEqual(data.months_with_data,0);self.assertEqual(data.average_income,0);self.assertEqual(data.financial_result,0)
 
@@ -180,6 +221,11 @@ class YearUiTests(unittest.IsolatedAsyncioTestCase):
         source=inspect.getsource(__import__("app.services.year_analytics_service",fromlist=["get_year_analytics"]).get_year_analytics)
         self.assertGreaterEqual(source.count("family_id == family_id"),7)
         self.assertIn("group_by",source);self.assertNotIn("for month in range",source)
+
+    def test_year_category_drilldown_is_expense_only(self):
+        import inspect
+        source=inspect.getsource(__import__("app.services.year_analytics_service",fromlist=["get_year_category_transactions"]).get_year_category_transactions)
+        self.assertIn('Transaction.type == "expense"',source)
 
 
 if __name__ == "__main__": unittest.main()

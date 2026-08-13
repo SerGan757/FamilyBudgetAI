@@ -116,3 +116,24 @@ def render_categories_chart(categories, *, title, currency):
         ax.spines[["top", "right", "left"]].set_visible(False)
 
     return _png(draw)
+
+
+def render_income_sources_chart(sources, *, title, currency):
+    rows = tuple(sources[:7])
+    if not rows or not any(amount > 0 for _, amount in rows):
+        return None
+
+    def draw(_, ax):
+        labels = [label for label, _ in reversed(rows)]
+        values = [amount for _, amount in reversed(rows)]
+        bars = ax.barh(labels, values, color="#168aad")
+        padding = max(values) * .02 if values else 0
+        for bar, value in zip(bars, values):
+            ax.text(value + padding, bar.get_y()+bar.get_height()/2,
+                    f"{value:,.2f} {currency}".replace(",", " "), va="center", fontsize=9)
+        ax.xaxis.set_major_formatter(_money_axis(currency))
+        ax.grid(axis="x", alpha=.18)
+        ax.set_title(title, fontsize=16, weight="bold", pad=16)
+        ax.spines[["top", "right", "left"]].set_visible(False)
+
+    return _png(draw)
