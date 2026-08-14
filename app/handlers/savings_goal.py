@@ -39,6 +39,15 @@ def goal_card(snapshot, currency: str, language: str) -> str:
     return "\n".join(lines)
 
 
+def goal_help_text(currency: str, language: str) -> str:
+    return t(
+        language, "onboarding.goal",
+        target=format_money(10000, currency),
+        contribution=format_money(500, currency),
+        remaining=format_money(9500, currency),
+    )
+
+
 def goal_edit_text(snapshot, currency: str, language: str) -> str:
     goal = snapshot.goal
     deadline = goal.deadline.strftime("%d.%m.%Y") if goal.deadline else t(language, "goal.deadline_not_set")
@@ -62,14 +71,16 @@ async def _context(event):
 
 async def _show(message, family, language):
     snapshot = await get_goal_snapshot(family.id)
+    currency = family_currency(family)
+    help_text = goal_help_text(currency, language)
     if snapshot is None:
         await message.edit_text(
-            f"🎯 <b>{t(language, 'goal.settings_title')}</b>\n\n{t(language, 'goal.not_configured')}",
+            f"{help_text}\n\n{t(language, 'goal.not_configured')}",
             reply_markup=empty_goal_keyboard(language), parse_mode="HTML",
         )
     else:
         await message.edit_text(
-            goal_card(snapshot, family_currency(family), language),
+            f"{help_text}\n\n{goal_card(snapshot, currency, language)}",
             reply_markup=goal_keyboard(snapshot.goal.id, language), parse_mode="HTML",
         )
 

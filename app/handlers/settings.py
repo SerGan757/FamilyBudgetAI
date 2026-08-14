@@ -5,7 +5,7 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.constants import APP_NAME, APP_VERSION, DEVELOPER_NAME, DEVELOPER_TELEGRAM
+from app.constants import APP_VERSION, DEVELOPER_NAME, DEVELOPER_TELEGRAM
 from app.keyboards.main_menu import back_to_main_menu_keyboard, main_menu_keyboard
 from app.handlers.settings_states import FamilySettingsState
 from app.keyboards.settings_menu import (
@@ -69,18 +69,13 @@ def family_settings_text(data: dict, notice: str | None = None) -> str:
     )
 
 
-def about_text(language: str = "ru") -> str:
+def about_text(language: str = "ru", currency_code: str = "EUR") -> str:
+    currency = currency_symbol(normalize_currency_code(currency_code))
     return (
         f"ℹ️ <b>{t(language, 'about.title')}</b>\n\n"
-        f"🤖 <b>{escape(APP_NAME)}</b>\n\n"
-        f"{t(language, 'about.description')}\n\n"
-        f"👨‍👩‍👧‍👦 {t(language, 'about.family')}\n\n"
-        f"💰 <b>{t(language, 'about.features')}:</b>\n"
-        f"{t(language, 'about.features_text')}\n\n"
-        f"⚡ <b>{t(language, 'about.input')}:</b>\n"
-        f"{t(language, 'about.examples')}\n\n"
+        f"{t(language, 'onboarding.about', currency=currency)}\n\n"
         f"👨‍💻 {t(language, 'about.developer')}: {escape(DEVELOPER_NAME)}\n"
-        f"✈️ Telegram: {escape(DEVELOPER_TELEGRAM)}\n\n"
+        f"✈️ Telegram: {escape(DEVELOPER_TELEGRAM)}\n"
         f"🏷 {t(language, 'about.version')}: {escape(APP_VERSION)}"
     )
 
@@ -156,7 +151,8 @@ async def family_settings_callback(
         await message.edit_text(t(language, "settings.select_country"), reply_markup=country_keyboard(language=language))
     elif action == "about":
         await message.edit_text(
-            about_text(language), reply_markup=settings_about_keyboard_for(language), parse_mode="HTML",
+            about_text(language, current["currency"]),
+            reply_markup=settings_about_keyboard_for(language), parse_mode="HTML",
         )
     elif action == "country_page":
         try:

@@ -314,6 +314,662 @@ CUSTOM_CATEGORY_TEXTS = {
 for _custom_language in SUPPORTED_LANGUAGES:
     CUSTOM_CATEGORY_TEXTS.setdefault(_custom_language, CUSTOM_CATEGORY_TEXTS["en"])
 
+ONBOARDING_TEXTS = {
+    "ru": {
+        "onboarding.about": """👋 <b>Добро пожаловать в FamilyBudgetAI</b>
+Ваш семейный помощник для совместного учёта финансов.
+
+👨‍👩‍👧‍👦 <b>Работает прямо в семейном чате</b>
+Добавьте бота в группу семьи: он не мешает переписке и реагирует на финансовые записи и команды.
+
+✍️ <b>Быстрый ввод</b>
+🛒 Расход: <code>кофе 3.50</code> или <code>Lidl 42.80</code>
+💰 Доход: <code>зарплата +2300</code> или <code>+150 возврат</code>
+🎯 В цель: <code>++500</code> — переместить 500 {currency} из доступных средств в цель
+🏷 Проект: <code>краска 45 #ремонт</code>
+
+📊 <b>Возможности</b>
+📅 Сегодня и история операций
+🗓 Аналитика месяца и прогноз расходов
+📈 Аналитика года и динамика финансов
+📊 Наглядные графики
+🏆 Расходы по категориям
+👥 Расходы участников семьи
+🏷 Учёт расходов по проектам
+🎯 Накопление на финансовые цели
+🔁 Регулярные доходы и расходы
+🗂 Свои категории и ключевые слова
+
+⚙️ <b>Настройки семьи</b>
+Язык • страна • город • валюта • часовой пояс • категории • исчезающие сообщения.
+
+💡 Начните с первой операции: <code>кофе 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>ФИНАНСОВЫЕ ЦЕЛИ</b>
+Откладывайте на автомобиль, отпуск, ремонт или крупную покупку.
+
+<b>Как это работает:</b>
+1. Создайте цель и укажите сумму.
+2. Сделайте её активной.
+3. Пополняйте сообщением <code>++500</code>.
+
+💡 <code>++500</code> перемещает {contribution} из доступных средств в цель. Это не расход и не доход: общая сумма денег семьи не меняется.
+💵 Доступные средства → 🎯 Отложенные в цель
+
+Бот показывает накопленное, остаток, прогресс и срок.
+🚗 Автомобиль — {target}
+<code>++500</code>
+Отложено: {contribution}
+Осталось: {remaining}""",
+        "onboarding.projects": """🏷 <b>ПРОЕКТЫ</b>
+Контролируйте отдельно расходы на отпуск, ремонт, дачу, автомобиль или мероприятие.
+
+<b>Как это работает:</b>
+1. Создайте проект.
+2. Назначьте короткий тег, например <code>#ремонт</code>.
+3. Добавляйте тег к обычным расходам.
+
+<code>краска 45 #ремонт</code>
+<code>отель 320 #отпуск</code>
+<code>бензин 70 #дача</code>
+
+Операция остаётся обычным расходом бюджета и одновременно относится к проекту. Бот сохраняет сумму, количество и историю операций; завершённый проект можно закрыть без удаления истории.""",
+    },
+    "uk": {
+        "onboarding.about": """👋 <b>Ласкаво просимо до FamilyBudgetAI</b>
+Ваш сімейний помічник для спільного обліку фінансів.
+
+👨‍👩‍👧‍👦 <b>Працює просто в сімейному чаті</b>
+Додайте бота до сімейної групи: він не заважає спілкуванню та реагує на фінансові записи й команди.
+
+✍️ <b>Просто надсилайте операції повідомленням</b>
+🛒 Витрата: <code>кава 3.50</code> або <code>Lidl 42.80</code>
+💰 Дохід: <code>зарплата +2300</code> або <code>+150 повернення</code>
+🎯 До цілі: <code>++500</code> — перемістити 500 {currency} з доступних коштів до цілі
+🏷 Проєкт: <code>фарба 45 #ремонт</code>
+
+📊 <b>Можливості</b>
+📅 Сьогодні та історія операцій
+🗓 Підсумки й аналітика місяця
+📈 Річна аналітика та динаміка фінансів
+📊 Наочні графіки
+🏆 Витрати за категоріями
+👥 Витрати членів сім’ї
+🏷 Облік витрат за проєктами
+🎯 Накопичення на фінансові цілі
+🔁 Регулярні доходи й витрати
+🗂 Власні категорії та ключові слова
+
+⚙️ <b>Налаштування сім’ї</b>
+Мова, країна, місто, валюта, часовий пояс, категорії та автовидалення екранів.
+
+💡 Почніть із першої операції: <code>кава 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>ФІНАНСОВІ ЦІЛІ</b>
+Відкладайте на автомобіль, відпустку, ремонт або велику покупку.
+
+<b>Як це працює:</b>
+1. Створіть ціль і вкажіть суму.
+2. Зробіть її активною.
+3. Поповнюйте повідомленням <code>++500</code>.
+
+💡 <code>++500</code> переміщує {contribution} з доступних коштів до цілі. Це не витрата й не дохід: загальна сума грошей сім’ї не змінюється.
+💵 Доступні кошти → 🎯 Відкладені до цілі
+
+Бот показує накопичене, залишок, прогрес і строк.
+🚗 Автомобіль — {target}
+<code>++500</code>
+Відкладено: {contribution}
+Залишилося: {remaining}""",
+        "onboarding.projects": """🏷 <b>ПРОЄКТИ</b>
+Контролюйте окремо витрати на відпустку, ремонт, дачу, автомобіль чи подію.
+
+<b>Як це працює:</b>
+1. Створіть проєкт.
+2. Призначте короткий тег, наприклад <code>#ремонт</code>.
+3. Додавайте тег до звичайних витрат.
+
+<code>фарба 45 #ремонт</code>
+<code>готель 320 #відпустка</code>
+<code>бензин 70 #дача</code>
+
+Операція залишається звичайною витратою бюджету й водночас належить до проєкту. Бот зберігає суму, кількість та історію операцій; завершений проєкт можна закрити без видалення історії.""",
+    },
+    "de": {
+        "onboarding.about": """👋 <b>Willkommen bei FamilyBudgetAI</b>
+Ihr Familienassistent für die gemeinsame Finanzverwaltung.
+
+👨‍👩‍👧‍👦 <b>Direkt im Familienchat</b>
+Fügen Sie den Bot Ihrer Familiengruppe hinzu. Er stört die Unterhaltung nicht und reagiert auf Finanzangaben und Befehle.
+
+✍️ <b>Vorgänge einfach als Nachricht senden</b>
+🛒 Ausgabe: <code>Kaffee 3.50</code> oder <code>Lidl 42.80</code>
+💰 Einnahme: <code>Gehalt +2300</code> oder <code>+150 Erstattung</code>
+🎯 Zum Ziel: <code>++500</code> — 500 {currency} vom verfügbaren Geld ins Sparziel verschieben
+🏷 Projekt: <code>Farbe 45 #renovierung</code>
+
+📊 <b>Funktionen</b>
+📅 Heute und Transaktionsverlauf
+🗓 Monatsübersicht und -analyse
+📈 Jahresanalyse und Finanzentwicklung
+📊 Anschauliche Diagramme
+🏆 Ausgaben nach Kategorien
+👥 Ausgaben der Familienmitglieder
+🏷 Projektbezogene Ausgaben
+🎯 Sparziele
+🔁 Regelmäßige Einnahmen und Ausgaben
+🗂 Eigene Kategorien und Schlüsselwörter
+
+⚙️ <b>Familieneinstellungen</b>
+Sprache, Land, Stadt, Währung, Zeitzone, Kategorien und automatisch verschwindende Ansichten.
+
+💡 Starten Sie mit: <code>Kaffee 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>SPARZIELE</b>
+Sparen Sie für Auto, Urlaub, Renovierung oder größere Anschaffungen.
+
+<b>So funktioniert es:</b>
+1. Ziel und Zielbetrag anlegen.
+2. Ziel aktivieren.
+3. Mit <code>++500</code> einzahlen.
+
+💡 <code>++500</code> verschiebt {contribution} vom verfügbaren Geld ins Ziel. Das ist weder Ausgabe noch Einnahme; der Gesamtbetrag der Familie bleibt gleich.
+💵 Verfügbares Geld → 🎯 Für das Ziel zurückgelegt
+
+Der Bot zeigt Erspartes, Restbetrag, Fortschritt und Frist.
+🚗 Auto — {target}
+<code>++500</code>
+Gespart: {contribution}
+Verbleibend: {remaining}""",
+        "onboarding.projects": """🏷 <b>PROJEKTE</b>
+Behalten Sie Ausgaben für Urlaub, Renovierung, Ferienhaus, Auto oder Veranstaltung getrennt im Blick.
+
+<b>So funktioniert es:</b>
+1. Projekt erstellen.
+2. Kurzen Tag vergeben, z. B. <code>#renovierung</code>.
+3. Den Tag normalen Ausgaben hinzufügen.
+
+<code>Farbe 45 #renovierung</code>
+<code>Hotel 320 #urlaub</code>
+<code>Benzin 70 #ferienhaus</code>
+
+Der Vorgang bleibt eine normale Budgetausgabe und wird zugleich dem Projekt zugeordnet. Betrag, Anzahl und Verlauf bleiben erhalten; abgeschlossene Projekte können ohne Verlust der Historie beendet werden.""",
+    },
+    "en": {
+        "onboarding.about": """👋 <b>Welcome to FamilyBudgetAI</b>
+Your family assistant for shared financial tracking.
+
+👨‍👩‍👧‍👦 <b>Works right in your family chat</b>
+Add the bot to your family group. It stays out of the conversation and responds to financial entries and commands.
+
+✍️ <b>Simply send operations as messages</b>
+🛒 Expense: <code>coffee 3.50</code> or <code>Lidl 42.80</code>
+💰 Income: <code>salary +2300</code> or <code>+150 refund</code>
+🎯 To a goal: <code>++500</code> — move 500 {currency} from available funds to the goal
+🏷 Project: <code>paint 45 #renovation</code>
+
+📊 <b>Features</b>
+📅 Today and transaction history
+🗓 Monthly totals and analytics
+📈 Year analytics and financial trends
+📊 Clear charts
+🏆 Spending by category
+👥 Family member spending
+🏷 Project expense tracking
+🎯 Savings goals
+🔁 Recurring income and expenses
+🗂 Custom categories and keywords
+
+⚙️ <b>Family settings</b>
+Language, country, city, currency, timezone, categories, and disappearing-screen settings.
+
+💡 Start with your first operation: <code>coffee 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>FINANCIAL GOALS</b>
+Save for a car, holiday, renovation, large purchase, or any other goal.
+
+<b>How it works:</b>
+1. Create a goal and set its amount.
+2. Make it active.
+3. Contribute with <code>++500</code>.
+
+💡 <code>++500</code> moves {contribution} from available funds to the goal. It is neither an expense nor income; the family's total money does not change.
+💵 Available funds → 🎯 Saved toward the goal
+
+The bot shows saved amount, remaining amount, progress, and deadline.
+🚗 Car — {target}
+<code>++500</code>
+Saved: {contribution}
+Remaining: {remaining}""",
+        "onboarding.projects": """🏷 <b>PROJECTS</b>
+Track spending separately for a holiday, renovation, country house, car, event, or another purpose.
+
+<b>How it works:</b>
+1. Create a project.
+2. Assign a short tag, such as <code>#renovation</code>.
+3. Add the tag to ordinary expenses.
+
+<code>paint 45 #renovation</code>
+<code>hotel 320 #holiday</code>
+<code>fuel 70 #countryhouse</code>
+
+The operation remains an ordinary budget expense and is also linked to the project. The bot keeps its total, count, and transaction history; a finished project can be closed without losing history.""",
+    },
+}
+
+# Compact, native-language onboarding for the remaining supported locales.
+ONBOARDING_TEXTS.update({
+    "be": {
+        "onboarding.about": """👋 <b>Вітаем у FamilyBudgetAI</b>
+Сямейны памочнік для сумеснага ўліку фінансаў.
+
+👨‍👩‍👧‍👦 <b>Працуе ў сямейным чаце</b>
+Дадайце бота ў сямейную групу: ён не перашкаджае размове і рэагуе на фінансавыя запісы і каманды.
+
+✍️ <b>Проста дасылайце аперацыі паведамленнем</b>
+🛒 Выдатак: <code>кава 3.50</code> або <code>Lidl 42.80</code>
+💰 Даход: <code>зарплата +2300</code> або <code>+150 вяртанне</code>
+🎯 У мэту: <code>++500</code> — перамясціць 500 {currency} з даступных сродкаў у мэту
+🏷 Праект: <code>фарба 45 #рамонт</code>
+
+📊 <b>Магчымасці</b>
+📅 Сёння і гісторыя аперацый
+🗓 Вынікі і аналітыка месяца
+📈 Гадавая аналітыка і дынаміка
+📊 Наглядныя графікі
+🏆 Катэгорыі і 👥 удзельнікі
+🏷 Праекты і 🎯 фінансавыя мэты
+🔁 Рэгулярныя аперацыі
+🗂 Уласныя катэгорыі і ключавыя словы
+
+⚙️ <b>Налады сям’і</b>
+Мова, краіна, горад, валюта, часавы пояс, катэгорыі і аўтавыдаленне экранаў.
+
+💡 Пачніце з: <code>кава 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>ФІНАНСАВЫЯ МЭТЫ</b>
+Адкладвайце на аўтамабіль, адпачынак, рамонт або вялікую пакупку.
+
+<b>Як гэта працуе:</b>
+1. Стварыце мэту і задайце суму.
+2. Зрабіце яе актыўнай.
+3. Папаўняйце праз <code>++500</code>.
+
+💡 <code>++500</code> перамяшчае {contribution} з даступных сродкаў у мэту. Гэта не выдатак і не даход; агульная сума грошай сям’і не змяняецца.
+💵 Даступныя сродкі → 🎯 Адкладзеныя ў мэту
+
+Бот паказвае назапашанае, рэшту, прагрэс і тэрмін.
+🚗 Аўтамабіль — {target}
+<code>++500</code>
+Адкладзена: {contribution}
+Засталося: {remaining}""",
+        "onboarding.projects": """🏷 <b>ПРАЕКТЫ</b>
+Асобна кантралюйце выдаткі на адпачынак, рамонт, дачу, аўтамабіль або падзею.
+
+<b>Як гэта працуе:</b>
+1. Стварыце праект.
+2. Задайце кароткі тэг, напрыклад <code>#рамонт</code>.
+3. Дадавайце тэг да звычайных выдаткаў.
+
+<code>фарба 45 #рамонт</code>
+<code>гатэль 320 #адпачынак</code>
+<code>бензін 70 #дача</code>
+
+Аперацыя застаецца звычайным выдаткам бюджэту і адначасова адносіцца да праекта. Сума, колькасць і гісторыя захоўваюцца; праект можна завяршыць без выдалення гісторыі.""",
+    },
+    "pl": {
+        "onboarding.about": """👋 <b>Witamy w FamilyBudgetAI</b>
+Rodzinny pomocnik do wspólnego prowadzenia finansów.
+
+👨‍👩‍👧‍👦 <b>Działa w rodzinnym czacie</b>
+Dodaj bota do grupy rodzinnej. Nie przeszkadza w rozmowie i reaguje na wpisy finansowe oraz polecenia.
+
+✍️ <b>Wysyłaj operacje jako wiadomości</b>
+🛒 Wydatek: <code>kawa 3.50</code> lub <code>Lidl 42.80</code>
+💰 Dochód: <code>pensja +2300</code> lub <code>+150 zwrot</code>
+🎯 Na cel: <code>++500</code> — przenieś 500 {currency} z dostępnych środków na cel
+🏷 Projekt: <code>farba 45 #remont</code>
+
+📊 <b>Możliwości</b>
+📅 Dzisiaj i historia operacji
+🗓 Podsumowania i analityka miesiąca
+📈 Analityka roku i dynamika finansów
+📊 Czytelne wykresy
+🏆 Kategorie i 👥 członkowie rodziny
+🏷 Projekty i 🎯 cele oszczędnościowe
+🔁 Operacje cykliczne
+🗂 Własne kategorie i słowa kluczowe
+
+⚙️ <b>Ustawienia rodziny</b>
+Język, kraj, miasto, waluta, strefa czasowa, kategorie i automatyczne usuwanie ekranów.
+
+💡 Zacznij od: <code>kawa 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>CELE FINANSOWE</b>
+Oszczędzaj na samochód, urlop, remont lub duży zakup.
+
+<b>Jak to działa:</b>
+1. Utwórz cel i podaj kwotę.
+2. Ustaw go jako aktywny.
+3. Wpłacaj wiadomością <code>++500</code>.
+
+💡 <code>++500</code> przenosi {contribution} z dostępnych środków na cel. To nie jest wydatek ani dochód; łączna kwota pieniędzy rodziny się nie zmienia.
+💵 Dostępne środki → 🎯 Odłożone na cel
+
+Bot pokazuje oszczędności, pozostałą kwotę, postęp i termin.
+🚗 Samochód — {target}
+<code>++500</code>
+Odłożono: {contribution}
+Pozostało: {remaining}""",
+        "onboarding.projects": """🏷 <b>PROJEKTY</b>
+Osobno kontroluj wydatki na urlop, remont, domek, samochód lub wydarzenie.
+
+<b>Jak to działa:</b>
+1. Utwórz projekt.
+2. Nadaj krótki tag, np. <code>#remont</code>.
+3. Dodawaj tag do zwykłych wydatków.
+
+<code>farba 45 #remont</code>
+<code>hotel 320 #urlop</code>
+<code>paliwo 70 #domek</code>
+
+Operacja pozostaje zwykłym wydatkiem budżetu i jest jednocześnie przypisana do projektu. Bot zachowuje sumę, liczbę i historię operacji; projekt można zakończyć bez usuwania historii.""",
+    },
+    "cs": {
+        "onboarding.about": """👋 <b>Vítejte ve FamilyBudgetAI</b>
+Rodinný pomocník pro společnou správu financí.
+
+👨‍👩‍👧‍👦 <b>Funguje přímo v rodinném chatu</b>
+Přidejte bota do rodinné skupiny. Neruší konverzaci a reaguje na finanční záznamy a příkazy.
+
+✍️ <b>Operace posílejte jako zprávy</b>
+🛒 Výdaj: <code>káva 3.50</code> nebo <code>Lidl 42.80</code>
+💰 Příjem: <code>výplata +2300</code> nebo <code>+150 vratka</code>
+🎯 Do cíle: <code>++500</code> — přesunout 500 {currency} z dostupných peněz do cíle
+🏷 Projekt: <code>barva 45 #rekonstrukce</code>
+
+📊 <b>Možnosti</b>
+📅 Dnešek a historie operací
+🗓 Měsíční souhrny a analýza
+📈 Roční analýza a finanční vývoj
+📊 Přehledné grafy
+🏆 Kategorie a 👥 členové rodiny
+🏷 Projekty a 🎯 cíle spoření
+🔁 Pravidelné operace
+🗂 Vlastní kategorie a klíčová slova
+
+⚙️ <b>Nastavení rodiny</b>
+Jazyk, země, město, měna, časové pásmo, kategorie a automatické mazání obrazovek.
+
+💡 Začněte: <code>káva 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>FINANČNÍ CÍLE</b>
+Spořte na auto, dovolenou, rekonstrukci nebo velký nákup.
+
+<b>Jak to funguje:</b>
+1. Vytvořte cíl a zadejte částku.
+2. Aktivujte jej.
+3. Přispívejte zprávou <code>++500</code>.
+
+💡 <code>++500</code> přesune {contribution} z dostupných peněz do cíle. Není to výdaj ani příjem; celková částka rodiny se nemění.
+💵 Dostupné peníze → 🎯 Odložené do cíle
+
+Bot ukazuje naspořeno, zbývající částku, pokrok a termín.
+🚗 Auto — {target}
+<code>++500</code>
+Naspořeno: {contribution}
+Zbývá: {remaining}""",
+        "onboarding.projects": """🏷 <b>PROJEKTY</b>
+Sledujte zvlášť výdaje na dovolenou, rekonstrukci, chatu, auto nebo událost.
+
+<b>Jak to funguje:</b>
+1. Vytvořte projekt.
+2. Přidělte krátký tag, např. <code>#rekonstrukce</code>.
+3. Přidávejte tag k běžným výdajům.
+
+<code>barva 45 #rekonstrukce</code>
+<code>hotel 320 #dovolena</code>
+<code>benzín 70 #chata</code>
+
+Operace zůstává běžným výdajem rozpočtu a současně patří k projektu. Bot uchová součet, počet i historii; projekt lze dokončit bez smazání historie.""",
+    },
+    "sk": {
+        "onboarding.about": """👋 <b>Vitajte vo FamilyBudgetAI</b>
+Rodinný pomocník na spoločné sledovanie financií.
+
+👨‍👩‍👧‍👦 <b>Funguje priamo v rodinnom chate</b>
+Pridajte bota do rodinnej skupiny. Neruší konverzáciu a reaguje na finančné záznamy a príkazy.
+
+✍️ <b>Operácie posielajte ako správy</b>
+🛒 Výdavok: <code>káva 3.50</code> alebo <code>Lidl 42.80</code>
+💰 Príjem: <code>výplata +2300</code> alebo <code>+150 vratka</code>
+🎯 Do cieľa: <code>++500</code> — presunúť 500 {currency} z dostupných peňazí do cieľa
+🏷 Projekt: <code>farba 45 #rekonstrukcia</code>
+
+📊 <b>Možnosti</b>
+📅 Dnešok a história operácií
+🗓 Mesačné súhrny a analýza
+📈 Ročná analýza a finančný vývoj
+📊 Prehľadné grafy
+🏆 Kategórie a 👥 členovia rodiny
+🏷 Projekty a 🎯 ciele sporenia
+🔁 Pravidelné operácie
+🗂 Vlastné kategórie a kľúčové slová
+
+⚙️ <b>Nastavenia rodiny</b>
+Jazyk, krajina, mesto, mena, časové pásmo, kategórie a automatické mazanie obrazoviek.
+
+💡 Začnite: <code>káva 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>FINANČNÉ CIELE</b>
+Sporte na auto, dovolenku, rekonštrukciu alebo veľký nákup.
+
+<b>Ako to funguje:</b>
+1. Vytvorte cieľ a zadajte sumu.
+2. Aktivujte ho.
+3. Prispievajte správou <code>++500</code>.
+
+💡 <code>++500</code> presunie {contribution} z dostupných peňazí do cieľa. Nie je to výdavok ani príjem; celková suma rodiny sa nemení.
+💵 Dostupné peniaze → 🎯 Odložené do cieľa
+
+Bot ukazuje nasporené, zostatok, priebeh a termín.
+🚗 Auto — {target}
+<code>++500</code>
+Nasporené: {contribution}
+Zostáva: {remaining}""",
+        "onboarding.projects": """🏷 <b>PROJEKTY</b>
+Sledujte osobitne výdavky na dovolenku, rekonštrukciu, chatu, auto alebo udalosť.
+
+<b>Ako to funguje:</b>
+1. Vytvorte projekt.
+2. Priraďte krátky tag, napr. <code>#rekonstrukcia</code>.
+3. Pridávajte tag k bežným výdavkom.
+
+<code>farba 45 #rekonstrukcia</code>
+<code>hotel 320 #dovolenka</code>
+<code>benzín 70 #chata</code>
+
+Operácia zostáva bežným výdavkom rozpočtu a zároveň patrí k projektu. Bot zachová súčet, počet aj históriu; projekt možno dokončiť bez vymazania histórie.""",
+    },
+    "ro": {
+        "onboarding.about": """👋 <b>Bun venit la FamilyBudgetAI</b>
+Asistentul familiei pentru gestionarea comună a finanțelor.
+
+👨‍👩‍👧‍👦 <b>Funcționează direct în chatul familiei</b>
+Adăugați botul în grupul familiei. Nu deranjează conversația și răspunde la înregistrări financiare și comenzi.
+
+✍️ <b>Trimiteți operațiunile ca mesaje</b>
+🛒 Cheltuială: <code>cafea 3.50</code> sau <code>Lidl 42.80</code>
+💰 Venit: <code>salariu +2300</code> sau <code>+150 rambursare</code>
+🎯 Spre obiectiv: <code>++500</code> — mutați 500 {currency} din fondurile disponibile în obiectiv
+🏷 Proiect: <code>vopsea 45 #renovare</code>
+
+📊 <b>Funcții</b>
+📅 Astăzi și istoricul operațiunilor
+🗓 Totaluri și analiză lunară
+📈 Analiză anuală și evoluție financiară
+📊 Grafice clare
+🏆 Categorii și 👥 membri ai familiei
+🏷 Proiecte și 🎯 obiective de economisire
+🔁 Operațiuni recurente
+🗂 Categorii și cuvinte-cheie proprii
+
+⚙️ <b>Setările familiei</b>
+Limbă, țară, oraș, monedă, fus orar, categorii și ștergerea automată a ecranelor.
+
+💡 Începeți cu: <code>cafea 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>OBIECTIVE FINANCIARE</b>
+Economisiți pentru mașină, vacanță, renovare sau o achiziție mare.
+
+<b>Cum funcționează:</b>
+1. Creați obiectivul și suma.
+2. Activați-l.
+3. Contribuiți cu <code>++500</code>.
+
+💡 <code>++500</code> mută {contribution} din fondurile disponibile în obiectiv. Nu este cheltuială sau venit; suma totală a familiei nu se schimbă.
+💵 Fonduri disponibile → 🎯 Economii pentru obiectiv
+
+Botul arată suma economisită, restul, progresul și termenul.
+🚗 Mașină — {target}
+<code>++500</code>
+Economisit: {contribution}
+Rămas: {remaining}""",
+        "onboarding.projects": """🏷 <b>PROIECTE</b>
+Urmăriți separat cheltuielile pentru vacanță, renovare, casă de vacanță, mașină sau eveniment.
+
+<b>Cum funcționează:</b>
+1. Creați un proiect.
+2. Atribuiți un tag scurt, de ex. <code>#renovare</code>.
+3. Adăugați tagul cheltuielilor obișnuite.
+
+<code>vopsea 45 #renovare</code>
+<code>hotel 320 #vacanta</code>
+<code>benzină 70 #casa</code>
+
+Operațiunea rămâne o cheltuială obișnuită și este legată simultan de proiect. Botul păstrează totalul, numărul și istoricul; proiectul poate fi încheiat fără ștergerea istoricului.""",
+    },
+    "bg": {
+        "onboarding.about": """👋 <b>Добре дошли във FamilyBudgetAI</b>
+Семейният помощник за съвместно управление на финансите.
+
+👨‍👩‍👧‍👦 <b>Работи направо в семейния чат</b>
+Добавете бота в семейната група. Той не пречи на разговора и реагира на финансови записи и команди.
+
+✍️ <b>Изпращайте операциите като съобщения</b>
+🛒 Разход: <code>кафе 3.50</code> или <code>Lidl 42.80</code>
+💰 Приход: <code>заплата +2300</code> или <code>+150 връщане</code>
+🎯 Към цел: <code>++500</code> — преместете 500 {currency} от наличните средства към целта
+🏷 Проект: <code>боя 45 #ремонт</code>
+
+📊 <b>Възможности</b>
+📅 Днес и история на операциите
+🗓 Месечни резултати и анализ
+📈 Годишен анализ и финансова динамика
+📊 Нагледни графики
+🏆 Категории и 👥 членове на семейството
+🏷 Проекти и 🎯 финансови цели
+🔁 Периодични операции
+🗂 Собствени категории и ключови думи
+
+⚙️ <b>Семейни настройки</b>
+Език, държава, град, валута, часова зона, категории и автоматично изтриване на екрани.
+
+💡 Започнете с: <code>кафе 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>ФИНАНСОВИ ЦЕЛИ</b>
+Спестявайте за автомобил, почивка, ремонт или голяма покупка.
+
+<b>Как работи:</b>
+1. Създайте цел и задайте сумата.
+2. Активирайте я.
+3. Добавяйте с <code>++500</code>.
+
+💡 <code>++500</code> премества {contribution} от наличните средства към целта. Това не е разход или приход; общата сума на семейството не се променя.
+💵 Налични средства → 🎯 Заделени за целта
+
+Ботът показва спестеното, остатъка, напредъка и срока.
+🚗 Автомобил — {target}
+<code>++500</code>
+Заделено: {contribution}
+Остава: {remaining}""",
+        "onboarding.projects": """🏷 <b>ПРОЕКТИ</b>
+Следете отделно разходите за почивка, ремонт, вила, автомобил или събитие.
+
+<b>Как работи:</b>
+1. Създайте проект.
+2. Задайте кратък таг, напр. <code>#ремонт</code>.
+3. Добавяйте тага към обичайните разходи.
+
+<code>боя 45 #ремонт</code>
+<code>хотел 320 #почивка</code>
+<code>бензин 70 #вила</code>
+
+Операцията остава обичаен бюджетен разход и едновременно се свързва с проекта. Ботът пази сумата, броя и историята; проектът може да приключи без изтриване на историята.""",
+    },
+    "hu": {
+        "onboarding.about": """👋 <b>Üdvözli a FamilyBudgetAI</b>
+A család közös pénzügyeit kezelő segéd.
+
+👨‍👩‍👧‍👦 <b>Közvetlenül a családi csevegésben működik</b>
+Adja hozzá a botot a családi csoporthoz. Nem zavarja a beszélgetést, és reagál a pénzügyi bejegyzésekre és parancsokra.
+
+✍️ <b>A műveleteket egyszerű üzenetként küldje</b>
+🛒 Kiadás: <code>kávé 3.50</code> vagy <code>Lidl 42.80</code>
+💰 Bevétel: <code>fizetés +2300</code> vagy <code>+150 visszatérítés</code>
+🎯 Célra: <code>++500</code> — 500 {currency} áthelyezése a szabad pénzből a célba
+🏷 Projekt: <code>festék 45 #felujitas</code>
+
+📊 <b>Lehetőségek</b>
+📅 Mai műveletek és előzmények
+🗓 Havi összesítés és elemzés
+📈 Éves elemzés és pénzügyi dinamika
+📊 Áttekinthető grafikonok
+🏆 Kategóriák és 👥 családtagok
+🏷 Projektek és 🎯 megtakarítási célok
+🔁 Rendszeres műveletek
+🗂 Saját kategóriák és kulcsszavak
+
+⚙️ <b>Családi beállítások</b>
+Nyelv, ország, város, pénznem, időzóna, kategóriák és képernyők automatikus törlése.
+
+💡 Kezdje ezzel: <code>kávé 3.50</code>.""",
+        "onboarding.goal": """🎯 <b>PÉNZÜGYI CÉLOK</b>
+Tegyen félre autóra, nyaralásra, felújításra vagy nagyobb vásárlásra.
+
+<b>Így működik:</b>
+1. Hozzon létre célt és adja meg az összeget.
+2. Tegye aktívvá.
+3. Tegyen félre a <code>++500</code> üzenettel.
+
+💡 A <code>++500</code> {contribution} összeget helyez át a szabad pénzből a célba. Ez nem kiadás és nem bevétel; a család teljes pénze nem változik.
+💵 Szabad pénz → 🎯 A célra félretéve
+
+A bot mutatja a megtakarítást, a hátralévő összeget, az előrehaladást és a határidőt.
+🚗 Autó — {target}
+<code>++500</code>
+Félretéve: {contribution}
+Hátralévő: {remaining}""",
+        "onboarding.projects": """🏷 <b>PROJEKTEK</b>
+Külön kövesse a nyaralás, felújítás, hétvégi ház, autó vagy esemény kiadásait.
+
+<b>Így működik:</b>
+1. Hozzon létre projektet.
+2. Adjon rövid címkét, pl. <code>#felujitas</code>.
+3. Tegye a címkét a szokásos kiadásokhoz.
+
+<code>festék 45 #felujitas</code>
+<code>hotel 320 #nyaralas</code>
+<code>benzin 70 #nyaralo</code>
+
+A művelet rendes költségvetési kiadás marad, és egyben a projekthez tartozik. A bot megőrzi az összeget, darabszámot és előzményeket; a projekt az előzmények törlése nélkül lezárható.""",
+    },
+})
+
+START_TEXTS = {
+    "ru": {"start.welcome":"👋 <b>Добро пожаловать в Family Budget AI</b>","start.returning":"👋 <b>С возвращением, {name}!</b>","start.ask_name":"Как тебя зовут?","start.registered":"✅ Рад познакомиться, <b>{name}</b>!"},
+    "uk": {"start.welcome":"👋 <b>Ласкаво просимо до Family Budget AI</b>","start.returning":"👋 <b>З поверненням, {name}!</b>","start.ask_name":"Як вас звати?","start.registered":"✅ Приємно познайомитися, <b>{name}</b>!"},
+    "de": {"start.welcome":"👋 <b>Willkommen bei Family Budget AI</b>","start.returning":"👋 <b>Willkommen zurück, {name}!</b>","start.ask_name":"Wie heißen Sie?","start.registered":"✅ Schön, Sie kennenzulernen, <b>{name}</b>!"},
+    "en": {"start.welcome":"👋 <b>Welcome to Family Budget AI</b>","start.returning":"👋 <b>Welcome back, {name}!</b>","start.ask_name":"What is your name?","start.registered":"✅ Nice to meet you, <b>{name}</b>!"},
+    "be": {"start.welcome":"👋 <b>Вітаем у Family Budget AI</b>","start.returning":"👋 <b>З вяртаннем, {name}!</b>","start.ask_name":"Як вас завуць?","start.registered":"✅ Прыемна пазнаёміцца, <b>{name}</b>!"},
+    "pl": {"start.welcome":"👋 <b>Witamy w Family Budget AI</b>","start.returning":"👋 <b>Witamy ponownie, {name}!</b>","start.ask_name":"Jak masz na imię?","start.registered":"✅ Miło Cię poznać, <b>{name}</b>!"},
+    "cs": {"start.welcome":"👋 <b>Vítejte ve Family Budget AI</b>","start.returning":"👋 <b>Vítejte zpět, {name}!</b>","start.ask_name":"Jak se jmenujete?","start.registered":"✅ Těší mě, <b>{name}</b>!"},
+    "sk": {"start.welcome":"👋 <b>Vitajte vo Family Budget AI</b>","start.returning":"👋 <b>Vitajte späť, {name}!</b>","start.ask_name":"Ako sa voláte?","start.registered":"✅ Teší ma, <b>{name}</b>!"},
+    "ro": {"start.welcome":"👋 <b>Bun venit la Family Budget AI</b>","start.returning":"👋 <b>Bine ați revenit, {name}!</b>","start.ask_name":"Cum vă numiți?","start.registered":"✅ Încântat de cunoștință, <b>{name}</b>!"},
+    "bg": {"start.welcome":"👋 <b>Добре дошли във Family Budget AI</b>","start.returning":"👋 <b>Добре дошли отново, {name}!</b>","start.ask_name":"Как се казвате?","start.registered":"✅ Приятно ми е, <b>{name}</b>!"},
+    "hu": {"start.welcome":"👋 <b>Üdvözli a Family Budget AI</b>","start.returning":"👋 <b>Üdvözöljük újra, {name}!</b>","start.ask_name":"Hogy hívják?","start.registered":"✅ Örülök, hogy megismerhetem, <b>{name}</b>!"},
+}
+
 _YEAR_EN = {"menu.year":"📈 Year","year.title":"ANALYTICS FOR {year}","year.period":"Data period","year.month_count":"Months with data","year.no_data":"No data","year.income":"Income","year.expense":"Expenses","year.to_goals":"To goals","year.result":"Financial result","year.average":"MONTHLY AVERAGE","year.month_highlights":"MONTHS","year.best_income":"Highest income","year.highest_expense":"Highest expenses","year.best_result":"Best result","year.worst_result":"Worst result","year.dynamics":"DYNAMICS","year.categories":"Categories","year.members":"Members","year.recurring":"RECURRING","year.current_load":"Current load","year.actual_expense":"Actually charged","year.actual_income":"Actually received","year.goals":"GOALS","year.saved":"Saved this year","year.months":"By month","year.back":"Back to year"}
 YEAR_TEXTS = {language: dict(_YEAR_EN) for language in SUPPORTED_LANGUAGES}
 YEAR_TEXTS["ru"].update({"menu.year":"📈 Год","year.title":"АНАЛИТИКА ЗА {year} ГОД","year.period":"Период данных","year.month_count":"Месяцев с данными","year.no_data":"Нет данных","year.income":"Доходы","year.expense":"Расходы","year.to_goals":"В цели","year.result":"Финансовый результат","year.average":"В СРЕДНЕМ ЗА МЕСЯЦ","year.month_highlights":"МЕСЯЦЫ","year.best_income":"Самый доходный","year.highest_expense":"Самый расходный","year.best_result":"Лучший результат","year.worst_result":"Худший результат","year.dynamics":"ДИНАМИКА","year.categories":"Категории","year.members":"Участники","year.recurring":"РЕГУЛЯРНЫЕ","year.current_load":"Текущая нагрузка","year.actual_expense":"Фактически списано","year.actual_income":"Фактически получено","year.goals":"ЦЕЛИ","year.saved":"Отложено за год","year.months":"По месяцам","year.back":"Назад к году"})
@@ -377,6 +1033,12 @@ def family_language(family):
 
 def t(language, key, **kwargs):
     code = normalize_language(language)
+    if key in START_TEXTS.get(code, {}):
+        template = START_TEXTS[code][key]
+        return template.format(**kwargs) if kwargs else template
+    if key in ONBOARDING_TEXTS.get(code, {}):
+        template = ONBOARDING_TEXTS[code][key]
+        return template.format(**kwargs) if kwargs else template
     if key in YEAR_TEXTS.get(code, {}):
         template = YEAR_TEXTS[code][key]
         return template.format(**kwargs) if kwargs else template

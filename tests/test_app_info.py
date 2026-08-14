@@ -44,10 +44,16 @@ class AboutScreenTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Версия: 2.0", text)
         self.assertIn("SerGan", text)
         self.assertIn("@sergan757", text)
-        self.assertIn("Создайте группу в Telegram, добавьте семью", text)
-        self.assertIn("кофе 5", text)
-        self.assertIn("+2000 зарплата", text)
-        self.assertIn("краска 40 #ремонт", text)
+        self.assertIn("Работает прямо в семейном чате", text)
+        self.assertIn("<code>кофе 3.50</code>", text)
+        self.assertIn("<code>зарплата +2300</code>", text)
+        self.assertIn("<code>++500</code>", text)
+        self.assertIn("<code>краска 45 #ремонт</code>", text)
+        self.assertIn("Аналитика года", text)
+        self.assertIn("Наглядные графики", text)
+        self.assertIn("исчезающие сообщения", text)
+        self.assertNotIn("====================", text)
+        self.assertNotIn("\n\n\n", text)
         self.assertIn("✈️ Telegram: @sergan757", text)
         self.assertNotIn("<a href=", text)
         self.assertNotIn("https://t.me/", text)
@@ -60,6 +66,11 @@ class AboutScreenTests(unittest.IsolatedAsyncioTestCase):
         keyboard = message.edit_text.await_args.kwargs["reply_markup"]
         packed = keyboard.inline_keyboard[0][0].callback_data
         self.assertEqual(FamilySettingsCallback.unpack(packed).action, "home")
+
+    def test_about_uses_family_currency_symbol(self):
+        text = settings.about_text("en", "PLN")
+        self.assertIn("500 zł", text)
+        self.assertNotIn("500 €", text)
 
 
 if __name__ == "__main__":

@@ -38,7 +38,7 @@ class MultilangCleanupTests(unittest.TestCase):
             text = about_text(language)
             self.assertIn("++500", text)
             self.assertIn("#", text)
-            self.assertIn("<i>", text)
+            self.assertIn("<code>", text)
             self.assertNotIn("кофе 5", text)
         self.assertIn("Sparziel", about_text("de"))
         self.assertIn("ціл", about_text("uk").lower())

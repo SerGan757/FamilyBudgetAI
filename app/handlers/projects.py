@@ -23,6 +23,10 @@ from app.i18n import normalize_language, t
 router = Router()
 
 
+def projects_help_text(language: str) -> str:
+    return t(language, "onboarding.projects")
+
+
 def project_card_text(
     project, spent: float, operations: int, currency_code: str = "EUR", language: str = "ru",
 ) -> str:
@@ -49,7 +53,10 @@ async def _show_projects(message, telegram_id: int, *, active: bool, page: int =
     projects, total = result
     title = f"🏷 <b>{t(language, 'projects.title')}</b>" if active else f"📦 <b>{t(language, 'projects.archive_title')}</b>"
     empty = t(language, "projects.active_empty") if active else t(language, "projects.archive_empty")
-    text = title + ("\n\n" + empty if not projects else "")
+    if active:
+        text = projects_help_text(language) + ("\n\n" + empty if not projects else "")
+    else:
+        text = title + ("\n\n" + empty if not projects else "")
     await message.edit_text(
         text, reply_markup=projects_keyboard(projects, total, page, active=active, language=language),
         parse_mode="HTML",
