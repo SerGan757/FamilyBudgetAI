@@ -57,7 +57,7 @@ class CompactConfirmationTests(unittest.TestCase):
         text = quick_confirmation_text([
             transaction(1, "expense", 40, "Paint <x>", "Home & Garden"),
         ], "en", "EUR")
-        self.assertIn("🏷 Project: Home &amp; Garden", text)
+        self.assertIn("📁 Project: Home &amp; Garden", text)
         self.assertIn("Paint &lt;x&gt;", text)
         self.assertNotIn("Income:", text)
 

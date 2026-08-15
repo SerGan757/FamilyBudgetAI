@@ -60,7 +60,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
 
         text = event.message.edit_text.await_args.args[0]
         self.assertIn("📊 <b>Аналитика • Июль 2026</b>", text)
-        self.assertIn("🏷 <b>Проекты</b>", text)
+        self.assertIn("📁 <b>Проекты</b>", text)
         self.assertIn("📅 До конца месяца: 0 дней (100%)", text)
         self.assertIn("📈 Прогноз расходов: 40.00 €", text)
         keyboard = event.message.edit_text.await_args.kwargs["reply_markup"]
@@ -78,7 +78,7 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
         text = event.message.edit_text.await_args.args[0]
         self.assertIn("📅 До конца месяца: 30 дней (0%)", text)
         self.assertNotIn("📈 Прогноз расходов:", text)
-        self.assertIn("🏷 <b>Проекты</b>", text)
+        self.assertIn("📁 <b>Проекты</b>", text)
 
     async def test_analytics_keeps_using_localized_month_title(self):
         for language, expected in (

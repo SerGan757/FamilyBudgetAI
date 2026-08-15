@@ -80,7 +80,7 @@ class SingleMessageNavigationTests(unittest.IsolatedAsyncioTestCase):
         ), patch.object(statistics, "get_analytics", AsyncMock(return_value=analytics_data())):
             await statistics.analytics(message, 2026, 8)
         self._assert_one_message_with_navigation(message, "Аналитика")
-        self.assertIn("🏷 <b>Проекты</b>", message.answer.await_args.args[0])
+        self.assertIn("📁 <b>Проекты</b>", message.answer.await_args.args[0])
 
     def _assert_one_message_with_navigation(self, message, expected_text):
         message.answer.assert_awaited_once()

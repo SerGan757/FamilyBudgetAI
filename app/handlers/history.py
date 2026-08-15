@@ -64,7 +64,7 @@ def format_transaction(transaction, currency_code: str = "EUR", language: str = 
 
     return (
         f"{transaction.id} {icon} {title} {amount_text} {user}"
-        f"{(' 🏷 ' + escape(transaction.project_name)) if getattr(transaction, 'project_name', None) else project_suffix(transaction)}"
+        f"{(' 📁 ' + escape(transaction.project_name)) if getattr(transaction, 'project_name', None) else project_suffix(transaction)}"
     )
 
 

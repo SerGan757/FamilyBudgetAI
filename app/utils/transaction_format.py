@@ -7,4 +7,4 @@ def project_suffix(transaction) -> str:
     if not name:
         return ""
     one_line_name = " ".join(str(name).split())
-    return f" 🏷 {escape(one_line_name)}"
+    return f" 📁 {escape(one_line_name)}"

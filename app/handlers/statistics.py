@@ -104,7 +104,7 @@ def format_transaction(transaction, currency_code: str = "EUR", language: str = 
         f"{title} "
         f"{amount_text} "
         f"{author}"
-        f"{(' 🏷 ' + escape(transaction.project_name)) if getattr(transaction, 'project_name', None) else project_suffix(transaction)}"
+        f"{(' 📁 ' + escape(transaction.project_name)) if getattr(transaction, 'project_name', None) else project_suffix(transaction)}"
     )
 
 
@@ -559,7 +559,7 @@ async def analytics(
         )
 
     if data["projects"]:
-        text += f"\n\n🏷 <b>{t(language, 'analytics.projects')}</b>\n"
+        text += f"\n\n📁 <b>{t(language, 'analytics.projects')}</b>\n"
         for index, (project_name, amount) in enumerate(data["projects"], 1):
             text += (
                 f"{index}. {escape(project_name)} — <b>{money(amount, currency_code)}</b>\n"

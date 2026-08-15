@@ -85,7 +85,7 @@ async def finish_group_registration(
                 if suggestion is not None:
                     pending_text += (
                         "\n\nВозможно, вы имели в виду:\n"
-                        f"🏷 #{escape(suggestion.tag)} — {escape(suggestion.name)}"
+                        f"📁 #{escape(suggestion.tag)} — {escape(suggestion.name)}"
                     )
             await message.answer(
                 pending_text, reply_markup=pending_project_keyboard(suggestion),

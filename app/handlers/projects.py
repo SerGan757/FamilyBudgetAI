@@ -35,7 +35,7 @@ def project_card_text(
         if project.is_active else f"⚪ {t(language, 'projects.completed')}"
     )
     return (
-        f"🏷 <b>{escape(project.name)}</b>\n\n"
+        f"📁 <b>{escape(project.name)}</b>\n\n"
         f"{t(language, 'projects.tag')}: #{escape(project.tag)}\n"
         f"{t(language, 'projects.status')}: {status}\n\n"
         f"{t(language, 'projects.spent')}: {format_money(spent, currency_code)}\n"
@@ -51,7 +51,7 @@ async def _show_projects(message, telegram_id: int, *, active: bool, page: int =
         await message.edit_text(t(language, "projects.user_not_found"))
         return
     projects, total = result
-    title = f"🏷 <b>{t(language, 'projects.title')}</b>" if active else f"📦 <b>{t(language, 'projects.archive_title')}</b>"
+    title = f"📁 <b>{t(language, 'projects.title')}</b>" if active else f"📦 <b>{t(language, 'projects.archive_title')}</b>"
     empty = t(language, "projects.active_empty") if active else t(language, "projects.archive_empty")
     if active:
         text = projects_help_text(language) + ("\n\n" + empty if not projects else "")

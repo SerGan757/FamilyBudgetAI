@@ -114,13 +114,13 @@ class ProjectAnalyticsHandlerTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(statistics, "get_analytics", AsyncMock(return_value=data)):
             await statistics.analytics(message, 2026, 8, family_id=7)
         text = message.answers[0][0]
-        self.assertIn("🏷 <b>Проекты</b>", text)
+        self.assertIn("📁 <b>Проекты</b>", text)
         self.assertIn("1. Ремонт &lt;A&amp;B&gt;", text)
         self.assertIn("2. Италия 2026", text)
-        self.assertGreater(text.index("🏷 <b>Проекты</b>"), text.index("Крупнейшая покупка"))
+        self.assertGreater(text.index("📁 <b>Проекты</b>"), text.index("Крупнейшая покупка"))
 
     async def test_analytics_without_project_expenses_has_no_project_block(self):
         message = Message()
         with patch.object(statistics, "get_analytics", AsyncMock(return_value=analytics_data([]))):
             await statistics.analytics(message, 2026, 8, family_id=7)
-        self.assertNotIn("🏷 <b>Проекты</b>", message.answers[0][0])
+        self.assertNotIn("📁 <b>Проекты</b>", message.answers[0][0])

@@ -20,7 +20,7 @@ def button(text: str, action: str, project_id: int = 0, page: int = 0):
 
 
 def projects_keyboard(projects, total: int, page: int, *, active: bool, language: str = "ru"):
-    rows = [[button(f"🏷 {project.name} — #{project.tag}", "card", project.id, page)] for project in projects]
+    rows = [[button(f"📁 {project.name} — #{project.tag}", "card", project.id, page)] for project in projects]
     navigation = []
     if page > 0:
         navigation.append(button("⬅️", "list" if active else "archive", page=page - 1))

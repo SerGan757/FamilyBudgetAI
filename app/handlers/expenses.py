@@ -44,7 +44,7 @@ def quick_confirmation_text(saved, language: str, currency: str, failed=None) ->
         kind = t(language, "quick.income_item" if transaction.type == "income" else "quick.expense_item")
         project_name = getattr(transaction, "project_name", None)
         project = (
-            f"   🏷 {t(language, 'quick.project')}: {escape(str(project_name))}"
+            f"   📁 {t(language, 'quick.project')}: {escape(str(project_name))}"
             if project_name else ""
         )
         rows.append(
@@ -206,7 +206,7 @@ async def add_transaction(
                 if suggestion is not None:
                     text += (
                         "\n\nВозможно, вы имели в виду:\n"
-                        f"🏷 #{escape(suggestion.tag)} — {escape(suggestion.name)}"
+                        f"📁 #{escape(suggestion.tag)} — {escape(suggestion.name)}"
                     )
             await message.answer(
                 text, reply_markup=pending_project_keyboard(suggestion),

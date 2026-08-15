@@ -29,15 +29,15 @@ class ProjectDisplayTests(unittest.TestCase):
         row = transaction()
         history = history_format(row)
         today = statistics_format(row)
-        self.assertNotIn("🏷", history)
-        self.assertNotIn("🏷", today)
+        self.assertNotIn("📁", history)
+        self.assertNotIn("📁", today)
         self.assertEqual(project_suffix(row), "")
 
     def test_project_name_is_appended_without_tag_on_same_line(self):
         project = SimpleNamespace(name="Италия 2026", tag="italy26")
         row = transaction(project_marker=True, project=project)
         for text in (history_format(row), statistics_format(row)):
-            self.assertIn("🏷 Италия 2026", text)
+            self.assertIn("📁 Италия 2026", text)
             self.assertNotIn("italy26", text)
             self.assertNotIn("\n", text)
 
@@ -47,13 +47,13 @@ class ProjectDisplayTests(unittest.TestCase):
             project=SimpleNamespace(name="A < B\n& C", tag="secret"),
         )
         text = history_format(row)
-        self.assertIn("🏷 A &lt; B &amp; C", text)
+        self.assertIn("📁 A &lt; B &amp; C", text)
         self.assertNotIn("\n", text)
 
     def test_missing_project_object_does_not_break_formatter(self):
         row = transaction(project_marker=True, project=None)
-        self.assertNotIn("🏷", history_format(row))
-        self.assertNotIn("🏷", statistics_format(row))
+        self.assertNotIn("📁", history_format(row))
+        self.assertNotIn("📁", statistics_format(row))
 
     def test_list_queries_eager_load_family_scoped_project_without_n_plus_one(self):
         stats_sql = str(statistics_service._transaction_list_query(7)).lower()

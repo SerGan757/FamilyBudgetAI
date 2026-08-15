@@ -297,7 +297,7 @@ class ProjectHandlerTests(unittest.IsolatedAsyncioTestCase):
             title="шпаклевка", project_id=None,
         )
         text = await self._save_confirmation(transaction)
-        self.assertNotIn("🏷 Проект:", text)
+        self.assertNotIn("📁 Проект:", text)
         self.assertIn("✅ Сохранено операций: 1", text)
 
     async def test_confirmation_shows_escaped_project_name_only(self):
@@ -306,7 +306,7 @@ class ProjectHandlerTests(unittest.IsolatedAsyncioTestCase):
             title="шпаклевка", project_id=5, project_name="Ремонт <A&B>",
         )
         text = await self._save_confirmation(transaction)
-        self.assertIn("🏷 Проект: Ремонт &lt;A&amp;B&gt;", text)
+        self.assertIn("📁 Проект: Ремонт &lt;A&amp;B&gt;", text)
         self.assertNotIn("#ремонт", text)
         self.assertNotIn("project_id", text)
         self.assertNotIn("family_id", text)
@@ -317,7 +317,7 @@ class ProjectHandlerTests(unittest.IsolatedAsyncioTestCase):
             title="шпаклевка", project_id=999,
         )
         text = await self._save_confirmation(transaction)
-        self.assertNotIn("🏷 Проект:", text)
+        self.assertNotIn("📁 Проект:", text)
 
     async def test_project_creation_fsm_and_duplicate_tag(self):
         message, state = Message(" Дача "), State()
