@@ -12,9 +12,11 @@ from app.services.year_analytics_service import YearAnalytics, YearMonth
 from app.services.year_chart_service import (
     calendar_series,
     chart_category_label,
+    monthly_income_series,
     render_categories_chart,
     render_income_expense_chart,
     render_income_sources_chart,
+    render_monthly_income_chart,
     render_result_chart,
 )
 
@@ -51,6 +53,21 @@ class YearChartRendererTests(unittest.TestCase):
 
     def test_income_sources_empty_is_safe(self):
         self.assertIsNone(render_income_sources_chart((),title="Income",currency="€"))
+
+    def test_monthly_income_is_chronological_and_fills_missing_month_with_zero(self):
+        data=snapshot([YearMonth(3,3400,100,0),YearMonth(5,1800,50,0)])
+        months,income=monthly_income_series(data)
+        self.assertEqual(months,(3,4,5))
+        self.assertEqual(income,(3400,0.0,1800))
+
+    def test_monthly_income_chart_is_non_empty_png_and_uses_currency(self):
+        data=snapshot([YearMonth(3,3400,100,0),YearMonth(5,1800,50,0)])
+        png=render_monthly_income_chart(data,month_labels=labels(),title="Income by month • 2026",currency="zł")
+        self.assertTrue(png.startswith(PNG_HEADER));self.assertGreater(len(png),1000)
+
+    def test_monthly_income_chart_rejects_expense_and_goal_only_data(self):
+        data=snapshot([YearMonth(4,0,500,300)])
+        self.assertIsNone(render_monthly_income_chart(data,month_labels=labels(),title="Income",currency="€"))
 
     def test_result_chart_uses_existing_goal_aware_result(self):
         data=snapshot([YearMonth(8,2480,1503.64,1100)])
@@ -92,7 +109,7 @@ class YearChartRendererTests(unittest.TestCase):
         self.assertEqual(set(plt.get_fignums()),before)
 
     def test_all_locales_have_chart_labels(self):
-        keys=("year.charts","chart.menu","chart.income_expense","chart.result","chart.categories","chart.insufficient","chart.back_charts","chart.back_year","chart.income","chart.income_sources","chart.total","chart.no_income")
+        keys=("year.charts","chart.menu","chart.income_expense","chart.result","chart.categories","chart.insufficient","chart.back_charts","chart.back_year","chart.income_monthly","chart.income_sources","chart.total_year","chart.no_income")
         for language in SUPPORTED_LANGUAGES:
             for key in keys:self.assertNotEqual(t(language,key),key)
 
@@ -137,22 +154,42 @@ class YearChartTelegramTests(unittest.IsolatedAsyncioTestCase):
             await year_analytics.year_callback(callback)
         markup=callback.message.edit_text.await_args.kwargs["reply_markup"]
         callbacks=[button.callback_data for row in markup.inline_keyboard for button in row]
-        self.assertIn("yearchart:flow:2026",callbacks);self.assertIn("yearchart:income:2026",callbacks);self.assertIn("year:main:2026",callbacks)
+        texts=[button.text for row in markup.inline_keyboard for button in row]
+        self.assertIn("yearchart:flow:2026",callbacks)
+        self.assertIn("yearchart:income_monthly:2026",callbacks)
+        self.assertIn("yearchart:income_sources:2026",callbacks)
+        self.assertIn("year:main:2026",callbacks)
+        self.assertIn("💰 Income by month",texts)
+        self.assertIn("🏆 Income sources",texts)
 
-    async def test_income_chart_uses_prepared_sources_and_full_year_total(self):
+    async def test_income_sources_chart_uses_prepared_top_seven_and_full_year_total(self):
         data=snapshot([YearMonth(8,5250,400,300)],income_sources=(("Зарплата Сергей",2400),("Зарплата Анна",2100),("Продажа",500),("Возврат",250)))
         message=SimpleNamespace(chat=SimpleNamespace(id=1,type="private"),answer_photo=AsyncMock(),delete=AsyncMock())
-        callback=SimpleNamespace(message=message,from_user=SimpleNamespace(id=2),data="yearchart:income:2026",answer=AsyncMock())
+        callback=SimpleNamespace(message=message,from_user=SimpleNamespace(id=2),data="yearchart:income_sources:2026",answer=AsyncMock())
         with patch.object(year_analytics,"_family",AsyncMock(return_value=self.family())),patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=data)) as service,patch.object(year_analytics.asyncio,"to_thread",AsyncMock(return_value=PNG_HEADER+b"chart")) as render:
             await year_analytics.year_chart(callback)
         service.assert_awaited_once_with(7,2026,"Europe/Berlin")
         self.assertEqual(render.await_args.args[1],data.income_sources)
         self.assertEqual(render.await_args.kwargs["currency"],"$")
         self.assertIn("5 250.00 $",message.answer_photo.await_args.kwargs["caption"])
+        self.assertIn("🏆 Income sources • 2026",message.answer_photo.await_args.kwargs["caption"])
+
+    async def test_monthly_income_chart_reuses_year_months_currency_and_total(self):
+        data=snapshot([YearMonth(3,3400,100,0),YearMonth(5,1800,50,0)])
+        message=SimpleNamespace(chat=SimpleNamespace(id=1,type="private"),answer_photo=AsyncMock(),delete=AsyncMock())
+        callback=SimpleNamespace(message=message,from_user=SimpleNamespace(id=2),data="yearchart:income_monthly:2026",answer=AsyncMock())
+        with patch.object(year_analytics,"_family",AsyncMock(return_value=self.family())),patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=data)) as service,patch.object(year_analytics.asyncio,"to_thread",AsyncMock(return_value=PNG_HEADER+b"chart")) as render:
+            await year_analytics.year_chart(callback)
+        service.assert_awaited_once_with(7,2026,"Europe/Berlin")
+        self.assertIs(render.await_args.args[1],data)
+        self.assertEqual(render.await_args.kwargs["currency"],"$")
+        self.assertIn("5 200.00 $",message.answer_photo.await_args.kwargs["caption"])
+        self.assertIn(t("en","chart.total_year"),message.answer_photo.await_args.kwargs["caption"])
+        self.assertIn("💰 Income by month • 2026",message.answer_photo.await_args.kwargs["caption"])
 
     async def test_empty_income_chart_uses_income_specific_message(self):
         message=SimpleNamespace(chat=SimpleNamespace(id=1,type="private"),answer_photo=AsyncMock(),delete=AsyncMock())
-        callback=SimpleNamespace(message=message,from_user=SimpleNamespace(id=2),data="yearchart:income:2026",answer=AsyncMock())
+        callback=SimpleNamespace(message=message,from_user=SimpleNamespace(id=2),data="yearchart:income_monthly:2026",answer=AsyncMock())
         with patch.object(year_analytics,"_family",AsyncMock(return_value=self.family())),patch.object(year_analytics,"get_year_analytics",AsyncMock(return_value=snapshot())):
             await year_analytics.year_chart(callback)
         message.answer_photo.assert_not_awaited()

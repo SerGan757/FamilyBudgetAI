@@ -14,6 +14,7 @@ from app.services.year_chart_service import (
     render_categories_chart,
     render_income_expense_chart,
     render_income_sources_chart,
+    render_monthly_income_chart,
     render_result_chart,
 )
 from app.services.year_analytics_service import get_year_analytics, get_year_category_transactions
@@ -63,7 +64,8 @@ def chart_menu_keyboard(year, language):
         [InlineKeyboardButton(text=f"📈 {t(language,'chart.income_expense')}",callback_data=f"yearchart:flow:{year}")],
         [InlineKeyboardButton(text=f"💎 {t(language,'chart.result')}",callback_data=f"yearchart:result:{year}")],
         [InlineKeyboardButton(text=f"🏆 {t(language,'chart.categories')}",callback_data=f"yearchart:categories:{year}")],
-        [InlineKeyboardButton(text=t(language,"chart.income"),callback_data=f"yearchart:income:{year}")],
+        [InlineKeyboardButton(text=f"💰 {t(language,'chart.income_monthly')}",callback_data=f"yearchart:income_monthly:{year}")],
+        [InlineKeyboardButton(text=f"🏆 {t(language,'chart.income_sources')}",callback_data=f"yearchart:income_sources:{year}")],
         [InlineKeyboardButton(text=t(language,"year.back"),callback_data=f"year:main:{year}")],
     ])
 
@@ -180,14 +182,19 @@ async def year_chart(callback:CallbackQuery):
         categories=tuple((_category_display(language,label,custom_id),amount) for label,amount,custom_id in data.categories)
         png=await asyncio.to_thread(render_categories_chart,categories,title=_chart_title(language,key,year),currency=currency)
         filename=f"family_budget_{year}_categories.png"
-    elif kind=="income":
-        key="chart.income"
+    elif kind=="income_monthly":
+        key="chart.income_monthly"
+        png=await asyncio.to_thread(render_monthly_income_chart,data,month_labels=months,title=_chart_title(language,key,year),currency=currency)
+        filename=f"family_budget_{year}_income_monthly.png"
+    elif kind in {"income_sources","income"}:
+        key="chart.income_sources"
         png=await asyncio.to_thread(render_income_sources_chart,data.income_sources,title=_chart_title(language,"chart.income_sources",year),currency=currency)
-        filename=f"family_budget_{year}_income.png"
+        filename=f"family_budget_{year}_income_sources.png"
     else:return await callback.answer()
-    if not png:return await callback.answer(t(language,"chart.no_income" if kind=="income" else "chart.insufficient"),show_alert=True)
-    caption=f"<b>{_chart_title(language,key,year)}</b>"
-    if kind=="income":caption+=f"\n{t(language,'chart.total')}: {_money(data.income,family)}"
+    if not png:return await callback.answer(t(language,"chart.no_income" if kind in {"income","income_monthly","income_sources"} else "chart.insufficient"),show_alert=True)
+    caption_icon = "💰 " if kind == "income_monthly" else "🏆 " if kind in {"income", "income_sources"} else ""
+    caption=f"<b>{caption_icon}{_chart_title(language,key,year)}</b>"
+    if kind in {"income","income_monthly","income_sources"}:caption+=f"\n{t(language,'chart.total_year')}: {_money(data.income,family)}"
     await callback.message.answer_photo(
         BufferedInputFile(png,filename=filename),caption=caption,
         parse_mode="HTML",reply_markup=chart_photo_keyboard(year,language),

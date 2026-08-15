@@ -38,6 +38,15 @@ def calendar_series(data: YearAnalytics):
     return months, income, expense, result
 
 
+def monthly_income_series(data: YearAnalytics):
+    """Return chronological income values, filling intermediate months with zero."""
+    if not data.months:
+        return (), ()
+    by_month = {row.month: row.income for row in data.months}
+    months = tuple(range(data.months[0].month, data.months[-1].month + 1))
+    return months, tuple(by_month.get(month, 0.0) for month in months)
+
+
 def _png(draw):
     with _render_lock:
         fig = None
@@ -135,5 +144,28 @@ def render_income_sources_chart(sources, *, title, currency):
         ax.grid(axis="x", alpha=.18)
         ax.set_title(title, fontsize=16, weight="bold", pad=16)
         ax.spines[["top", "right", "left"]].set_visible(False)
+
+    return _png(draw)
+
+
+def render_monthly_income_chart(data: YearAnalytics, *, month_labels, title, currency):
+    months, income = monthly_income_series(data)
+    if not months or not any(value > 0 for value in income):
+        return None
+
+    def draw(_, ax):
+        bars = ax.bar(months, income, color="#168aad", width=.66)
+        padding = max(income) * .02 if income else 0
+        for bar, value in zip(bars, income):
+            if value:
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2, value + padding,
+                    f"{value:,.0f}".replace(",", " "), ha="center", va="bottom", fontsize=9,
+                )
+        ax.set_xticks(months, [month_labels[month - 1] for month in months])
+        ax.yaxis.set_major_formatter(_money_axis(currency))
+        ax.grid(axis="y", alpha=.18)
+        ax.set_title(title, fontsize=16, weight="bold", pad=16)
+        ax.spines[["top", "right"]].set_visible(False)
 
     return _png(draw)
