@@ -1,7 +1,9 @@
 from html import escape
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from app.constants import DOCUMENT_PREVIEW_TTL
 from app.handlers.document_states import DocumentState
 from app.i18n import all_texts, normalize_language, t
 from app.i18n.documents import category_display_name
@@ -9,8 +11,43 @@ from app.keyboards.documents import *
 from app.keyboards.documents import _b
 from app.services.document_service import *
 from app.services.settings_service import get_current_family_settings
+from app.utils.temporary_screens import schedule_temporary_message
 
 router=Router()
+
+
+def _upload_control_text(language: str, count: int) -> str:
+    return f"{t(language, 'documents.file_added')}\n📎 {t(language, 'documents.files', count=count)}"
+
+
+async def _update_upload_control(message, state, language: str, count: int) -> None:
+    data = await state.get_data()
+    chat_id = data.get("upload_control_chat_id")
+    message_id = data.get("upload_control_message_id")
+    text = _upload_control_text(language, count)
+    if chat_id is not None and message_id is not None:
+        try:
+            await message.bot.edit_message_text(
+                chat_id=chat_id, message_id=message_id, text=text,
+                reply_markup=files_keyboard(language),
+            )
+            return
+        except TelegramBadRequest:
+            try:
+                await message.bot.edit_message_reply_markup(
+                    chat_id=chat_id, message_id=message_id, reply_markup=None,
+                )
+            except TelegramBadRequest:
+                pass
+    control = await message.answer(text, reply_markup=files_keyboard(language))
+    await state.update_data(
+        upload_control_chat_id=control.chat.id,
+        upload_control_message_id=control.message_id,
+    )
+
+
+async def _answer_stale(callback, language: str) -> None:
+    await callback.answer(t(language, "documents.operation_finished"), show_alert=False)
 async def _lang(uid):
     data=await get_current_family_settings(uid); return normalize_language(data.get("language") if data else None)
 async def show_documents(message, uid):
@@ -31,6 +68,24 @@ async def documents_menu(message:Message):
 async def document_callback(callback:CallbackQuery,callback_data:DocumentCallback,state:FSMContext):
     m=callback.message; uid=callback.from_user.id; a=callback_data.action; v=callback_data.value; language=await _lang(uid)
     if not m: return await callback.answer()
+    current_state = await state.get_state()
+    if a in {"add_file", "save"} and current_state != DocumentState.files.state:
+        await _answer_stale(callback, language)
+        return
+    if a in {"add_file", "save", "cancel"} and current_state == DocumentState.files.state:
+        upload_data = await state.get_data()
+        control_chat_id = upload_data.get("upload_control_chat_id")
+        control_message_id = upload_data.get("upload_control_message_id")
+        if (
+            control_chat_id is not None
+            and control_message_id is not None
+            and (m.chat.id != control_chat_id or m.message_id != control_message_id)
+        ):
+            await _answer_stale(callback, language)
+            return
+    if a == "cancel" and current_state is None:
+        await _answer_stale(callback, language)
+        return
     if a=="list": await state.clear(); await show_documents(m,uid)
     elif a=="settings":
         await state.clear()
@@ -64,10 +119,33 @@ async def document_callback(callback:CallbackQuery,callback_data:DocumentCallbac
         if a=="owner_other": await state.set_state(DocumentState.custom_owner); await m.edit_text(t(language,"documents.enter_owner"))
         else: await state.update_data(owner={"owner_me":t(language,"documents.owner_me")[2:],"owner_family":t(language,"documents.owner_family")[2:],"owner_car":t(language,"documents.owner_car")[2:]}[a]); await state.set_state(DocumentState.access); await m.edit_text(t(language,"documents.access"),reply_markup=access_keyboard(language))
     elif a.startswith("access_"): await state.update_data(access_level=a.removeprefix("access_"),files=[]); await state.set_state(DocumentState.files); await m.edit_text(t(language,"documents.send_file"))
-    elif a=="add_file": await m.edit_text(t(language,"documents.send_file"))
+    elif a=="add_file":
+        await state.update_data(
+            upload_control_chat_id=m.chat.id,
+            upload_control_message_id=m.message_id,
+        )
+        await m.edit_text(t(language,"documents.send_file"), reply_markup=None)
     elif a=="save":
-        data=await state.get_data(); doc=await create_document(uid,data["category_id"],data["title"],data.get("owner"),data["access_level"],data.get("files",[])); await state.clear(); await m.edit_text(t(language,"documents.saved")); await show_category(m,uid,doc.category_id)
-    elif a=="cancel": await state.clear(); await show_documents(m,uid)
+        data=await state.get_data()
+        files=list(data.get("files",[]))
+        await state.set_state(DocumentState.saving)
+        doc=await create_document(uid,data["category_id"],data["title"],data.get("owner"),data["access_level"],files)
+        await state.clear()
+        await m.edit_text(
+            f"{t(language,'documents.saved')}\n📎 {t(language,'documents.files',count=len(files))}",
+            reply_markup=None,
+        )
+        category=await get_category(uid,doc.category_id); docs=await list_documents(uid,doc.category_id) or []
+        if category:
+            display_name=category_display_name(language,category)
+            await m.answer(
+                f"{category.emoji} <b>{escape(display_name.upper())}</b>\n\n{t(language,'documents.count',count=len(docs))}",
+                reply_markup=category_keyboard(category,docs,language), parse_mode="HTML",
+            )
+    elif a=="cancel":
+        await state.clear()
+        await m.edit_reply_markup(reply_markup=None)
+        await show_documents(m,uid)
     elif a=="document":
         d=await get_document(uid,v)
         if not d: await callback.answer(t(language,"documents.private_denied"),show_alert=True)
@@ -77,8 +155,9 @@ async def document_callback(callback:CallbackQuery,callback_data:DocumentCallbac
         if not d: await callback.answer(t(language,"documents.private_denied"),show_alert=True)
         else:
             for f in d.files:
-                if f.file_type=="photo": await m.answer_photo(f.telegram_file_id)
-                else: await m.answer_document(f.telegram_file_id)
+                if f.file_type=="photo": preview=await m.answer_photo(f.telegram_file_id)
+                else: preview=await m.answer_document(f.telegram_file_id)
+                schedule_temporary_message(preview, ttl=DOCUMENT_PREVIEW_TTL)
     elif a=="delete_document":
         d=await get_document(uid,v); cid=d.category_id if d else 0
         if await delete_document(uid,v): await callback.answer(t(language,"documents.deleted")); await show_category(m,uid,cid)
@@ -116,7 +195,9 @@ async def receive_file(message:Message,state:FSMContext):
     elif message.document and message.document.mime_type in ALLOWED_MIME_TYPES:
         f=message.document; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"document","original_filename":f.file_name,"mime_type":f.mime_type}
     if not item: return await message.answer(t(language,"documents.invalid_file"))
-    data=await state.get_data(); files=data.get("files",[]); files.append(item); await state.update_data(files=files); await message.answer(t(language,"documents.file_added"),reply_markup=files_keyboard(language))
+    data=await state.get_data(); files=list(data.get("files",[])); files.append(item)
+    await state.update_data(files=files)
+    await _update_upload_control(message,state,language,len(files))
 @router.message(DocumentState.search)
 async def search(message:Message,state:FSMContext):
     language=await _lang(message.from_user.id); docs=await search_documents(message.from_user.id,message.text or "") or []; await state.clear()
