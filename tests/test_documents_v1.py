@@ -15,7 +15,7 @@ from app.handlers import documents, settings
 from app.handlers.document_states import DocumentState
 from app.keyboards.documents import DocumentCallback
 from app.keyboards.settings_menu import FamilySettingsCallback, family_settings_keyboard_for_ttl
-from app.constants import DOCUMENT_PREVIEW_TTL
+from app.constants import DOCUMENT_PREVIEW_TTL, DOCUMENT_UPLOAD_TTL
 from app.utils import temporary_screens
 
 
@@ -94,6 +94,31 @@ class DocumentUiTests(unittest.TestCase):
         self.assertEqual(FamilySettingsCallback.unpack(settings_button.callback_data).action, "documents")
         root = documents_keyboard([], "ru")
         self.assertEqual(DocumentCallback.unpack(root.inline_keyboard[-1][0].callback_data).action, "settings")
+
+    def test_settings_family_sections_are_first_and_in_requested_order(self):
+        keyboard = family_settings_keyboard_for_ttl(20, "ru")
+        texts = [row[0].text for row in keyboard.inline_keyboard]
+        self.assertEqual(
+            texts[:4],
+            [t("ru", "menu.documents"), t("ru", "settings.categories"),
+             t("ru", "settings.projects"), t("ru", "settings.savings_goal")],
+        )
+        self.assertEqual(
+            texts[4:10],
+            [t("ru", "settings.language"), t("ru", "settings.country"),
+             t("ru", "settings.city"), t("ru", "settings.timezone"),
+             t("ru", "settings.currency"), t("ru", "settings.ttl", value=t("ru", "settings.seconds", value=20))],
+        )
+        self.assertEqual(texts[10:], [t("ru", "settings.about"), t("ru", "nav.back")])
+
+    def test_upload_panel_uses_done_and_delete_without_save(self):
+        from app.keyboards.documents import files_keyboard
+        actions = [
+            DocumentCallback.unpack(button.callback_data).action
+            for row in files_keyboard("ru").inline_keyboard for button in row
+        ]
+        self.assertEqual(actions, ["add_file", "done", "delete_draft_document"])
+        self.assertNotIn("save", actions)
 
     def test_documents_handler_remains_registered(self):
         from app.handlers import routers
@@ -212,11 +237,22 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
     async def test_first_file_creates_panel_and_second_edits_same_panel(self):
         bot = SimpleNamespace(edit_message_text=AsyncMock(), edit_message_reply_markup=AsyncMock())
         control = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500)
-        state = MemoryState({"files": []}, DocumentState.files.state)
+        state = MemoryState(
+            {"category_id":7,"title":"Passport","owner":"Me","access_level":"private"},
+            DocumentState.files.state,
+        )
         first = self._incoming_photo(bot, "file-1", control)
-        with patch.object(documents, "_lang", AsyncMock(return_value="ru")):
+        first_document = SimpleNamespace(id=77, files=[SimpleNamespace(id=1)])
+        with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
+             patch.object(documents, "create_document", AsyncMock(return_value=first_document)) as create, \
+             patch.object(documents, "add_document_file", AsyncMock()) as add, \
+             patch.object(documents, "schedule_temporary_message") as schedule:
             await documents.receive_file(first, state)
-        self.assertEqual(len(state.data["files"]), 1)
+        create.assert_awaited_once()
+        self.assertEqual(len(create.await_args.args[-1]), 1)
+        add.assert_not_awaited()
+        self.assertEqual(state.data["document_id"], 77)
+        self.assertEqual(state.data["file_count"], 1)
         self.assertEqual(state.data["upload_control_message_id"], 500)
         first.answer.assert_awaited_once()
 
@@ -233,61 +269,99 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
             )
 
         second = self._incoming_photo(bot, "file-2")
-        with patch.object(documents, "_lang", AsyncMock(return_value="ru")):
+        second_document = SimpleNamespace(
+            id=77, files=[SimpleNamespace(id=1), SimpleNamespace(id=2)],
+        )
+        with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
+             patch.object(documents, "create_document", AsyncMock()) as create_second, \
+             patch.object(documents, "add_document_file", AsyncMock(return_value=second_document)) as add_second, \
+             patch.object(documents, "schedule_temporary_message") as schedule_second:
             await documents.receive_file(second, state)
-        self.assertEqual(len(state.data["files"]), 2)
+        create_second.assert_not_awaited()
+        add_second.assert_awaited_once()
+        self.assertEqual(add_second.await_args.args[:2], (10, 77))
+        self.assertEqual(state.data["file_count"], 2)
         second.answer.assert_not_awaited()
         bot.edit_message_text.assert_awaited_once()
         self.assertIn("Файлов: 2", bot.edit_message_text.await_args.kwargs["text"])
+        schedule.assert_called_once_with(first, ttl=DOCUMENT_UPLOAD_TTL)
+        schedule_second.assert_called_once_with(second, ttl=DOCUMENT_UPLOAD_TTL)
+        self.assertEqual(DOCUMENT_UPLOAD_TTL, 180)
 
-    async def test_save_once_deactivates_panel_and_stale_save_is_answered(self):
-        files = [{"telegram_file_id":"one"}, {"telegram_file_id":"two"}]
+    async def test_invalid_file_is_not_scheduled(self):
+        invalid = SimpleNamespace(
+            from_user=SimpleNamespace(id=10), photo=None,
+            document=SimpleNamespace(mime_type="text/plain"), answer=AsyncMock(),
+        )
+        state = MemoryState({"files": []}, DocumentState.files.state)
+        with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
+             patch.object(documents, "schedule_temporary_message") as schedule:
+            await documents.receive_file(invalid, state)
+        schedule.assert_not_called()
+        self.assertNotIn("document_id", state.data)
+
+    async def test_done_only_finishes_fsm_and_deactivates_panel(self):
         state = MemoryState(
-            {"category_id":7,"title":"Passport","owner":"Me","access_level":"private","files":files,
+            {"document_id":77,"file_count":2,
              "upload_control_chat_id":100,"upload_control_message_id":500},
             DocumentState.files.state,
         )
         message = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500, edit_text=AsyncMock(), answer=AsyncMock())
         callback = SimpleNamespace(message=message, from_user=SimpleNamespace(id=10), answer=AsyncMock())
-        created = SimpleNamespace(category_id=7)
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
-             patch.object(documents, "create_document", AsyncMock(return_value=created)) as create, \
-             patch.object(documents, "get_category", AsyncMock(return_value=None)), \
-             patch.object(documents, "list_documents", AsyncMock(return_value=[])):
-            await documents.document_callback(callback, SimpleNamespace(action="save", value=0), state)
-            stale = SimpleNamespace(message=message, from_user=SimpleNamespace(id=10), answer=AsyncMock())
-            await documents.document_callback(stale, SimpleNamespace(action="save", value=0), state)
-        create.assert_awaited_once()
-        self.assertEqual(len(create.await_args.args[-1]), 2)
+             patch.object(documents, "create_document", AsyncMock()) as create, \
+             patch.object(documents, "add_document_file", AsyncMock()) as add:
+            await documents.document_callback(callback, SimpleNamespace(action="done", value=0), state)
+        create.assert_not_awaited()
+        add.assert_not_awaited()
         self.assertIsNone(state.current)
         self.assertEqual(state.data, {})
         self.assertIsNone(message.edit_text.await_args.kwargs["reply_markup"])
-        stale.answer.assert_awaited_once_with("Эта операция уже завершена.", show_alert=False)
+        self.assertIn("Документ добавлен", message.edit_text.await_args.args[0])
+        self.assertIn("Файлов: 2", message.edit_text.await_args.args[0])
 
-    async def test_cancel_clears_state_and_removes_old_controls(self):
-        state = MemoryState({"files":[{"telegram_file_id":"one"}]}, DocumentState.files.state)
-        message = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500, edit_reply_markup=AsyncMock())
+    async def test_delete_draft_deletes_document_and_clears_panel(self):
+        state = MemoryState(
+            {"document_id":77,"file_count":2,"upload_control_chat_id":100,
+             "upload_control_message_id":500}, DocumentState.files.state,
+        )
+        message = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500, edit_text=AsyncMock())
         callback = SimpleNamespace(message=message, from_user=SimpleNamespace(id=10), answer=AsyncMock())
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
-             patch.object(documents, "show_documents", AsyncMock()):
-            await documents.document_callback(callback, SimpleNamespace(action="cancel", value=0), state)
+             patch.object(documents, "delete_document", AsyncMock(return_value=True)) as delete:
+            await documents.document_callback(
+                callback, SimpleNamespace(action="delete_draft_document", value=0), state,
+            )
+        delete.assert_awaited_once_with(10,77)
         self.assertEqual(state.data, {})
         self.assertIsNone(state.current)
-        message.edit_reply_markup.assert_awaited_once_with(reply_markup=None)
+        self.assertIsNone(message.edit_text.await_args.kwargs["reply_markup"])
 
     async def test_replaced_old_panel_is_stale_while_fsm_is_active(self):
         state = MemoryState(
-            {"files":[{"telegram_file_id":"one"}], "upload_control_chat_id":100,
+            {"document_id":77,"file_count":1,"upload_control_chat_id":100,
              "upload_control_message_id":501},
             DocumentState.files.state,
         )
         old_message = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500)
         callback = SimpleNamespace(message=old_message, from_user=SimpleNamespace(id=10), answer=AsyncMock())
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
-             patch.object(documents, "create_document", AsyncMock()) as create:
-            await documents.document_callback(callback, SimpleNamespace(action="save", value=0), state)
-        create.assert_not_awaited()
+             patch.object(documents, "delete_document", AsyncMock()) as delete:
+            await documents.document_callback(callback, SimpleNamespace(action="done", value=0), state)
+        delete.assert_not_awaited()
         callback.answer.assert_awaited_once_with("Эта операция уже завершена.", show_alert=False)
+
+    async def test_old_save_callback_is_stale_and_cannot_create_again(self):
+        state = MemoryState({"document_id":77}, DocumentState.files.state)
+        callback = SimpleNamespace(
+            message=SimpleNamespace(chat=SimpleNamespace(id=100),message_id=500),
+            from_user=SimpleNamespace(id=10),answer=AsyncMock(),
+        )
+        with patch.object(documents,"_lang",AsyncMock(return_value="ru")), \
+             patch.object(documents,"create_document",AsyncMock()) as create:
+            await documents.document_callback(callback,SimpleNamespace(action="save",value=0),state)
+        create.assert_not_awaited()
+        callback.answer.assert_awaited_once()
 
     async def test_documents_root_back_returns_to_settings(self):
         message = AsyncMock()
@@ -299,6 +373,33 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
 
 
 class DocumentServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_add_document_file_uses_existing_owned_document(self):
+        user = SimpleNamespace(id=11, family_id=7)
+        existing = SimpleNamespace(id=77)
+        session = AsyncMock()
+        session.add = Mock()
+        session.execute.side_effect = [
+            SimpleNamespace(scalar_one_or_none=lambda: user),
+            SimpleNamespace(scalar_one_or_none=lambda: existing),
+            SimpleNamespace(scalar_one=lambda: 0),
+        ]
+        manager = AsyncMock(); manager.__aenter__.return_value = session
+        item = {
+            "telegram_file_id":"second", "telegram_file_unique_id":"unique-second",
+            "file_type":"photo", "original_filename":None, "mime_type":"image/jpeg",
+        }
+        refreshed = SimpleNamespace(id=77, files=[SimpleNamespace(), SimpleNamespace()])
+        with patch.object(document_service,"SessionLocal",return_value=manager), \
+             patch.object(document_service,"get_document",AsyncMock(return_value=refreshed)):
+            result=await document_service.add_document_file(10,77,item)
+        self.assertIs(result,refreshed)
+        added=session.add.call_args.args[0]
+        self.assertIsInstance(added,DocumentFile)
+        self.assertEqual(added.document_id,77)
+        self.assertEqual(added.sort_order,1)
+        self.assertEqual(added.telegram_file_id,"second")
+        session.commit.assert_awaited_once()
+
     async def test_default_categories_are_idempotent(self):
         user = SimpleNamespace(id=1, family_id=7)
         names_result = SimpleNamespace(scalars=lambda: [])

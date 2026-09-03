@@ -311,7 +311,12 @@ class FamilySettingsHandlerTests(unittest.IsolatedAsyncioTestCase):
             )
         context.assert_awaited_once_with(456, chat_type="private", telegram_id=123)
         update.assert_awaited_once_with(7, 10)
-        self.assertIn("10 сек.", callback.message.edits[-1][1]["reply_markup"].inline_keyboard[5][0].text)
+        button_texts = [
+            button.text
+            for row in callback.message.edits[-1][1]["reply_markup"].inline_keyboard
+            for button in row
+        ]
+        self.assertTrue(any("10 сек." in text for text in button_texts))
 
     async def test_temporary_ttl_picker_marks_current_value(self):
         callback, state = FakeCallback(), FakeState()

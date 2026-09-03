@@ -29,12 +29,7 @@ def temporary_screen_ttl_label(ttl: int, language: str = "ru") -> str:
 
 def family_settings_keyboard_for_ttl(ttl: int = 20, language: str = "ru") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [_inline(t(language, "settings.language"), "language")],
-        [_inline(t(language, "settings.country"), "country")],
-        [_inline(t(language, "settings.city"), "city")],
-        [_inline(t(language, "settings.timezone"), "timezone")],
-        [_inline(t(language, "settings.currency"), "currency")],
-        [_inline(temporary_screen_ttl_label(ttl, language), "temporary_ttl")],
+        [_inline(t(language, "menu.documents"), "documents")],
         [InlineKeyboardButton(
             text=t(language, "settings.categories"),
             callback_data=CategoryCallback(action="list", value="settings").pack(),
@@ -44,7 +39,12 @@ def family_settings_keyboard_for_ttl(ttl: int = 20, language: str = "ru") -> Inl
             text=t(language, "settings.savings_goal"),
             callback_data=GoalCallback(action="show").pack(),
         )],
-        [_inline(t(language, "menu.documents"), "documents")],
+        [_inline(t(language, "settings.language"), "language")],
+        [_inline(t(language, "settings.country"), "country")],
+        [_inline(t(language, "settings.city"), "city")],
+        [_inline(t(language, "settings.timezone"), "timezone")],
+        [_inline(t(language, "settings.currency"), "currency")],
+        [_inline(temporary_screen_ttl_label(ttl, language), "temporary_ttl")],
         [_inline(t(language, "settings.about"), "about")],
         [_inline(t(language, "nav.back"), "close")],
     ])

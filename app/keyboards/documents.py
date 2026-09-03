@@ -36,6 +36,6 @@ def owner_keyboard(language="ru"):
 def access_keyboard(language="ru"):
     return InlineKeyboardMarkup(inline_keyboard=[[_b(t(language,"documents.access_family"),"access_family")],[_b(t(language,"documents.access_private"),"access_private")],[_b(t(language,"documents.cancel"),"cancel")]])
 def files_keyboard(language="ru"):
-    return InlineKeyboardMarkup(inline_keyboard=[[_b(t(language,"documents.add_file"),"add_file")],[_b(t(language,"documents.save"),"save")],[_b(t(language,"documents.cancel"),"cancel")]])
+    return InlineKeyboardMarkup(inline_keyboard=[[_b(t(language,"documents.add_file"),"add_file")],[_b(t(language,"documents.done"),"done")],[_b(t(language,"documents.delete_draft"),"delete_draft_document")]])
 def document_keyboard(document, language="ru"):
     return InlineKeyboardMarkup(inline_keyboard=[[_b(t(language,"documents.get"),"get",document.id)],[_b(t(language,"documents.delete"),"delete_document",document.id)],[_b(t(language,"nav.back"),"category",document.category_id)]])

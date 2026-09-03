@@ -46,7 +46,10 @@ class MultilangV1Tests(unittest.TestCase):
                 "city": "Berlin", "timezone": "Europe/Berlin", "temporary_screen_ttl": 20}
         self.assertIn("Familieneinstellungen", family_settings_text(data))
         keyboard = family_settings_keyboard_for_ttl(20, "de")
-        self.assertIn("Sprache", keyboard.inline_keyboard[0][0].text)
+        self.assertTrue(any(
+            "Sprache" in button.text
+            for row in keyboard.inline_keyboard for button in row
+        ))
         self.assertIn("Über den Bot", about_text("de"))
 
     def test_user_data_is_not_translated_and_is_html_safe(self):

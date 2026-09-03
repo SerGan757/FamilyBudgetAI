@@ -155,6 +155,31 @@ async def create_document(telegram_id: int, category_id: int, title: str, owner_
         await session.commit(); return await get_document(telegram_id, document.id)
 
 
+async def add_document_file(telegram_id: int, document_id: int, data: dict):
+    if data.get("file_type") not in ALLOWED_FILE_TYPES or (
+        data.get("file_type") == "document"
+        and data.get("mime_type") not in ALLOWED_MIME_TYPES
+    ):
+        raise InvalidDocumentFileError
+    async with SessionLocal() as session:
+        user = await _user(session, telegram_id)
+        if user is None:
+            return None
+        document = (await session.execute(select(Document).where(
+            Document.id == document_id,
+            Document.family_id == user.family_id,
+            Document.created_by_user_id == user.id,
+        ))).scalar_one_or_none()
+        if document is None:
+            return None
+        next_order = (await session.execute(select(
+            func.coalesce(func.max(DocumentFile.sort_order), -1),
+        ).where(DocumentFile.document_id == document.id))).scalar_one() + 1
+        session.add(DocumentFile(document_id=document.id, sort_order=next_order, **data))
+        await session.commit()
+        return await get_document(telegram_id, document.id)
+
+
 async def get_document(telegram_id: int, document_id: int):
     async with SessionLocal() as session:
         user = await _user(session, telegram_id)
