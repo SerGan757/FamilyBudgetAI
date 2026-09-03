@@ -21,9 +21,16 @@ class OnboardingTranslationTests(unittest.TestCase):
                 project = t(language, "onboarding.projects")
                 self.assertNotEqual(about, "onboarding.about")
                 self.assertIn("<code>++500</code>", about)
+                self.assertIn("📂", about)
                 self.assertIn("<code>++500</code>", goal)
                 self.assertIn("#", project)
                 self.assertNotIn("\n\n\n", about + goal + project)
+
+    def test_russian_documents_feature_wording(self):
+        self.assertIn(
+            "📂 Хранение и быстрый доступ к семейным документам",
+            t("ru", "onboarding.about", currency="€"),
+        )
 
     def test_start_keys_exist_for_every_locale(self):
         for language in SUPPORTED_LANGUAGES:

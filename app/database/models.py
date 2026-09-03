@@ -119,6 +119,8 @@ class Family(Base):
     custom_categories = relationship(
         "FamilyCategory", back_populates="family", cascade="all, delete-orphan",
     )
+    document_categories = relationship("DocumentCategory", back_populates="family")
+    documents = relationship("Document", back_populates="family")
 
     def __repr__(self):
         return (
@@ -176,6 +178,7 @@ class User(Base):
     goal_contributions = relationship(
         "GoalContribution", back_populates="user", cascade="all, delete-orphan",
     )
+    created_documents = relationship("Document", back_populates="created_by_user")
 
     def __repr__(self):
         return (
@@ -543,3 +546,73 @@ class FamilyCategoryKeyword(Base):
     normalized_keyword: Mapped[str] = mapped_column(String(100), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"), nullable=False)
     category = relationship("FamilyCategory", back_populates="keywords")
+
+
+class DocumentCategory(Base):
+    __tablename__ = "document_categories"
+    __table_args__ = (
+        UniqueConstraint("family_id", "name", name="uq_document_categories_family_name"),
+        UniqueConstraint("family_id", "code", name="uq_document_categories_family_code"),
+        Index("ix_document_categories_family_active_sort", "family_id", "is_active", "sort_order"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    family_id: Mapped[int] = mapped_column(
+        ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    emoji: Mapped[str] = mapped_column(String(16), nullable=False, default="📁")
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow,
+        server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"),
+    )
+
+    family = relationship("Family", back_populates="document_categories")
+    documents = relationship("Document", back_populates="category")
+
+
+class Document(Base):
+    __tablename__ = "documents"
+    __table_args__ = (
+        CheckConstraint("access_level IN ('family', 'private')", name="ck_documents_access_level"),
+        Index("ix_documents_family_title", "family_id", "title"),
+        Index("ix_documents_category_created", "category_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    family_id: Mapped[int] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("document_categories.id", ondelete="RESTRICT"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(150), nullable=False)
+    owner_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    access_level: Mapped[str] = mapped_column(String(10), nullable=False, default="family", server_default="family")
+    created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+    family = relationship("Family", back_populates="documents")
+    category = relationship("DocumentCategory", back_populates="documents")
+    created_by_user = relationship("User", back_populates="created_documents")
+    files = relationship("DocumentFile", back_populates="document", cascade="all, delete-orphan", order_by="DocumentFile.sort_order")
+
+
+class DocumentFile(Base):
+    __tablename__ = "document_files"
+    __table_args__ = (Index("ix_document_files_document_sort", "document_id", "sort_order"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    telegram_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    telegram_file_unique_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    file_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
+
+    document = relationship("Document", back_populates="files")

@@ -339,6 +339,7 @@ ONBOARDING_TEXTS = {
 🎯 Накопление на финансовые цели
 🔁 Регулярные доходы и расходы
 🗂 Свои категории и ключевые слова
+📂 Хранение и быстрый доступ к семейным документам
 
 ⚙️ <b>Настройки семьи</b>
 Язык • страна • город • валюта • часовой пояс • категории • исчезающие сообщения.
@@ -398,6 +399,7 @@ ONBOARDING_TEXTS = {
 🎯 Накопичення на фінансові цілі
 🔁 Регулярні доходи й витрати
 🗂 Власні категорії та ключові слова
+📂 Зберігання та швидкий доступ до сімейних документів
 
 ⚙️ <b>Налаштування сім’ї</b>
 Мова, країна, місто, валюта, часовий пояс, категорії та автовидалення екранів.
@@ -457,6 +459,7 @@ Fügen Sie den Bot Ihrer Familiengruppe hinzu. Er stört die Unterhaltung nicht 
 🎯 Sparziele
 🔁 Regelmäßige Einnahmen und Ausgaben
 🗂 Eigene Kategorien und Schlüsselwörter
+📂 Familienunterlagen speichern und schnell darauf zugreifen
 
 ⚙️ <b>Familieneinstellungen</b>
 Sprache, Land, Stadt, Währung, Zeitzone, Kategorien und automatisch verschwindende Ansichten.
@@ -516,6 +519,7 @@ Add the bot to your family group. It stays out of the conversation and responds 
 🎯 Savings goals
 🔁 Recurring income and expenses
 🗂 Custom categories and keywords
+📂 Store and quickly access family documents
 
 ⚙️ <b>Family settings</b>
 Language, country, city, currency, timezone, categories, and disappearing-screen settings.
@@ -577,6 +581,7 @@ ONBOARDING_TEXTS.update({
 📁 Праекты і 🎯 фінансавыя мэты
 🔁 Рэгулярныя аперацыі
 🗂 Уласныя катэгорыі і ключавыя словы
+📂 Захоўванне і хуткі доступ да сямейных дакументаў
 
 ⚙️ <b>Налады сям’і</b>
 Мова, краіна, горад, валюта, часавы пояс, катэгорыі і аўтавыдаленне экранаў.
@@ -634,6 +639,7 @@ Dodaj bota do grupy rodzinnej. Nie przeszkadza w rozmowie i reaguje na wpisy fin
 📁 Projekty i 🎯 cele oszczędnościowe
 🔁 Operacje cykliczne
 🗂 Własne kategorie i słowa kluczowe
+📂 Przechowywanie i szybki dostęp do dokumentów rodzinnych
 
 ⚙️ <b>Ustawienia rodziny</b>
 Język, kraj, miasto, waluta, strefa czasowa, kategorie i automatyczne usuwanie ekranów.
@@ -691,6 +697,7 @@ Přidejte bota do rodinné skupiny. Neruší konverzaci a reaguje na finanční 
 📁 Projekty a 🎯 cíle spoření
 🔁 Pravidelné operace
 🗂 Vlastní kategorie a klíčová slova
+📂 Ukládání a rychlý přístup k rodinným dokumentům
 
 ⚙️ <b>Nastavení rodiny</b>
 Jazyk, země, město, měna, časové pásmo, kategorie a automatické mazání obrazovek.
@@ -748,6 +755,7 @@ Pridajte bota do rodinnej skupiny. Neruší konverzáciu a reaguje na finančné
 📁 Projekty a 🎯 ciele sporenia
 🔁 Pravidelné operácie
 🗂 Vlastné kategórie a kľúčové slová
+📂 Ukladanie a rýchly prístup k rodinným dokumentom
 
 ⚙️ <b>Nastavenia rodiny</b>
 Jazyk, krajina, mesto, mena, časové pásmo, kategórie a automatické mazanie obrazoviek.
@@ -805,6 +813,7 @@ Adăugați botul în grupul familiei. Nu deranjează conversația și răspunde 
 📁 Proiecte și 🎯 obiective de economisire
 🔁 Operațiuni recurente
 🗂 Categorii și cuvinte-cheie proprii
+📂 Stocarea și accesul rapid la documentele familiei
 
 ⚙️ <b>Setările familiei</b>
 Limbă, țară, oraș, monedă, fus orar, categorii și ștergerea automată a ecranelor.
@@ -862,6 +871,7 @@ Operațiunea rămâne o cheltuială obișnuită și este legată simultan de pro
 📁 Проекти и 🎯 финансови цели
 🔁 Периодични операции
 🗂 Собствени категории и ключови думи
+📂 Съхранение и бърз достъп до семейни документи
 
 ⚙️ <b>Семейни настройки</b>
 Език, държава, град, валута, часова зона, категории и автоматично изтриване на екрани.
@@ -919,6 +929,7 @@ Adja hozzá a botot a családi csoporthoz. Nem zavarja a beszélgetést, és rea
 📁 Projektek és 🎯 megtakarítási célok
 🔁 Rendszeres műveletek
 🗂 Saját kategóriák és kulcsszavak
+📂 Családi dokumentumok tárolása és gyors elérése
 
 ⚙️ <b>Családi beállítások</b>
 Nyelv, ország, város, pénznem, időzóna, kategóriák és képernyők automatikus törlése.
@@ -1033,6 +1044,10 @@ def family_language(family):
 
 def t(language, key, **kwargs):
     code = normalize_language(language)
+    from app.i18n.documents import DOCUMENT_TEXTS
+    if key in DOCUMENT_TEXTS.get(code, {}):
+        template = DOCUMENT_TEXTS[code][key]
+        return template.format(**kwargs) if kwargs else template
     if key in START_TEXTS.get(code, {}):
         template = START_TEXTS[code][key]
         return template.format(**kwargs) if kwargs else template

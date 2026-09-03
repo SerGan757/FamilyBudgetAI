@@ -23,6 +23,7 @@ async def init_db():
             "savings_goals", "goal_contributions",
             "family_category_keyword_overrides",
             "family_categories", "family_category_keywords",
+            "document_categories", "documents", "document_files",
         }
         existing_tables = [
             table for table in Base.metadata.sorted_tables

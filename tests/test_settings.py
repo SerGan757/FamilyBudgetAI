@@ -36,6 +36,8 @@ class SettingsTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(main_menu.one_time_keyboard)
         self.assertIn("📋 История", [button.text for row in main_menu.keyboard for button in row])
         self.assertIn("⚙️ Настройки", [button.text for row in main_menu.keyboard for button in row])
+        self.assertNotIn("📂 Документы", [button.text for row in main_menu.keyboard for button in row])
+        self.assertIn("📂 Документы", [button.text for row in family_settings_keyboard.inline_keyboard for button in row])
         self.assertEqual([len(row) for row in settings_menu.keyboard], [2, 2, 2, 2])
 
     async def test_settings_screen_escapes_family_and_opens_menu(self):

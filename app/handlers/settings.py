@@ -154,6 +154,10 @@ async def family_settings_callback(
             about_text(language, current["currency"]),
             reply_markup=settings_about_keyboard_for(language), parse_mode="HTML",
         )
+    elif action == "documents":
+        await state.clear()
+        from app.handlers.documents import show_documents
+        await show_documents(message, callback.from_user.id)
     elif action == "country_page":
         try:
             page = int(value)

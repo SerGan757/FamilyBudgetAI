@@ -18,6 +18,7 @@ class MultilangV1Tests(unittest.TestCase):
             self.assertEqual([len(row) for row in keyboard.keyboard], [2, 2, 2, 2])
             self.assertEqual(keyboard.keyboard[0][0].text, t(language, "menu.history"))
             self.assertEqual(keyboard.keyboard[-1][-1].text, t(language, "menu.settings"))
+            self.assertNotIn(t(language, "menu.documents"), [button.text for row in keyboard.keyboard for button in row])
             self.assertTrue(keyboard.resize_keyboard)
             self.assertTrue(keyboard.one_time_keyboard)
 

@@ -44,6 +44,7 @@ def family_settings_keyboard_for_ttl(ttl: int = 20, language: str = "ru") -> Inl
             text=t(language, "settings.savings_goal"),
             callback_data=GoalCallback(action="show").pack(),
         )],
+        [_inline(t(language, "menu.documents"), "documents")],
         [_inline(t(language, "settings.about"), "about")],
         [_inline(t(language, "nav.back"), "close")],
     ])
