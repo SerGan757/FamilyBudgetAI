@@ -5,6 +5,7 @@ from sqlalchemy import and_, func, select
 from app.database.db import SessionLocal
 from app.database.models import Project, Transaction, User
 from sqlalchemy.orm import contains_eager, selectinload
+from app.services.category_service import detect_category
 from app.services.financial_feed_service import get_display_feed
 
 
@@ -17,6 +18,16 @@ def _transaction_list_query(family_id: int):
         )
         .options(selectinload(Transaction.user), selectinload(Transaction.custom_category), contains_eager(Transaction.project))
     )
+
+
+def _expense_category_label(transaction: Transaction) -> str:
+    if transaction.custom_category is not None:
+        return f"{transaction.custom_category.icon} {transaction.custom_category.name}"
+    income_icon, income_name = detect_category(transaction.title, "income")
+    if transaction.category == f"{income_icon} {income_name}":
+        expense_icon, expense_name = detect_category(transaction.title, "expense")
+        return f"{expense_icon} {expense_name}"
+    return transaction.category
 
 
 def _month_bounds() -> tuple[datetime, datetime]:
@@ -429,9 +440,10 @@ async def get_categories_statistics(family_id: int):
         if t.is_recurring:
             continue
 
-        categories[t.category] = (
+        category = _expense_category_label(t)
+        categories[category] = (
             categories.get(
-                t.category,
+                category,
                 0,
             )
             + t.amount
@@ -576,10 +588,7 @@ async def get_analytics(
     for t in expenses:
         name = t.user.name if t.user else "Неизвестно"
         users[name] = users.get(name, 0) + t.amount
-        category = (
-            f"{t.custom_category.icon} {t.custom_category.name}"
-            if t.custom_category is not None else t.category
-        )
+        category = _expense_category_label(t)
         categories[category] = categories.get(category, 0) + t.amount
         by_day_expense[t.created_at.date()] = by_day_expense.get(t.created_at.date(), 0) + t.amount
     for t in incomes:

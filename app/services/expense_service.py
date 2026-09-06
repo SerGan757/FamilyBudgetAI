@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.database.db import SessionLocal
 from app.database.models import FamilyCategory, Project, Transaction
 from app.services.parser import parse_message
-from app.services.category_service import detect_category_reference_for_family
+from app.services.category_service import detect_category, detect_category_reference_for_family
 from app.services.user_service import get_user_by_telegram_id
 from app.services.family_activity_service import touch_family_activity
 from app.services.project_service import (
@@ -96,6 +96,16 @@ async def create_transaction(
     project_id: int | None = None,
     custom_category_id: int | None = None,
 ):
+
+    if transaction_type not in {"income", "expense"}:
+        raise ValueError("Unsupported transaction type")
+    income_icon, income_category = detect_category(title, "income")
+    if transaction_type == "income":
+        category = f"{income_icon} {income_category}"
+        custom_category_id = None
+    elif custom_category_id is None and category == f"{income_icon} {income_category}":
+        expense_icon, expense_category = detect_category(title, "expense")
+        category = f"{expense_icon} {expense_category}"
 
     async with SessionLocal() as session:
 
