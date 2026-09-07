@@ -336,12 +336,6 @@ class RecurringPayment(Base):
         default="📦 Прочее",
     )
 
-    category: Mapped[str] = mapped_column(
-        String(100),
-        nullable=False,
-        default="📦 Прочее",
-    )
-
     frequency: Mapped[str] = mapped_column(
         String(20),
         nullable=False,

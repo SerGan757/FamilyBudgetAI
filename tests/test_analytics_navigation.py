@@ -1,10 +1,12 @@
 import unittest
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from aiogram.exceptions import TelegramBadRequest
 
 from app.handlers import statistics
+from app.services import analytics_forecast
 
 
 def analytics_data():
@@ -48,6 +50,8 @@ class AnalyticsNavigationTests(unittest.IsolatedAsyncioTestCase):
             AsyncMock(return_value=SimpleNamespace(id=7, temporary_screen_ttl=20)),
         ), patch.object(
             statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
+        ), patch.object(
+            analytics_forecast, "current_date", return_value=date(2026, 8, 1),
         ):
             await statistics.analytics_page(event)
         return event
