@@ -24,6 +24,7 @@ async def init_db():
             "family_category_keyword_overrides",
             "family_categories", "family_category_keywords",
             "document_categories", "documents", "document_files",
+            "temporary_telegram_messages",
         }
         existing_tables = [
             table for table in Base.metadata.sorted_tables

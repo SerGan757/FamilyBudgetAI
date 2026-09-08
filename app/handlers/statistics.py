@@ -184,7 +184,7 @@ async def today(message: Message):
         parse_mode="HTML",
         inline_markup=day_keyboard(selected_date, 0, total, family_language(family)),
     )
-    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
+    await schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
 
 
 @router.callback_query(F.data.startswith("today:") | F.data.startswith("day:"))
@@ -228,7 +228,7 @@ async def today_page(
         parse_mode="HTML",
         reply_markup=day_keyboard(selected_date, offset, total, family_language(family)),
     )
-    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+    await refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -349,7 +349,7 @@ async def month(message: Message):
         parse_mode="HTML",
         inline_markup=month_keyboard(today.year, today.month, 0, total, family_language(family)),
     )
-    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
+    await schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
     return
 
 
@@ -397,7 +397,7 @@ async def month_page(
         parse_mode="HTML",
         reply_markup=month_keyboard(year, month, offset, total, family_language(family)),
     )
-    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+    await refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -425,7 +425,7 @@ async def balance(message: Message):
         text,
         parse_mode="HTML",
     )
-    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
+    await schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
 
 
 @router.message(Command("analytics"))
@@ -616,7 +616,7 @@ async def analytics(
             message, text, parse_mode="HTML",
             inline_markup=analytics_keyboard(year, month, language),
         )
-        schedule_temporary_message(sent_message, ttl=temporary_screen_ttl)
+        await schedule_temporary_message(sent_message, ttl=temporary_screen_ttl)
 
 
 def analytics_keyboard(year: int, month: int, language: str = "ru") -> InlineKeyboardMarkup:
@@ -683,7 +683,7 @@ async def analytics_help(callback: CallbackQuery):
         parse_mode="HTML",
         reply_markup=analytics_help_keyboard(year, month, family_language(family)),
     )
-    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+    await refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -705,7 +705,7 @@ async def analytics_back(callback: CallbackQuery):
         callback.message, year, month, family.id,
         edit_existing=True, currency_code=family_currency(family), language=family_language(family),
     )
-    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+    await refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
@@ -731,8 +731,8 @@ async def analytics_page(callback: CallbackQuery):
     except TelegramBadRequest as error:
         if "message is not modified" not in str(error).lower():
             raise
-        refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+        await refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     else:
-        refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+        await refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     finally:
         await callback.answer()

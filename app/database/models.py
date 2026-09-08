@@ -575,6 +575,10 @@ class Document(Base):
         CheckConstraint("access_level IN ('family', 'private')", name="ck_documents_access_level"),
         Index("ix_documents_family_title", "family_id", "title"),
         Index("ix_documents_category_created", "category_id", "created_at"),
+        Index(
+            "uq_documents_upload_session_key", "upload_session_key", unique=True,
+            postgresql_where=text("upload_session_key IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -585,6 +589,7 @@ class Document(Base):
     note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     access_level: Mapped[str] = mapped_column(String(10), nullable=False, default="family", server_default="family")
+    upload_session_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
@@ -597,7 +602,18 @@ class Document(Base):
 
 class DocumentFile(Base):
     __tablename__ = "document_files"
-    __table_args__ = (Index("ix_document_files_document_sort", "document_id", "sort_order"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "document_id", "sort_order",
+            name="uq_document_files_document_sort",
+        ),
+        Index("ix_document_files_document_sort", "document_id", "sort_order"),
+        Index(
+            "uq_document_files_document_file_unique",
+            "document_id", "telegram_file_unique_id", unique=True,
+            postgresql_where=text("telegram_file_unique_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     document_id: Mapped[int] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -610,3 +626,39 @@ class DocumentFile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"))
 
     document = relationship("Document", back_populates="files")
+
+
+class TemporaryTelegramMessage(Base):
+    __tablename__ = "temporary_telegram_messages"
+    __table_args__ = (
+        UniqueConstraint(
+            "chat_id", "message_id",
+            name="uq_temporary_telegram_messages_chat_message",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'failed')",
+            name="ck_temporary_telegram_messages_status",
+        ),
+        CheckConstraint(
+            "attempts >= 0",
+            name="ck_temporary_telegram_messages_attempts",
+        ),
+        Index(
+            "ix_temporary_telegram_messages_status_delete_after",
+            "status", "delete_after",
+        ),
+        Index("ix_temporary_telegram_messages_locked_until", "locked_until"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    delete_after: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text("0"))
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", server_default="pending")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow,
+        server_default=text("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')"),
+    )
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

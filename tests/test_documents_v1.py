@@ -3,9 +3,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from sqlalchemy import CheckConstraint, UniqueConstraint
-from aiogram.exceptions import TelegramBadRequest
+from sqlalchemy.dialects import postgresql
 
-from app.database.models import Document, DocumentCategory, DocumentFile
+from app.database.models import (
+    Document, DocumentCategory, DocumentFile, TemporaryTelegramMessage,
+)
 from app.i18n import t
 from app.i18n.documents import SYSTEM_CATEGORY_NAMES, category_display_name
 from app.i18n.translations import SUPPORTED_LANGUAGES
@@ -42,7 +44,15 @@ class DocumentModelsTests(unittest.TestCase):
 
     def test_document_schema_and_access_constraint(self):
         columns = Document.__table__.columns
-        self.assertEqual(set(columns.keys()), {"id","family_id","category_id","title","owner_name","note","expires_at","access_level","created_by_user_id","created_at","updated_at"})
+        self.assertEqual(set(columns.keys()), {"id","family_id","category_id","title","owner_name","note","expires_at","access_level","upload_session_key","created_by_user_id","created_at","updated_at"})
+        self.assertTrue(columns.upload_session_key.nullable)
+        upload_indexes = {
+            index.name: index for index in Document.__table__.indexes
+        }
+        self.assertTrue(upload_indexes["uq_documents_upload_session_key"].unique)
+        self.assertIsNotNone(
+            upload_indexes["uq_documents_upload_session_key"].dialect_options["postgresql"]["where"],
+        )
         checks = " ".join(str(x.sqltext) for x in Document.__table__.constraints if isinstance(x, CheckConstraint))
         self.assertIn("private", checks)
         self.assertEqual(next(iter(Document.__table__.c.category_id.foreign_keys)).ondelete, "RESTRICT")
@@ -50,6 +60,31 @@ class DocumentModelsTests(unittest.TestCase):
     def test_file_schema_and_cascade(self):
         self.assertIn("telegram_file_id", DocumentFile.__table__.columns)
         self.assertEqual(next(iter(DocumentFile.__table__.c.document_id.foreign_keys)).ondelete, "CASCADE")
+        uniques = {
+            tuple(column.name for column in constraint.columns)
+            for constraint in DocumentFile.__table__.constraints
+            if isinstance(constraint, UniqueConstraint)
+        }
+        self.assertIn(("document_id", "sort_order"), uniques)
+        indexes = {index.name: index for index in DocumentFile.__table__.indexes}
+        file_unique = indexes["uq_document_files_document_file_unique"]
+        self.assertTrue(file_unique.unique)
+        self.assertEqual(
+            tuple(column.name for column in file_unique.columns),
+            ("document_id", "telegram_file_unique_id"),
+        )
+        self.assertIsNotNone(file_unique.dialect_options["postgresql"]["where"])
+
+    def test_temporary_message_schema_is_prepared_but_not_started(self):
+        columns = TemporaryTelegramMessage.__table__.columns
+        self.assertEqual(
+            set(columns.keys()),
+            {"id", "chat_id", "message_id", "delete_after", "attempts", "status",
+             "locked_until", "created_at", "last_attempt_at"},
+        )
+        self.assertFalse(any(column.foreign_keys for column in columns))
+        source = open("app/utils/temporary_screens.py", encoding="utf-8").read()
+        self.assertIn("schedule_temporary_message_delete", source)
 
     def test_controlled_migration_documents_rules(self):
         source = open("docs/migrations/20260903_add_documents.sql", encoding="utf-8").read().lower()
@@ -57,6 +92,19 @@ class DocumentModelsTests(unittest.TestCase):
             self.assertIn(f"create table {table}", source)
         self.assertIn("on delete restrict", source)
         self.assertIn("on delete cascade", source)
+
+    def test_stage2_migration_diagnoses_duplicates_without_repairing_data(self):
+        source = open(
+            "docs/migrations/20260907_documents_hardening_stage2.sql",
+            encoding="utf-8",
+        ).read().lower()
+        self.assertIn("group by document_id, sort_order", source)
+        self.assertIn("group by document_id, telegram_file_unique_id", source)
+        self.assertIn("raise exception", source)
+        self.assertIn("upload_session_key", source)
+        self.assertIn("temporary_telegram_messages", source)
+        self.assertNotIn("delete from document_files", source)
+        self.assertNotIn("update document_files", source)
 
 
 class DocumentUiTests(unittest.TestCase):
@@ -151,7 +199,7 @@ class DocumentPreviewTests(unittest.IsolatedAsyncioTestCase):
         state = MemoryState()
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
              patch.object(documents, "get_document", AsyncMock(return_value=document)), \
-             patch.object(documents, "schedule_temporary_message") as schedule:
+             patch.object(documents, "schedule_temporary_message", AsyncMock()) as schedule:
             await documents.document_callback(
                 callback, SimpleNamespace(action="get", value=document.id), state,
             )
@@ -164,7 +212,7 @@ class DocumentPreviewTests(unittest.IsolatedAsyncioTestCase):
         )
         callback = self._callback(photo_messages=[preview])
         schedule = await self._get(callback, document)
-        schedule.assert_called_once_with(preview, ttl=DOCUMENT_PREVIEW_TTL)
+        schedule.assert_awaited_once_with(preview, ttl=DOCUMENT_PREVIEW_TTL)
         self.assertEqual(DOCUMENT_PREVIEW_TTL, 180)
 
     async def test_two_previews_schedule_their_returned_messages(self):
@@ -195,7 +243,7 @@ class DocumentPreviewTests(unittest.IsolatedAsyncioTestCase):
         state = MemoryState()
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
              patch.object(documents, "get_document", AsyncMock(return_value=document)) as get, \
-             patch.object(documents, "schedule_temporary_message") as schedule:
+             patch.object(documents, "schedule_temporary_message", AsyncMock()) as schedule:
             for _ in range(2):
                 await documents.document_callback(
                     callback, SimpleNamespace(action="get", value=7), state,
@@ -212,18 +260,7 @@ class DocumentPreviewTests(unittest.IsolatedAsyncioTestCase):
         )
         callback = self._callback(document_messages=[preview])
         schedule = await self._get(callback, document)
-        schedule.assert_called_once_with(preview, ttl=180)
-
-    async def test_delete_error_is_best_effort(self):
-        bot = SimpleNamespace(
-            delete_message=AsyncMock(
-                side_effect=TelegramBadRequest(method=Mock(), message="message not found"),
-            ),
-        )
-        with patch.object(temporary_screens.asyncio, "sleep", AsyncMock()):
-            await temporary_screens._delete_after(bot, 100, 101, 180)
-        bot.delete_message.assert_awaited_once_with(chat_id=100, message_id=101)
-
+        schedule.assert_awaited_once_with(preview, ttl=180)
 
 class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
     def _incoming_photo(self, bot, file_id, control=None):
@@ -238,19 +275,21 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
         bot = SimpleNamespace(edit_message_text=AsyncMock(), edit_message_reply_markup=AsyncMock())
         control = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500)
         state = MemoryState(
-            {"category_id":7,"title":"Passport","owner":"Me","access_level":"private"},
+            {"category_id":7,"title":"Passport","owner":"Me","access_level":"private",
+             "upload_session_key":"session-key"},
             DocumentState.files.state,
         )
         first = self._incoming_photo(bot, "file-1", control)
         first_document = SimpleNamespace(id=77, files=[SimpleNamespace(id=1)])
+        first_result = document_service.DocumentFileResult(
+            first_document, SimpleNamespace(id=1), True, 1,
+        )
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
-             patch.object(documents, "create_document", AsyncMock(return_value=first_document)) as create, \
-             patch.object(documents, "add_document_file", AsyncMock()) as add, \
-             patch.object(documents, "schedule_temporary_message") as schedule:
+             patch.object(documents, "create_or_append_document_file", AsyncMock(return_value=first_result)) as store, \
+             patch.object(documents, "schedule_temporary_message", AsyncMock()) as schedule:
             await documents.receive_file(first, state)
-        create.assert_awaited_once()
-        self.assertEqual(len(create.await_args.args[-1]), 1)
-        add.assert_not_awaited()
+        store.assert_awaited_once()
+        self.assertEqual(store.await_args.args[1], "session-key")
         self.assertEqual(state.data["document_id"], 77)
         self.assertEqual(state.data["file_count"], 1)
         self.assertEqual(state.data["upload_control_message_id"], 500)
@@ -272,20 +311,21 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
         second_document = SimpleNamespace(
             id=77, files=[SimpleNamespace(id=1), SimpleNamespace(id=2)],
         )
+        second_result = document_service.DocumentFileResult(
+            second_document, SimpleNamespace(id=2), True, 2,
+        )
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
-             patch.object(documents, "create_document", AsyncMock()) as create_second, \
-             patch.object(documents, "add_document_file", AsyncMock(return_value=second_document)) as add_second, \
-             patch.object(documents, "schedule_temporary_message") as schedule_second:
+             patch.object(documents, "create_or_append_document_file", AsyncMock(return_value=second_result)) as store_second, \
+             patch.object(documents, "schedule_temporary_message", AsyncMock()) as schedule_second:
             await documents.receive_file(second, state)
-        create_second.assert_not_awaited()
-        add_second.assert_awaited_once()
-        self.assertEqual(add_second.await_args.args[:2], (10, 77))
+        store_second.assert_awaited_once()
+        self.assertEqual(store_second.await_args.args[1], "session-key")
         self.assertEqual(state.data["file_count"], 2)
         second.answer.assert_not_awaited()
         bot.edit_message_text.assert_awaited_once()
         self.assertIn("Файлов: 2", bot.edit_message_text.await_args.kwargs["text"])
-        schedule.assert_called_once_with(first, ttl=DOCUMENT_UPLOAD_TTL)
-        schedule_second.assert_called_once_with(second, ttl=DOCUMENT_UPLOAD_TTL)
+        schedule.assert_awaited_once_with(first, ttl=DOCUMENT_UPLOAD_TTL)
+        schedule_second.assert_awaited_once_with(second, ttl=DOCUMENT_UPLOAD_TTL)
         self.assertEqual(DOCUMENT_UPLOAD_TTL, 180)
 
     async def test_invalid_file_is_not_scheduled(self):
@@ -295,10 +335,41 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
         )
         state = MemoryState({"files": []}, DocumentState.files.state)
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
-             patch.object(documents, "schedule_temporary_message") as schedule:
+             patch.object(documents, "schedule_temporary_message", AsyncMock()) as schedule:
             await documents.receive_file(invalid, state)
         schedule.assert_not_called()
         self.assertNotIn("document_id", state.data)
+
+    async def test_missing_upload_session_key_finishes_stale_workflow(self):
+        bot = SimpleNamespace(edit_message_text=AsyncMock())
+        message = self._incoming_photo(bot, "file-1")
+        state = MemoryState(
+            {"category_id":7,"title":"Passport","owner":"Me","access_level":"private"},
+            DocumentState.files.state,
+        )
+        with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
+             patch.object(documents, "create_or_append_document_file", AsyncMock()) as store, \
+             patch.object(documents, "schedule_temporary_message", AsyncMock()) as schedule:
+            await documents.receive_file(message, state)
+        store.assert_not_awaited()
+        schedule.assert_not_called()
+        self.assertIsNone(state.current)
+        self.assertEqual(state.data, {})
+        message.answer.assert_awaited_once_with(t("ru", "documents.upload_expired"))
+
+    async def test_access_selection_creates_session_key_before_file_state(self):
+        state = MemoryState({}, DocumentState.access.state)
+        message = SimpleNamespace(edit_text=AsyncMock())
+        callback = SimpleNamespace(
+            message=message, from_user=SimpleNamespace(id=10), answer=AsyncMock(),
+        )
+        with patch.object(documents, "_lang", AsyncMock(return_value="ru")):
+            await documents.document_callback(
+                callback, SimpleNamespace(action="access_private", value=0), state,
+            )
+        self.assertEqual(state.current, DocumentState.files.state)
+        self.assertEqual(state.data["access_level"], "private")
+        self.assertEqual(len(state.data["upload_session_key"]), 36)
 
     async def test_done_only_finishes_fsm_and_deactivates_panel(self):
         state = MemoryState(
@@ -309,11 +380,9 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
         message = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500, edit_text=AsyncMock(), answer=AsyncMock())
         callback = SimpleNamespace(message=message, from_user=SimpleNamespace(id=10), answer=AsyncMock())
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
-             patch.object(documents, "create_document", AsyncMock()) as create, \
-             patch.object(documents, "add_document_file", AsyncMock()) as add:
+             patch.object(documents, "create_or_append_document_file", AsyncMock()) as store:
             await documents.document_callback(callback, SimpleNamespace(action="done", value=0), state)
-        create.assert_not_awaited()
-        add.assert_not_awaited()
+        store.assert_not_awaited()
         self.assertIsNone(state.current)
         self.assertEqual(state.data, {})
         self.assertIsNone(message.edit_text.await_args.kwargs["reply_markup"])
@@ -358,9 +427,9 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
             from_user=SimpleNamespace(id=10),answer=AsyncMock(),
         )
         with patch.object(documents,"_lang",AsyncMock(return_value="ru")), \
-             patch.object(documents,"create_document",AsyncMock()) as create:
+             patch.object(documents,"create_or_append_document_file",AsyncMock()) as store:
             await documents.document_callback(callback,SimpleNamespace(action="save",value=0),state)
-        create.assert_not_awaited()
+        store.assert_not_awaited()
         callback.answer.assert_awaited_once()
 
     async def test_documents_root_back_returns_to_settings(self):
@@ -373,15 +442,23 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
 
 
 class DocumentServiceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_add_document_file_uses_existing_owned_document(self):
+    async def test_atomic_service_locks_document_and_adds_next_file(self):
         user = SimpleNamespace(id=11, family_id=7)
-        existing = SimpleNamespace(id=77)
+        category = SimpleNamespace(id=7)
+        existing = SimpleNamespace(
+            id=77, family_id=7, created_by_user_id=11, category_id=7,
+            title="Passport", owner_name="Me", access_level="private",
+        )
         session = AsyncMock()
         session.add = Mock()
         session.execute.side_effect = [
             SimpleNamespace(scalar_one_or_none=lambda: user),
+            SimpleNamespace(scalar_one_or_none=lambda: category),
+            SimpleNamespace(),
             SimpleNamespace(scalar_one_or_none=lambda: existing),
+            SimpleNamespace(scalar_one_or_none=lambda: None),
             SimpleNamespace(scalar_one=lambda: 0),
+            SimpleNamespace(scalar_one=lambda: 2),
         ]
         manager = AsyncMock(); manager.__aenter__.return_value = session
         item = {
@@ -391,14 +468,60 @@ class DocumentServiceTests(unittest.IsolatedAsyncioTestCase):
         refreshed = SimpleNamespace(id=77, files=[SimpleNamespace(), SimpleNamespace()])
         with patch.object(document_service,"SessionLocal",return_value=manager), \
              patch.object(document_service,"get_document",AsyncMock(return_value=refreshed)):
-            result=await document_service.add_document_file(10,77,item)
-        self.assertIs(result,refreshed)
+            result=await document_service.create_or_append_document_file(
+                10,"session-key",7,"Passport","Me","private",item,
+            )
+        self.assertIs(result.document,refreshed)
+        self.assertTrue(result.file_added)
+        self.assertEqual(result.file_count,2)
         added=session.add.call_args.args[0]
         self.assertIsInstance(added,DocumentFile)
         self.assertEqual(added.document_id,77)
         self.assertEqual(added.sort_order,1)
         self.assertEqual(added.telegram_file_id,"second")
         session.commit.assert_awaited_once()
+        lock_sql = str(session.execute.await_args_list[3].args[0])
+        self.assertIn("FOR UPDATE", lock_sql)
+        self.assertIn("documents.family_id", lock_sql)
+        self.assertIn("documents.created_by_user_id", lock_sql)
+        insert_sql = str(session.execute.await_args_list[2].args[0].compile(
+            dialect=postgresql.dialect(),
+        ))
+        self.assertIn("ON CONFLICT (upload_session_key)", insert_sql)
+        self.assertIn("DO NOTHING", insert_sql)
+
+    async def test_duplicate_file_is_noop_and_keeps_count(self):
+        user = SimpleNamespace(id=11, family_id=7)
+        category = SimpleNamespace(id=7)
+        document = SimpleNamespace(
+            id=77, family_id=7, created_by_user_id=11, category_id=7,
+            title="Passport", owner_name="Me", access_level="private",
+        )
+        existing_file = SimpleNamespace(id=5, telegram_file_unique_id="same")
+        session = AsyncMock()
+        session.add = Mock()
+        session.execute.side_effect = [
+            SimpleNamespace(scalar_one_or_none=lambda: user),
+            SimpleNamespace(scalar_one_or_none=lambda: category),
+            SimpleNamespace(),
+            SimpleNamespace(scalar_one_or_none=lambda: document),
+            SimpleNamespace(scalar_one_or_none=lambda: existing_file),
+            SimpleNamespace(scalar_one=lambda: 1),
+        ]
+        manager = AsyncMock(); manager.__aenter__.return_value = session
+        item = {
+            "telegram_file_id":"file", "telegram_file_unique_id":"same",
+            "file_type":"photo", "original_filename":None, "mime_type":"image/jpeg",
+        }
+        loaded = SimpleNamespace(id=77, files=[existing_file])
+        with patch.object(document_service,"SessionLocal",return_value=manager), \
+             patch.object(document_service,"get_document",AsyncMock(return_value=loaded)):
+            result = await document_service.create_or_append_document_file(
+                10,"session-key",7,"Passport","Me","private",item,
+            )
+        self.assertFalse(result.file_added)
+        self.assertEqual(result.file_count,1)
+        session.add.assert_not_called()
 
     async def test_default_categories_are_idempotent(self):
         user = SimpleNamespace(id=1, family_id=7)

@@ -24,6 +24,13 @@ _RU = {
  "documents.enter_title":"Введите название документа.", "documents.owner":"Кому принадлежит документ?", "documents.owner_me":"👤 Мне", "documents.owner_family":"👨‍👩‍👧‍👦 Семье", "documents.owner_car":"🚗 Автомобилю", "documents.owner_other":"✏️ Другое", "documents.enter_owner":"Введите владельца.", "documents.access":"Выберите доступ:", "documents.access_family":"👨‍👩‍👧‍👦 Семье", "documents.access_private":"🔒 Только мне", "documents.send_file":"📎 Отправьте фото, изображение как файл или PDF.", "documents.file_added":"✅ Файл добавлен.", "documents.add_file":"➕ Добавить ещё файл", "documents.cancel":"❌ Отмена", "documents.done":"✅ Готово", "documents.delete_draft":"❌ Удалить документ", "documents.created":"✅ Документ создан", "documents.added_success":"✅ Документ добавлен", "documents.files":"Файлов: {count}", "documents.category":"Категория", "documents.owner_label":"Владелец", "documents.access_label":"Доступ", "documents.added":"Добавлен", "documents.get":"📎 Получить документ", "documents.private_denied":"🔒 Этот документ доступен только владельцу.", "documents.invalid_file":"Отправьте Telegram-фото либо PDF, JPEG, PNG или WEBP.", "documents.search_prompt":"Введите часть названия документа.", "documents.search_empty":"Документы не найдены.", "documents.not_found":"Документ или категория не найдены.", "documents.deleted":"Документ удалён.", "documents.operation_finished":"Эта операция уже завершена.",
 }
 
+_EN["documents.upload_expired"] = (
+    "This upload has expired. Start adding the document again."
+)
+_RU["documents.upload_expired"] = (
+    "Эта загрузка устарела. Начните добавление документа заново."
+)
+
 DOCUMENT_TEXTS = {language: dict(_EN) for language in SUPPORTED_LANGUAGES}
 DOCUMENT_TEXTS["ru"].update(_RU)
 # Native main-menu labels; all remaining document strings have a complete English fallback.

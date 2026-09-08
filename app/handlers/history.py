@@ -121,7 +121,7 @@ async def history(message: Message):
             language=family_language(family),
         ),
     )
-    schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
+    await schedule_temporary_message(sent_message, ttl=family.temporary_screen_ttl)
 
 
 @router.callback_query(
@@ -152,5 +152,5 @@ async def history_page(
         ),
     )
 
-    refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
+    await refresh_temporary_message(callback.message, ttl=family.temporary_screen_ttl)
     await callback.answer()

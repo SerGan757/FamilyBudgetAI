@@ -1,4 +1,5 @@
 from html import escape
+from uuid import uuid4
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
@@ -72,6 +73,9 @@ async def document_callback(callback:CallbackQuery,callback_data:DocumentCallbac
     if a == "save":
         await _answer_stale(callback, language)
         return
+    if a.startswith("access_") and current_state != DocumentState.access.state:
+        await _answer_stale(callback, language)
+        return
     if a in {"add_file", "done", "delete_draft_document"} and current_state != DocumentState.files.state:
         await _answer_stale(callback, language)
         return
@@ -121,7 +125,13 @@ async def document_callback(callback:CallbackQuery,callback_data:DocumentCallbac
     elif a.startswith("owner_"):
         if a=="owner_other": await state.set_state(DocumentState.custom_owner); await m.edit_text(t(language,"documents.enter_owner"))
         else: await state.update_data(owner={"owner_me":t(language,"documents.owner_me")[2:],"owner_family":t(language,"documents.owner_family")[2:],"owner_car":t(language,"documents.owner_car")[2:]}[a]); await state.set_state(DocumentState.access); await m.edit_text(t(language,"documents.access"),reply_markup=access_keyboard(language))
-    elif a.startswith("access_"): await state.update_data(access_level=a.removeprefix("access_")); await state.set_state(DocumentState.files); await m.edit_text(t(language,"documents.send_file"))
+    elif a.startswith("access_"):
+        await state.update_data(
+            access_level=a.removeprefix("access_"),
+            upload_session_key=str(uuid4()),
+        )
+        await state.set_state(DocumentState.files)
+        await m.edit_text(t(language,"documents.send_file"))
     elif a=="add_file":
         await state.update_data(
             upload_control_chat_id=m.chat.id,
@@ -158,7 +168,7 @@ async def document_callback(callback:CallbackQuery,callback_data:DocumentCallbac
             for f in d.files:
                 if f.file_type=="photo": preview=await m.answer_photo(f.telegram_file_id)
                 else: preview=await m.answer_document(f.telegram_file_id)
-                schedule_temporary_message(preview, ttl=DOCUMENT_PREVIEW_TTL)
+                await schedule_temporary_message(preview, ttl=DOCUMENT_PREVIEW_TTL)
     elif a=="delete_document":
         d=await get_document(uid,v); cid=d.category_id if d else 0
         if await delete_document(uid,v): await callback.answer(t(language,"documents.deleted")); await show_category(m,uid,cid)
@@ -196,20 +206,23 @@ async def receive_file(message:Message,state:FSMContext):
     elif message.document and message.document.mime_type in ALLOWED_MIME_TYPES:
         f=message.document; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"document","original_filename":f.file_name,"mime_type":f.mime_type}
     if not item: return await message.answer(t(language,"documents.invalid_file"))
-    data=await state.get_data(); document_id=data.get("document_id")
-    if document_id is None:
-        document=await create_document(
-            message.from_user.id, data["category_id"], data["title"],
-            data.get("owner"), data["access_level"], [item],
-        )
-    else:
-        document=await add_document_file(message.from_user.id,document_id,item)
-    if document is None:
+    data=await state.get_data()
+    upload_session_key=data.get("upload_session_key")
+    if not upload_session_key:
+        await state.clear()
+        return await message.answer(t(language,"documents.upload_expired"))
+    result=await create_or_append_document_file(
+        message.from_user.id, upload_session_key, data["category_id"],
+        data["title"], data.get("owner"), data["access_level"], item,
+    )
+    if result is None:
         return await message.answer(t(language,"documents.not_found"))
-    count=len(document.files)
-    await state.update_data(document_id=document.id,file_count=count)
-    schedule_temporary_message(message, ttl=DOCUMENT_UPLOAD_TTL)
-    await _update_upload_control(message,state,language,count)
+    await state.update_data(
+        document_id=result.document.id,
+        file_count=result.file_count,
+    )
+    await schedule_temporary_message(message, ttl=DOCUMENT_UPLOAD_TTL)
+    await _update_upload_control(message,state,language,result.file_count)
 @router.message(DocumentState.search)
 async def search(message:Message,state:FSMContext):
     language=await _lang(message.from_user.id); docs=await search_documents(message.from_user.id,message.text or "") or []; await state.clear()

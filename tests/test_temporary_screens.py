@@ -1,6 +1,6 @@
-import asyncio
 import inspect
 import unittest
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -46,49 +46,38 @@ def analytics_data():
 
 
 class TemporaryScreenManagerTests(unittest.IsolatedAsyncioTestCase):
-    async def asyncTearDown(self):
-        tasks = list(temporary_screens._delete_tasks.values())
-        for task in tasks:
-            task.cancel()
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        temporary_screens._delete_tasks.clear()
-
-    async def test_refresh_cancels_old_timer_and_keeps_one_current_task(self):
+    async def test_schedule_persists_deadline_before_return(self):
         bot = SimpleNamespace(delete_message=AsyncMock())
-        first = temporary_screens.schedule_temporary_delete(bot, 1, 10, ttl=60)
-        second = temporary_screens.refresh_temporary_delete(bot, 1, 10, ttl=60)
-        await asyncio.sleep(0)
-        self.assertTrue(first.cancelled())
-        self.assertIs(temporary_screens._delete_tasks[(1, 10)], second)
-        self.assertEqual(len(temporary_screens._delete_tasks), 1)
-
-    async def test_missing_message_delete_error_is_safely_ignored(self):
-        bot = SimpleNamespace(delete_message=AsyncMock(side_effect=TelegramBadRequest(
-            method=SimpleNamespace(), message="Bad Request: message to delete not found",
-        )))
-        task = temporary_screens.schedule_temporary_delete(bot, 1, 10, ttl=0.001)
-        await task
-        self.assertNotIn((1, 10), temporary_screens._delete_tasks)
+        now = datetime(2026, 9, 7, 12, 0)
+        with patch.object(temporary_screens, "utc_now", return_value=now), patch.object(
+            temporary_screens, "schedule_temporary_message_delete",
+            AsyncMock(return_value=7),
+        ) as schedule:
+            task_id = await temporary_screens.schedule_temporary_delete(
+                bot, 1, 10, ttl=60,
+            )
+        self.assertEqual(task_id, 7)
+        schedule.assert_awaited_once_with(1, 10, now + timedelta(seconds=60))
 
     async def test_off_does_not_create_delete_task(self):
         bot = SimpleNamespace(delete_message=AsyncMock())
-        task = temporary_screens.schedule_temporary_delete(bot, 1, 10, ttl=0)
+        with patch.object(
+            temporary_screens, "schedule_temporary_message_delete", AsyncMock(),
+        ) as schedule, patch.object(
+            temporary_screens, "cancel_temporary_message_delete", AsyncMock(),
+        ) as cancel:
+            task = await temporary_screens.schedule_temporary_delete(bot, 1, 10, ttl=0)
         self.assertIsNone(task)
-        self.assertNotIn((1, 10), temporary_screens._delete_tasks)
+        schedule.assert_not_awaited()
+        cancel.assert_awaited_once_with(1, 10)
         bot.delete_message.assert_not_awaited()
 
-    async def test_different_messages_and_chats_have_independent_timers(self):
-        bot = SimpleNamespace(delete_message=AsyncMock())
-        first = temporary_screens.schedule_temporary_delete(bot, 1, 10, ttl=60)
-        second = temporary_screens.schedule_temporary_delete(bot, 1, 11, ttl=60)
-        third = temporary_screens.schedule_temporary_delete(bot, 2, 10, ttl=60)
-        self.assertEqual(len(temporary_screens._delete_tasks), 3)
-        temporary_screens.cancel_temporary_delete(1, 10)
-        await asyncio.sleep(0)
-        self.assertTrue(first.cancelled())
-        self.assertFalse(second.cancelled())
-        self.assertFalse(third.cancelled())
+    async def test_cancel_removes_persistent_queue_row(self):
+        with patch.object(
+            temporary_screens, "cancel_temporary_message_delete", AsyncMock(),
+        ) as cancel:
+            await temporary_screens.cancel_temporary_delete(1, 10)
+        cancel.assert_awaited_once_with(1, 10)
 
 
 class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
@@ -102,7 +91,9 @@ class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
         for module, handler, services in cases:
             with self.subTest(handler=handler.__name__):
                 message, sent = incoming_message(), sent_message()
-                schedule_patcher = patch.object(module, "schedule_temporary_message")
+                schedule_patcher = patch.object(
+                    module, "schedule_temporary_message", AsyncMock(),
+                )
                 patches = [
                     patch.object(module, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=3, temporary_screen_ttl=20))),
                     patch.object(module, "answer_with_navigation", AsyncMock(return_value=sent)),
@@ -123,7 +114,7 @@ class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     for item in reversed(patches):
                         item.stop()
-                schedule.assert_called_once_with(sent, ttl=20)
+                schedule.assert_awaited_once_with(sent, ttl=20)
 
     async def test_balance_schedules_its_sent_message(self):
         message, sent = incoming_message(), sent_message()
@@ -132,9 +123,9 @@ class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
             statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=3, temporary_screen_ttl=20)),
         ), patch.object(
             statistics, "get_balance", AsyncMock(return_value=month_data()),
-        ), patch.object(statistics, "schedule_temporary_message") as schedule:
+        ), patch.object(statistics, "schedule_temporary_message", AsyncMock()) as schedule:
             await statistics.balance(message)
-        schedule.assert_called_once_with(sent, ttl=20)
+        schedule.assert_awaited_once_with(sent, ttl=20)
         self.assertNotIn("reply_markup", message.answer.await_args.kwargs)
         self.assertEqual(message.answer.await_count, 1)
         self.assertNotIn("\u2063", message.answer.await_args.args[0])
@@ -164,9 +155,9 @@ class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
             statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=3, temporary_screen_ttl=20)),
         ), patch.object(
             statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
-        ), patch.object(statistics, "refresh_temporary_message") as refresh:
+        ), patch.object(statistics, "refresh_temporary_message", AsyncMock()) as refresh:
             await statistics.analytics_page(event)
-        refresh.assert_called_once_with(callback_message, ttl=20)
+        refresh.assert_awaited_once_with(callback_message, ttl=20)
         callback_message.answer.assert_not_awaited()
 
         for data, handler in (
@@ -179,9 +170,9 @@ class TemporaryScreenHandlerTests(unittest.IsolatedAsyncioTestCase):
                 statistics, "require_family_for_chat", AsyncMock(return_value=SimpleNamespace(id=3, temporary_screen_ttl=20)),
             ), patch.object(
                 statistics, "get_analytics", AsyncMock(return_value=analytics_data()),
-            ), patch.object(statistics, "refresh_temporary_message") as refresh:
+            ), patch.object(statistics, "refresh_temporary_message", AsyncMock()) as refresh:
                 await handler(event)
-            refresh.assert_called_once_with(callback_message, ttl=20)
+            refresh.assert_awaited_once_with(callback_message, ttl=20)
             event.answer.assert_awaited_once_with()
 
     def test_settings_and_recurring_do_not_schedule_temporary_deletes(self):

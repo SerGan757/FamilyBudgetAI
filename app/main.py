@@ -9,7 +9,9 @@ from aiogram.enums import ParseMode
 from dotenv import load_dotenv
 
 from app.handlers import routers
+from app.database.db import engine
 from app.database.init_db import init_db
+from app.workers.temporary_message_worker import run_temporary_message_worker
 
 load_dotenv()
 
@@ -32,6 +34,7 @@ async def start_web_server():
     await site.start()
 
     print(f"Web server started on port {port}")
+    return runner
 
 async def main():
 
@@ -46,7 +49,7 @@ async def main():
         )
 
     await init_db()
-    await start_web_server()
+    web_runner = await start_web_server()
 
     bot = Bot(
         token=BOT_TOKEN,
@@ -60,6 +63,12 @@ async def main():
     for router in routers:
         dp.include_router(router)
 
+    worker_stop = asyncio.Event()
+    worker_task = asyncio.create_task(
+        run_temporary_message_worker(bot, worker_stop),
+        name="temporary-message-worker",
+    )
+
     print()
     print("=" * 50)
     print("        Family Budget AI")
@@ -69,7 +78,14 @@ async def main():
     print("=" * 50)
     print()
     print(">>> START POLLING <<<")
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot, close_bot_session=False)
+    finally:
+        worker_stop.set()
+        await worker_task
+        await bot.session.close()
+        await web_runner.cleanup()
+        await engine.dispose()
 
 
 if __name__ == "__main__":

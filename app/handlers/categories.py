@@ -440,7 +440,7 @@ async def category_callback(callback: CallbackQuery, callback_data: CategoryCall
         await callback.answer(t(language, "category.not_found"), show_alert=True)
         return
     if "analytics-" in value:
-        refresh_temporary_message(message, ttl=family.temporary_screen_ttl)
+        await refresh_temporary_message(message, ttl=family.temporary_screen_ttl)
     await callback.answer()
 
 
