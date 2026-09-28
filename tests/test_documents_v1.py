@@ -315,6 +315,7 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
             second_document, SimpleNamespace(id=2), True, 2,
         )
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
+             patch.object(documents, "get_document", AsyncMock(return_value=second_document)), \
              patch.object(documents, "create_or_append_document_file", AsyncMock(return_value=second_result)) as store_second, \
              patch.object(documents, "schedule_temporary_message", AsyncMock()) as schedule_second:
             await documents.receive_file(second, state)
@@ -373,7 +374,7 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_done_only_finishes_fsm_and_deactivates_panel(self):
         state = MemoryState(
-            {"document_id":77,"file_count":2,
+            {"document_id":77,"file_count":2,"upload_session_key":"session-key",
              "upload_control_chat_id":100,"upload_control_message_id":500},
             DocumentState.files.state,
         )
@@ -391,7 +392,7 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_delete_draft_deletes_document_and_clears_panel(self):
         state = MemoryState(
-            {"document_id":77,"file_count":2,"upload_control_chat_id":100,
+            {"document_id":77,"file_count":2,"upload_session_key":"session-key","upload_control_chat_id":100,
              "upload_control_message_id":500}, DocumentState.files.state,
         )
         message = SimpleNamespace(chat=SimpleNamespace(id=100), message_id=500, edit_text=AsyncMock())

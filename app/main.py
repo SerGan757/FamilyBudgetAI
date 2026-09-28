@@ -9,6 +9,7 @@ from aiogram.enums import ParseMode
 from dotenv import load_dotenv
 
 from app.handlers import routers
+from app.handlers.document_navigation import DocumentNavigationMiddleware
 from app.database.db import engine
 from app.database.init_db import init_db
 from app.workers.temporary_message_worker import run_temporary_message_worker
@@ -59,6 +60,7 @@ async def main():
     )
 
     dp = Dispatcher()
+    dp.message.outer_middleware(DocumentNavigationMiddleware())
 
     for router in routers:
         dp.include_router(router)

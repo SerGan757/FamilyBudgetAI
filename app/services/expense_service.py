@@ -1,5 +1,6 @@
 from datetime import date
 from dataclasses import dataclass
+from math import isfinite
 
 from sqlalchemy import select
 
@@ -81,6 +82,58 @@ async def save_transaction(
         transaction.project_name = project.name
 
     return transaction
+
+
+async def save_transaction_batch(
+    texts: list[str], telegram_id: int, family_id: int,
+) -> list[Transaction]:
+    """Validate a complete quick-input batch, then commit all rows together.
+
+    Project resolution and goal contributions keep their separate single-input
+    flows. No call to the independently committing single-operation service.
+    """
+    parsed_items = [parse_message(text) if "#" not in text else None for text in texts]
+    if len(parsed_items) < 2 or any(
+        parsed is None or parsed["type"] not in {"expense", "income"}
+        or not isfinite(parsed["amount"]) or parsed["amount"] <= 0
+        or len(parsed["title"]) > Transaction.title.type.length
+        for parsed in parsed_items
+    ):
+        raise ValueError("Invalid transaction batch")
+
+    user = await get_user_by_telegram_id(telegram_id)
+    if user is None or user.family_id != family_id:
+        raise ValueError("User does not belong to transaction family")
+
+    transactions = []
+    for parsed in parsed_items:
+        icon, category, custom_category_id = await detect_category_reference_for_family(
+            family_id, parsed["title"], parsed["type"],
+        )
+        transactions.append(Transaction(
+            user_id=user.id, family_id=family_id,
+            title=parsed["title"], amount=parsed["amount"], type=parsed["type"],
+            category=f"{icon} {category}", custom_category_id=custom_category_id,
+            is_recurring=False,
+        ))
+
+    async with SessionLocal() as session:
+        async with session.begin():
+            # Validate every reference before adding rows. Keep referenced
+            # categories locked until commit, including the activity update.
+            for category_id in sorted({item.custom_category_id for item in transactions} - {None}):
+                category = await session.scalar(select(FamilyCategory).where(
+                    FamilyCategory.id == category_id,
+                    FamilyCategory.family_id == family_id,
+                    FamilyCategory.is_active.is_(True),
+                ).with_for_update())
+                if category is None:
+                    raise ValueError("Custom category does not belong to transaction family")
+            session.add_all(transactions)
+            await session.flush()
+            await touch_family_activity(family_id, session=session)
+        # SessionLocal uses expire_on_commit=False; no post-commit DB reads.
+    return transactions
 
 
 async def create_transaction(

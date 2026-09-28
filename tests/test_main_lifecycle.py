@@ -14,6 +14,7 @@ class MainLifecycleTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
         dispatcher = SimpleNamespace(
+            message=SimpleNamespace(outer_middleware=Mock()),
             include_router=Mock(),
             start_polling=AsyncMock(side_effect=lambda *args, **kwargs: events.append("polling_stopped")),
         )
@@ -44,6 +45,11 @@ class MainLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
         dispatcher.start_polling.assert_awaited_once_with(
             bot, close_bot_session=False,
+        )
+        dispatcher.message.outer_middleware.assert_called_once()
+        self.assertIsInstance(
+            dispatcher.message.outer_middleware.call_args.args[0],
+            app_main.DocumentNavigationMiddleware,
         )
         self.assertEqual(events.count("worker_started"), 1)
         self.assertLess(events.index("worker_stopped"), events.index("bot_closed"))

@@ -26,6 +26,42 @@ INCOME_PREFIX = re.compile(
 )
 NUMBER_TOKEN = re.compile(rf"(?<![\w.,]){NUMBER}(?![\w.,])")
 
+# Deliberately narrower than the single-operation parser: no signs, tags,
+# embedded numeric names, currency suffixes, date syntax, or phone-sized digits.
+MULTI_AMOUNT = re.compile(r"(?:0|[1-9][0-9]{0,5})(?:[.,][0-9]{1,2})?")
+MULTI_WORD = re.compile(r"[^\W\d_]+(?:[-'’][^\W\d_]+)*", re.UNICODE)
+QUANTITY_UNITS = frozenset({"kg", "g", "mg", "l", "ml", "cl", "pcs", "pc", "x",
+                            "кг", "г", "мг", "л", "мл", "шт", "штук"})
+# These labels commonly introduce an identifier, date, or model number. In
+# multi-input prefer rejection to interpreting that number as a price.
+NUMBER_LABELS = frozenset({"номер", "number", "дата", "date", "телефон", "phone",
+                           "iphone", "айфон", "ipad", "galaxy", "pixel",
+                           "витамин", "vitamin", "рейс", "flight", "маршрут", "route"})
+
+
+def split_multi_expenses(text: str) -> list[str] | None:
+    """Return complete description/amount pairs, or nothing; never a prefix.
+
+    This is only a lexical quick-input format. Single-operation parsing and
+    category/project interpretation remain in their existing service paths.
+    """
+    pairs = []
+    description = []
+    for token in normalize(text).split():
+        if MULTI_AMOUNT.fullmatch(token):
+            if not description or float(token.replace(",", ".")) <= 0:
+                return None
+            if any(word.casefold() in NUMBER_LABELS for word in description):
+                return None
+            pairs.append(" ".join([*description, token]))
+            description = []
+        elif (MULTI_WORD.fullmatch(token) and token.casefold() not in QUANTITY_UNITS
+              and not re.fullmatch(CURRENCY, token, re.IGNORECASE)):
+            description.append(token)
+        else:
+            return None
+    return pairs if len(pairs) >= 2 and not description else None
+
 
 def normalize(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip())

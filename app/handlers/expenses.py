@@ -18,11 +18,11 @@ from app.services.family_context_service import (
     require_family_for_chat,
 )
 from app.services.expense_service import (
-    PendingProjectTransaction, create_transaction, save_transaction,
+    PendingProjectTransaction, create_transaction, save_transaction, save_transaction_batch,
 )
-from app.services.project_service import get_project
+from app.services.project_service import extract_project_tag, get_project
 from app.services.user_service import get_user_by_telegram_id
-from app.services.parser import parse_message
+from app.services.parser import parse_message, split_multi_expenses
 from app.services.savings_goal_service import add_contribution, get_goal_snapshot, progress_bar
 from app.services.undo_service import undo_recent_operation
 from app.utils.currency import family_currency, format_money
@@ -149,9 +149,61 @@ async def add_transaction(
     total_income = 0.0
     total_expense = 0.0
 
+    # Expand only fully recognized expressions. Keep every single-operation
+    # format (including project tags and goals) on its established path.
+    expanded_lines = []
+    parsed_lines = []
+    needs_preflight = False
+    has_multi = False
     for line in lines:
+        single = parse_message(line)
+        valid_single = single
+        if valid_single is None and "#" in line:
+            try:
+                transaction_text, _ = extract_project_tag(line)
+            except ValueError:
+                pass
+            else:
+                valid_single = parse_message(transaction_text)
+        multi = split_multi_expenses(line) if valid_single is None else None
+        has_multi = has_multi or multi is not None
+        needs_preflight = needs_preflight or multi is not None or (
+            valid_single is None and bool(re.search(r"\d", line))
+        )
+        expanded_lines.extend(multi or [line])
+        parsed_lines.extend([parse_message(part) for part in multi] if multi else [single])
+    if needs_preflight:
+        # Preflight the entire message before saving any expanded operation.
+        # Tags mixed with multi-input intentionally have no new semantics.
+        if any(
+            "#" in line or parsed is None
+            or (has_multi and parsed["type"] not in {"expense", "income"})
+            for line, parsed in zip(expanded_lines, parsed_lines)
+        ):
+            await message.answer(
+                quick_confirmation_text([], language, family_currency(family), lines),
+                reply_markup=back_to_main_menu(language), parse_mode="HTML",
+            )
+            return
 
-        parsed_line = parse_message(line)
+    if has_multi:
+        try:
+            saved = await save_transaction_batch(expanded_lines, telegram_id, family.id)
+        except ValueError:
+            await message.answer(
+                quick_confirmation_text([], language, family_currency(family), lines),
+                reply_markup=back_to_main_menu(language), parse_mode="HTML",
+            )
+            return
+        await message.answer(
+            quick_confirmation_text(saved, language, family_currency(family)),
+            # Existing Undo identifies one row, not a persisted batch.
+            reply_markup=back_to_main_menu(language), parse_mode="HTML",
+        )
+        return
+
+    for line, parsed_line in zip(expanded_lines, parsed_lines):
+
         if parsed_line and parsed_line["type"] == "goal_contribution":
             contribution = await add_contribution(
                 family.id, telegram_id, parsed_line["amount"],

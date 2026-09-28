@@ -319,7 +319,9 @@ class ProjectHandlerTests(unittest.IsolatedAsyncioTestCase):
         text = await self._save_confirmation(transaction)
         self.assertNotIn("📁 Проект:", text)
 
-    async def test_project_creation_fsm_and_duplicate_tag(self):
+    @patch.object(projects, "get_current_family_settings", new_callable=AsyncMock,
+                  return_value={"language": "ru"})
+    async def test_project_creation_fsm_and_duplicate_tag(self, _settings):
         message, state = Message(" Дача "), State()
         await projects.project_name(message, state)
         self.assertEqual(state.value, ProjectState.waiting_for_tag)

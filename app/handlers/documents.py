@@ -90,6 +90,13 @@ async def document_callback(callback:CallbackQuery,callback_data:DocumentCallbac
         ):
             await _answer_stale(callback, language)
             return
+        if not upload_data.get("upload_session_key"):
+            await state.clear()
+            await _answer_stale(callback, language)
+            return
+        if control_chat_id is None or control_message_id is None:
+            await _answer_stale(callback, language)
+            return
     if a == "cancel" and current_state in {None, DocumentState.files.state}:
         await _answer_stale(callback, language)
         return
@@ -137,15 +144,16 @@ async def document_callback(callback:CallbackQuery,callback_data:DocumentCallbac
             upload_control_chat_id=m.chat.id,
             upload_control_message_id=m.message_id,
         )
-        await m.edit_text(t(language,"documents.send_file"), reply_markup=None)
+        await m.edit_text(t(language,"documents.send_file"), reply_markup=files_keyboard(language))
     elif a=="done":
         data=await state.get_data()
         count=data.get("file_count",0)
         await state.clear()
-        await m.edit_text(
-            f"{t(language,'documents.added_success')}\n📎 {t(language,'documents.files',count=count)}",
-            reply_markup=None,
-        )
+        text = f"{t(language,'documents.added_success')}\n📎 {t(language,'documents.files',count=count)}"
+        try:
+            await m.edit_text(text, reply_markup=None)
+        except TelegramBadRequest:
+            await m.answer(text)
     elif a=="delete_draft_document":
         data=await state.get_data()
         document_id=data.get("document_id")
@@ -201,21 +209,27 @@ async def custom_owner(message:Message,state:FSMContext):
 @router.message(DocumentState.files)
 async def receive_file(message:Message,state:FSMContext):
     language=await _lang(message.from_user.id); item=None
-    if message.photo:
-        f=message.photo[-1]; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"photo","original_filename":None,"mime_type":"image/jpeg"}
-    elif message.document and message.document.mime_type in ALLOWED_MIME_TYPES:
-        f=message.document; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"document","original_filename":f.file_name,"mime_type":f.mime_type}
-    if not item: return await message.answer(t(language,"documents.invalid_file"))
     data=await state.get_data()
     upload_session_key=data.get("upload_session_key")
     if not upload_session_key:
         await state.clear()
         return await message.answer(t(language,"documents.upload_expired"))
+    if data.get("document_id") is not None and await get_document(message.from_user.id, data["document_id"]) is None:
+        await state.clear()
+        return await message.answer(t(language,"documents.not_found"))
+    if message.photo:
+        f=message.photo[-1]; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"photo","original_filename":None,"mime_type":"image/jpeg"}
+    elif message.document and message.document.mime_type in ALLOWED_MIME_TYPES:
+        f=message.document; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"document","original_filename":f.file_name,"mime_type":f.mime_type}
+    if not item:
+        key = "documents.upload_prompt" if message.text else "documents.invalid_file"
+        return await message.answer(t(language, key))
     result=await create_or_append_document_file(
         message.from_user.id, upload_session_key, data["category_id"],
         data["title"], data.get("owner"), data["access_level"], item,
     )
-    if result is None:
+    if result is None or result.document is None:
+        await state.clear()
         return await message.answer(t(language,"documents.not_found"))
     await state.update_data(
         document_id=result.document.id,

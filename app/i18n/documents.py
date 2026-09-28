@@ -31,6 +31,9 @@ _RU["documents.upload_expired"] = (
     "Эта загрузка устарела. Начните добавление документа заново."
 )
 
+_EN["documents.upload_prompt"] = "Send a file, press ✅ Done or choose a section from the main menu."
+_RU["documents.upload_prompt"] = "Отправьте файл, нажмите ✅ Готово или выберите раздел главного меню."
+
 DOCUMENT_TEXTS = {language: dict(_EN) for language in SUPPORTED_LANGUAGES}
 DOCUMENT_TEXTS["ru"].update(_RU)
 # Native main-menu labels; all remaining document strings have a complete English fallback.
