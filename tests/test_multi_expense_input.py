@@ -1,4 +1,6 @@
+import asyncio
 import unittest
+from datetime import datetime, timedelta, timezone
 from contextlib import ExitStack, asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -6,14 +8,19 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy import MetaData, create_engine, event, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects import postgresql
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.methods import EditMessageText
+from aiogram.types import CallbackQuery, Chat, InaccessibleMessage, User as TelegramUser
 
 from app.database.db import Base
 from app.database.models import Family, FamilyCategory, Transaction
 from app.data.categories import CATEGORIES
 from app.handlers import expenses
 from app.i18n import t
-from app.keyboards.main_menu import back_to_main_menu
-from app.services import category_override_service, custom_category_service, expense_service
+from app.i18n.translations import SUPPORTED_LANGUAGES
+from app.keyboards.undo import UndoBatchCallback, UndoOperationCallback, undo_batch_keyboard
+from app.services import category_override_service, custom_category_service, expense_service, bulk_undo_service
 from app.services.parser import parse_message, split_multi_expenses
 
 
@@ -52,6 +59,9 @@ class SQLiteSession:
 
     async def flush(self):
         self.session.flush()
+
+    async def delete(self, row):
+        self.session.delete(row)
 
 
 class MultiExpenseParserTests(unittest.TestCase):
@@ -100,7 +110,8 @@ class MultiExpenseHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.family = SimpleNamespace(id=7, language="ru", currency="EUR")
         self.user = SimpleNamespace(id=3, family_id=7)
         self.message = SimpleNamespace(text="", from_user=SimpleNamespace(id=10),
-            chat=SimpleNamespace(id=100, type="private"), answer=AsyncMock())
+            chat=SimpleNamespace(id=100, type="private"), answer=AsyncMock(),
+            bot=SimpleNamespace(token="test-signing-key"))
         self.state = AsyncMock()
         self.stack.enter_context(patch.object(expenses, "require_family_for_chat", AsyncMock(return_value=self.family)))
         self.stack.enter_context(patch.object(expenses, "get_user_by_telegram_id", AsyncMock(return_value=self.user)))
@@ -137,6 +148,7 @@ class MultiExpenseHandlerTests(unittest.IsolatedAsyncioTestCase):
             return session
 
         self.stack.enter_context(patch.object(expense_service, "SessionLocal", side_effect=session_factory))
+        self.stack.enter_context(patch.object(bulk_undo_service, "SessionLocal", side_effect=session_factory))
         self.batch = self.stack.enter_context(patch.object(
             expenses, "save_transaction_batch", wraps=expense_service.save_transaction_batch,
         ))
@@ -153,6 +165,399 @@ class MultiExpenseHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.message.text = text
         await expenses.add_transaction(self.message, self.state)
 
+    def bulk_callback(self):
+        markup = self.message.answer.await_args.kwargs["reply_markup"]
+        self.assertEqual([len(row) for row in markup.inline_keyboard], [1])
+        button = markup.inline_keyboard[0][0]
+        self.assertEqual(button.text, "↩️ Отменить операции")
+        self.assertLessEqual(len(button.callback_data.encode()), 64)
+        data = UndoBatchCallback.unpack(button.callback_data)
+        callback = SimpleNamespace(
+            from_user=self.message.from_user, bot=self.message.bot, answer=AsyncMock(),
+            message=SimpleNamespace(chat=self.message.chat, edit_text=AsyncMock(),
+                                    edit_reply_markup=AsyncMock()),
+        )
+        return callback, data
+
+    def remaining_ids(self):
+        with Session(self.engine) as session:
+            return list(session.scalars(select(Transaction.id).order_by(Transaction.id)))
+
+    async def test_bulk_button_deletes_exact_two_after_menu_and_double_click_is_safe(self):
+        await self.send("Бензин 9 продуктов 60")
+        callback, data = self.bulk_callback()
+        self.assertEqual(len(self.remaining_ids()), 2)
+        # Undo has no dependency on a live FSM or the original handler session.
+        await self.state.clear()
+        with Session(self.engine) as session:
+            other = Transaction(user_id=3, family_id=7, title="Other input", amount=20,
+                                type="expense", category="Other", is_recurring=False)
+            session.add(other)
+            session.commit()
+            other_id = other.id
+        await expenses.undo_batch_callback(callback, data)
+        self.assertEqual(self.remaining_ids(), [other_id])
+        callback.message.edit_text.assert_awaited_once_with(t("ru", "undo.batch_done"), reply_markup=None)
+        callback.answer.assert_awaited_once_with()
+        callback.answer.reset_mock()
+        await expenses.undo_batch_callback(callback, data)
+        callback.answer.assert_awaited_once_with(t("ru", "undo.batch_stale"), show_alert=True)
+        self.assertEqual(self.remaining_ids(), [other_id])
+
+    async def test_bulk_button_deletes_three(self):
+        await self.send("хлеб 2 молоко 1.50 сыр 4")
+        callback, data = self.bulk_callback()
+        self.assertEqual(len(self.remaining_ids()), 3)
+        self.assertEqual(len({row.created_at for row in self.saved}), 1)
+        await expenses.undo_batch_callback(callback, data)
+        self.assertEqual(self.remaining_ids(), [])
+
+    async def test_bulk_delete_second_failure_rolls_back_and_can_be_retried(self):
+        await self.send("хлеб 2 молоко 1.50 сыр 4")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        with Session(self.engine) as session:
+            activity = session.get(Family, 7).last_activity_at
+        deleted = 0
+
+        async def failing_delete(adapter, row):
+            nonlocal deleted
+            adapter.session.delete(row)
+            adapter.session.flush()  # Prove rollback of an already issued DELETE.
+            deleted += 1
+            if deleted == 2:
+                raise SQLAlchemyError("Injected second delete failure")
+
+        with patch.object(SQLiteSession, "delete", failing_delete):
+            await expenses.undo_batch_callback(callback, data)
+        self.assertEqual(deleted, 2)
+        self.assertEqual(self.remaining_ids(), original_ids)
+        with Session(self.engine) as session:
+            self.assertEqual(session.get(Family, 7).last_activity_at, activity)
+        callback.answer.assert_awaited_once_with(t("ru", "undo.batch_error"), show_alert=True)
+        callback.message.edit_text.assert_not_awaited()
+        await expenses.undo_batch_callback(callback, data)
+        self.assertEqual(self.remaining_ids(), [])
+
+    async def test_bulk_commit_failure_rolls_back(self):
+        await self.send("хлеб 2 молоко 3")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+
+        def fail_commit(session):
+            raise SQLAlchemyError("Injected commit failure")
+
+        event.listen(Session, "before_commit", fail_commit)
+        try:
+            await expenses.undo_batch_callback(callback, data)
+        finally:
+            event.remove(Session, "before_commit", fail_commit)
+        self.assertEqual(self.remaining_ids(), original_ids)
+        callback.answer.assert_awaited_once_with(t("ru", "undo.batch_error"), show_alert=True)
+
+    async def test_activity_failure_after_delete_flush_rolls_back(self):
+        await self.send("хлеб 2 молоко 3")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        with patch.object(bulk_undo_service, "touch_family_activity",
+                          AsyncMock(side_effect=SQLAlchemyError("Activity failed"))):
+            await expenses.undo_batch_callback(callback, data)
+        self.assertEqual(self.remaining_ids(), original_ids)
+        callback.answer.assert_awaited_once_with(t("ru", "undo.batch_error"), show_alert=True)
+
+    async def test_bulk_other_family_or_author_cannot_delete(self):
+        await self.send("хлеб 2 молоко 3")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        for family_id, user_id, expected in ((8, 3, "forbidden"), (7, 9, "not_author")):
+            with self.subTest(family=family_id, author=user_id):
+                result = await bulk_undo_service.undo_transaction_batch(
+                    data.first_id, data.last_id, data.signature, family_id, user_id,
+                    self.message.bot.token,
+                )
+                self.assertEqual(result.status, expected)
+                self.assertEqual(self.remaining_ids(), original_ids)
+        self.family.id = self.user.family_id = 8
+        await expenses.undo_batch_callback(callback, data)
+        callback.answer.assert_awaited_once_with(t("ru", "undo.forbidden"), show_alert=True)
+        self.assertEqual(self.remaining_ids(), original_ids)
+
+    async def test_bulk_tampered_signature_bounds_and_signing_key_delete_nothing(self):
+        await self.send("хлеб 2 молоко 3")
+        _, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        for first, last, signature, key in (
+            (data.first_id, data.last_id, "x" * 22, self.message.bot.token),
+            (data.first_id, data.last_id + 1, "x" * 22, self.message.bot.token),
+            (data.first_id, data.last_id + 1, data.signature, self.message.bot.token),
+            (data.first_id, data.last_id, data.signature, "wrong-key"),
+            (-1, data.last_id, data.signature, self.message.bot.token),
+        ):
+            result = await bulk_undo_service.undo_transaction_batch(first, last, signature, 7, 3, key)
+            self.assertNotEqual(result.status, "deleted")
+            self.assertEqual(self.remaining_ids(), original_ids)
+
+    async def test_missing_middle_member_never_deletes_remainder(self):
+        await self.send("хлеб 2 молоко 3 сыр 4")
+        callback, data = self.bulk_callback()
+        with Session(self.engine) as session:
+            session.delete(session.get(Transaction, self.saved[1].id))
+            session.commit()
+        remaining = self.remaining_ids()
+        await expenses.undo_batch_callback(callback, data)
+        self.assertEqual(self.remaining_ids(), remaining)
+        callback.answer.assert_awaited_once_with(t("ru", "undo.batch_stale"), show_alert=True)
+
+    async def test_changed_member_ownership_or_recurring_status_blocks_entire_batch(self):
+        await self.send("хлеб 2 молоко 3 сыр 4")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        for field, changed, original in (("family_id", 8, 7), ("user_id", 9, 3),
+                                          ("is_recurring", True, False)):
+            with self.subTest(field=field):
+                with Session(self.engine) as session:
+                    setattr(session.get(Transaction, self.saved[1].id), field, changed)
+                    session.commit()
+                await expenses.undo_batch_callback(callback, data)
+                self.assertEqual(self.remaining_ids(), original_ids)
+                with Session(self.engine) as session:
+                    setattr(session.get(Transaction, self.saved[1].id), field, original)
+                    session.commit()
+
+    async def test_bulk_ttl_matches_single_undo(self):
+        await self.send("хлеб 2 молоко 3")
+        _, data = self.bulk_callback()
+        created = self.saved[0].created_at
+        result = await bulk_undo_service.undo_transaction_batch(
+            data.first_id, data.last_id, data.signature, 7, 3, self.message.bot.token,
+            now=created + timedelta(seconds=61),
+        )
+        self.assertEqual(result.status, "expired")
+        self.assertEqual(len(self.remaining_ids()), 2)
+        result = await bulk_undo_service.undo_transaction_batch(
+            data.first_id, data.last_id, data.signature, 7, 3, self.message.bot.token,
+            now=created + timedelta(seconds=60),
+        )
+        self.assertEqual(result.status, "deleted")
+
+    async def test_bulk_59_seconds_and_clock_anomalies(self):
+        await self.send("хлеб 2 молоко 3")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        created = self.saved[0].created_at
+        for offset in (timedelta(microseconds=-1), timedelta(days=-1),
+                       timedelta(seconds=60, microseconds=1), timedelta(days=1)):
+            result = await bulk_undo_service.undo_transaction_batch(
+                data.first_id, data.last_id, data.signature, 7, 3, self.message.bot.token,
+                now=created + offset,
+            )
+            self.assertEqual(result.status, "expired")
+            self.assertEqual(self.remaining_ids(), original_ids)
+        result = await bulk_undo_service.undo_transaction_batch(
+            data.first_id, data.last_id, data.signature, 7, 3, self.message.bot.token,
+            now=created + timedelta(seconds=59),
+        )
+        self.assertEqual(result.status, "deleted")
+        await expenses.undo_batch_callback(callback, data)
+        callback.answer.assert_awaited_once_with(t("ru", "undo.batch_stale"), show_alert=True)
+
+    async def test_malformed_callback_filter_rejects_without_exception(self):
+        callback_filter = UndoBatchCallback.filter()
+        for payload in (None, "", "undo_batch", "undo_batch:1:2",
+                        "undo_batch:no:2:sig", "undo_batch:1:2:sig:extra"):
+            query = CallbackQuery(id="review", from_user=TelegramUser(id=10, is_bot=False,
+                                  first_name="Test"), chat_instance="test", data=payload)
+            self.assertFalse(await callback_filter(query))
+        await self.send("хлеб 2 молоко 3")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        for signature in ("", "short", "я" * 22):
+            await expenses.undo_batch_callback(callback, data.model_copy(update={"signature": signature}))
+            self.assertEqual(self.remaining_ids(), original_ids)
+        self.assertEqual(callback.answer.await_count, 3)
+
+    async def test_two_batches_with_interleaved_ids_and_near_identical_timestamps(self):
+        created = datetime.now(timezone.utc).replace(tzinfo=None)
+        with Session(self.engine, expire_on_commit=False) as session:
+            rows = [Transaction(id=i, user_id=3, family_id=7, title=title, amount=amount,
+                                type="expense", category="Other", is_recurring=False,
+                                created_at=created + timedelta(microseconds=i % 2))
+                    for i, title, amount in ((101, "бензин", 9), (102, "кофе", 3),
+                                             (103, "продукты", 60), (104, "булочка", 2))]
+            session.add_all(rows)
+            session.commit()
+        for batch, remaining in (([rows[0], rows[2]], [102, 104]), ([rows[1], rows[3]], [])):
+            signature = bulk_undo_service.batch_signature(batch, self.message.bot.token)
+            result = await bulk_undo_service.undo_transaction_batch(
+                batch[0].id, batch[-1].id, signature, 7, 3, self.message.bot.token,
+            )
+            self.assertEqual(result.status, "deleted")
+            self.assertEqual(self.remaining_ids(), remaining)
+
+    async def test_two_simultaneous_callbacks_serialize_delete_and_answer_both(self):
+        await self.send("хлеб 2 молоко 3")
+        first, data = self.bulk_callback()
+        second, _ = self.bulk_callback()
+        store = {row.id: row for row in self.saved}
+        unrelated_id = data.last_id + 10
+        store[unrelated_id] = SimpleNamespace(id=unrelated_id)
+        row_lock = asyncio.Lock()
+        anchors_ready = asyncio.Event()
+        anchors_read = 0
+        delete_commits = []
+        case = self
+
+        class ConcurrentSession:
+            """Model READ COMMITTED: both read anchor, second SELECT waits
+            for row locks, then observes deletion committed by the first.
+            Actual PostgreSQL is intentionally not contacted in this test.
+            """
+            def __init__(self):
+                self.pending = []
+                self.active = False
+                self.locked = False
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                pass
+
+            @asynccontextmanager
+            async def begin(self):
+                self.active = True
+                try:
+                    yield
+                    if self.pending:
+                        for row_id in self.pending:
+                            del store[row_id]
+                        delete_commits.append(list(self.pending))
+                finally:
+                    self.active = False
+                    if self.locked:
+                        row_lock.release()
+
+            async def scalar(self, statement):
+                nonlocal anchors_read
+                case.assertTrue(self.active)
+                anchor = store.get(data.first_id)
+                anchors_read += 1
+                if anchors_read == 2:
+                    anchors_ready.set()
+                await anchors_ready.wait()
+                return anchor
+
+            async def execute(self, statement):
+                case.assertTrue(self.active)
+                compiled = str(statement.compile(dialect=postgresql.dialect()))
+                case.assertIn("ORDER BY transactions.id FOR UPDATE", compiled)
+                await row_lock.acquire()
+                self.locked = True
+                rows = [store[i] for i in sorted(store) if data.first_id <= i <= data.last_id]
+                return SimpleNamespace(scalars=lambda: rows)
+
+            async def delete(self, row):
+                case.assertTrue(self.active and self.locked)
+                self.pending.append(row.id)
+
+            async def flush(self):
+                case.assertTrue(self.active and self.locked)
+
+        with patch.object(bulk_undo_service, "SessionLocal", side_effect=ConcurrentSession), \
+             patch.object(bulk_undo_service, "touch_family_activity", AsyncMock()):
+            await asyncio.wait_for(asyncio.gather(
+                expenses.undo_batch_callback(first, data),
+                expenses.undo_batch_callback(second, data),
+            ), timeout=5)
+        self.assertEqual(anchors_read, 2)
+        self.assertEqual(delete_commits, [[data.first_id, data.last_id]])
+        self.assertEqual(list(store), [unrelated_id])
+        answers = [first.answer.await_args, second.answer.await_args]
+        self.assertCountEqual([call.args for call in answers], [(), (t("ru", "undo.batch_stale"),)])
+        first.answer.assert_awaited_once()
+        second.answer.assert_awaited_once()
+        self.assertEqual(first.message.edit_text.await_count + second.message.edit_text.await_count, 1)
+
+    def test_bulk_i18n_keys_exist_in_every_locale(self):
+        for language in SUPPORTED_LANGUAGES:
+            for key in ("undo.batch_button", "undo.batch_done", "undo.batch_stale", "undo.batch_error",
+                        "undo.expired", "undo.author_only", "undo.forbidden"):
+                self.assertNotEqual(t(language, key), key)
+                self.assertTrue(t(language, key).strip())
+
+    def test_postgresql_timestamp_has_microsecond_precision(self):
+        timestamp_type = Transaction.__table__.c.created_at.type.compile(dialect=postgresql.dialect())
+        self.assertEqual(timestamp_type, "TIMESTAMP WITHOUT TIME ZONE")
+
+    async def test_uneditable_confirmation_still_answers_callback(self):
+        await self.send("хлеб 2 молоко 3")
+        callback, data = self.bulk_callback()
+        error = TelegramBadRequest(method=EditMessageText(text="Undo"), message="not found")
+        callback.message.edit_text.side_effect = error
+        callback.message.edit_reply_markup.side_effect = error
+        await expenses.undo_batch_callback(callback, data)
+        callback.answer.assert_awaited_once_with()
+        self.assertEqual(self.remaining_ids(), [])
+
+    async def test_inaccessible_confirmation_is_safe_noop(self):
+        await self.send("хлеб 2 молоко 3")
+        callback, data = self.bulk_callback()
+        original_ids = self.remaining_ids()
+        callback.message = InaccessibleMessage(chat=Chat(id=10, type="private"), message_id=1, date=0)
+        with patch.object(expenses, "undo_transaction_batch", AsyncMock()) as undo:
+            for _ in range(2):
+                await expenses.undo_batch_callback(callback, data)
+            undo.assert_not_awaited()
+        self.assertEqual(callback.answer.await_count, 2)
+        self.assertEqual(self.remaining_ids(), original_ids)
+
+    async def test_single_games_keeps_single_undo_callback(self):
+        await self.send("Игры 20")
+        markup = self.message.answer.await_args.kwargs["reply_markup"]
+        self.assertEqual(markup.inline_keyboard[0][0].text, "↩️ Отменить операцию")
+        data = UndoOperationCallback.unpack(markup.inline_keyboard[0][0].callback_data)
+        self.assertEqual((data.kind, data.operation_id), ("transaction", self.saved[0].id))
+        self.batch.assert_not_awaited()
+
+    async def test_noncontiguous_ids_exclude_interleaved_input(self):
+        created = datetime.now(timezone.utc).replace(tzinfo=None)
+        with Session(self.engine, expire_on_commit=False) as session:
+            rows = [Transaction(id=i, user_id=3, family_id=7, title="Test", amount=2,
+                                type="expense", category="Other", is_recurring=False,
+                                created_at=created if i != 102 else created + timedelta(microseconds=1))
+                    for i in (101, 102, 103)]
+            session.add_all(rows)
+            session.commit()
+        signature = bulk_undo_service.batch_signature([rows[0], rows[2]], self.message.bot.token)
+        result = await bulk_undo_service.undo_transaction_batch(101, 103, signature, 7, 3, self.message.bot.token)
+        self.assertEqual(result.status, "deleted")
+        self.assertEqual(self.remaining_ids(), [102])
+
+    async def test_timestamp_collision_cannot_add_unrelated_row_to_batch(self):
+        created = datetime.now(timezone.utc).replace(tzinfo=None)
+        with Session(self.engine, expire_on_commit=False) as session:
+            rows = [Transaction(id=i, user_id=3, family_id=7, title="Test", amount=2,
+                                type="expense", category="Other", is_recurring=False,
+                                created_at=created) for i in (101, 102, 103)]
+            session.add_all(rows)
+            session.commit()
+        signature = bulk_undo_service.batch_signature([rows[0], rows[2]], self.message.bot.token)
+        result = await bulk_undo_service.undo_transaction_batch(101, 103, signature, 7, 3, self.message.bot.token)
+        self.assertEqual(result.status, "already_deleted")
+        self.assertEqual(self.remaining_ids(), [101, 102, 103])
+
+    def test_callback_length_independent_of_batch_size(self):
+        created = datetime(2026, 9, 29)
+        for count in (2, 3, 10, 1000):
+            for first_id in (1, 1_900_000_000, 2**31 - count):
+                rows = [SimpleNamespace(id=first_id + i, family_id=7, user_id=3, created_at=created)
+                        for i in range(count)]
+                signature = bulk_undo_service.batch_signature(rows, self.message.bot.token)
+                markup = undo_batch_keyboard(rows[0].id, rows[-1].id, signature)
+                size = len(markup.inline_keyboard[0][0].callback_data.encode("utf-8"))
+                self.assertEqual(size, 35 + len(str(first_id)) + len(str(first_id + count - 1)))
+                self.assertLessEqual(size, 55)
+
     async def test_two_expenses_classified_independently_and_one_bulk_confirmation(self):
         await self.send("Бензин 9 продукты 60")
         self.assertEqual([(x.title, x.amount, x.type) for x in self.saved],
@@ -166,7 +571,11 @@ class MultiExpenseHandlerTests(unittest.IsolatedAsyncioTestCase):
         text = self.message.answer.await_args.args[0]
         self.assertIn(t("ru", "quick.saved", count=2), text)
         self.assertIn("69.00", text)
-        self.assertEqual(self.message.answer.await_args.kwargs["reply_markup"], back_to_main_menu("ru"))
+        keyboard = self.message.answer.await_args.kwargs["reply_markup"]
+        self.assertEqual([len(row) for row in keyboard.inline_keyboard], [1])
+        self.assertEqual(keyboard.inline_keyboard[0][0].text, "↩️ Отменить операции")
+        data = UndoBatchCallback.unpack(keyboard.inline_keyboard[0][0].callback_data)
+        self.assertEqual((data.first_id, data.last_id), (self.saved[0].id, self.saved[1].id))
         self.batch.assert_awaited_once_with(["Бензин 9", "продукты 60"], 10, 7)
         self.save.assert_not_awaited()
         self.create.assert_not_awaited()

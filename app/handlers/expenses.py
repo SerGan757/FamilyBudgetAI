@@ -2,15 +2,19 @@ import re
 from html import escape
 
 from aiogram import Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InaccessibleMessage, Message
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.handlers.user_states import RegistrationState
 from app.handlers.project_states import ProjectTransactionState
 from app.keyboards.projects import PendingProjectCallback, pending_project_keyboard
 from app.keyboards.main_menu import back_to_main_menu
-from app.keyboards.undo import UndoOperationCallback, undo_operation_keyboard
+from app.keyboards.undo import (
+    UndoOperationCallback, undo_operation_keyboard, UndoBatchCallback, undo_batch_keyboard,
+)
 from app.services.family_context_service import (
     FamilyContextConflictError,
     FamilyContextNotFoundError,
@@ -25,6 +29,7 @@ from app.services.user_service import get_user_by_telegram_id
 from app.services.parser import parse_message, split_multi_expenses
 from app.services.savings_goal_service import add_contribution, get_goal_snapshot, progress_bar
 from app.services.undo_service import undo_recent_operation
+from app.services.bulk_undo_service import batch_signature, undo_transaction_batch
 from app.utils.currency import family_currency, format_money
 from app.i18n import category_label, family_language, normalize_telegram_language, t
 
@@ -197,8 +202,10 @@ async def add_transaction(
             return
         await message.answer(
             quick_confirmation_text(saved, language, family_currency(family)),
-            # Existing Undo identifies one row, not a persisted batch.
-            reply_markup=back_to_main_menu(language), parse_mode="HTML",
+            reply_markup=undo_batch_keyboard(
+                min(row.id for row in saved), max(row.id for row in saved),
+                batch_signature(saved, message.bot.token), language,
+            ), parse_mode="HTML",
         )
         return
 
@@ -368,6 +375,52 @@ async def resolve_pending_project_transaction(
         parse_mode="HTML",
     )
     await callback.answer()
+
+
+@router.callback_query(UndoBatchCallback.filter())
+async def undo_batch_callback(callback: CallbackQuery, callback_data: UndoBatchCallback):
+    message = callback.message
+    if message is None or isinstance(message, InaccessibleMessage):
+        # An inaccessible confirmation is stale: acknowledge without deleting.
+        await callback.answer()
+        return
+    language = "en"
+    try:
+        family = await require_family_for_chat(
+            message.chat.id, chat_type=message.chat.type, telegram_id=callback.from_user.id,
+        )
+        language = family_language(family)
+        user = await get_user_by_telegram_id(callback.from_user.id)
+        if user is None or user.family_id != family.id:
+            await callback.answer(t(language, "undo.forbidden"), show_alert=True)
+            return
+        result = await undo_transaction_batch(
+            callback_data.first_id, callback_data.last_id, callback_data.signature,
+            family.id, user.id, callback.bot.token,
+        )
+    except (FamilyContextConflictError, FamilyContextNotFoundError):
+        await callback.answer(t(language, "undo.forbidden"), show_alert=True)
+        return
+    except SQLAlchemyError:
+        await callback.answer(t(language, "undo.batch_error"), show_alert=True)
+        return
+    if result.status == "deleted":
+        # A stale/uneditable Telegram message must not leave the spinner active
+        # after a committed Undo. A second callback is safe at the service layer.
+        await callback.answer()
+        try:
+            await message.edit_text(t(language, "undo.batch_done"), reply_markup=None)
+        except TelegramBadRequest:
+            try:
+                await message.edit_reply_markup(reply_markup=None)
+            except TelegramBadRequest:
+                pass
+        return
+    key = {
+        "expired": "undo.expired", "already_deleted": "undo.batch_stale",
+        "not_author": "undo.author_only",
+    }.get(result.status, "undo.forbidden")
+    await callback.answer(t(language, key), show_alert=True)
 
 
 @router.callback_query(UndoOperationCallback.filter())

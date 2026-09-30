@@ -219,7 +219,7 @@ async def receive_file(message:Message,state:FSMContext):
         return await message.answer(t(language,"documents.not_found"))
     if message.photo:
         f=message.photo[-1]; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"photo","original_filename":None,"mime_type":"image/jpeg"}
-    elif message.document and message.document.mime_type in ALLOWED_MIME_TYPES:
+    elif message.document and is_supported_document_file(message.document.file_name, message.document.mime_type):
         f=message.document; item={"telegram_file_id":f.file_id,"telegram_file_unique_id":f.file_unique_id,"file_type":"document","original_filename":f.file_name,"mime_type":f.mime_type}
     if not item:
         key = "documents.upload_prompt" if message.text else "documents.invalid_file"

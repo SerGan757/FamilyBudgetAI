@@ -332,7 +332,7 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_file_is_not_scheduled(self):
         invalid = SimpleNamespace(
             from_user=SimpleNamespace(id=10), photo=None,
-            document=SimpleNamespace(mime_type="text/plain"), answer=AsyncMock(),
+            document=SimpleNamespace(file_name="script.exe", mime_type="text/plain"), answer=AsyncMock(),
         )
         state = MemoryState({"files": []}, DocumentState.files.state)
         with patch.object(documents, "_lang", AsyncMock(return_value="ru")), \
@@ -440,6 +440,43 @@ class DocumentUploadPanelTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(documents, "get_current_family_settings", AsyncMock(return_value={"language":"ru"})), patch.object(settings, "_show_current_settings", AsyncMock()) as show:
             await documents.document_callback(callback, SimpleNamespace(action="settings", value=0), state)
         show.assert_awaited_once_with(message, 10)
+
+
+class DocumentFileValidationTests(unittest.TestCase):
+    def test_supported_mime_extension_pairs(self):
+        expected = {
+            "application/pdf": (".pdf",), "image/jpeg": (".jpg", ".jpeg"),
+            "image/png": (".png",), "image/webp": (".webp",),
+            "application/msword": (".doc",),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": (".docx",),
+            "application/vnd.ms-excel": (".xls",),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": (".xlsx",),
+            "text/plain": (".txt",),
+        }
+        for mime, extensions in expected.items():
+            for extension in extensions:
+                for suffix in (extension, extension.upper()):
+                    with self.subTest(mime=mime, suffix=suffix):
+                        document_service._validate_document_file(dict(
+                            file_type="document", original_filename="file" + suffix, mime_type=mime))
+
+    def test_missing_generic_mismatch_and_unsupported_are_rejected(self):
+        docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        pairs = [(f"file{ext}", docx) for ext in (".exe", ".bat", ".cmd", ".ps1", ".sh", ".apk", ".zip", ".bin", ".docm")]
+        pairs += [("file.docx", mime) for mime in (None, "", "application/octet-stream", "application/zip", "text/plain", "application/pdf")]
+        pairs += [(name, docx) for name in (None, "", "file", "file.docx.exe", "file.docx ", "file.docx\x00", "file.docx:stream", "../file.docx")]
+        pairs += [("file.pdf", docx), ("file.txt", "application/x-sh"), ("file.png", "image/jpeg")]
+        for filename, mime in pairs:
+            with self.subTest(filename=filename, mime=mime):
+                with self.assertRaises(document_service.InvalidDocumentFileError):
+                    document_service._validate_document_file(dict(
+                        file_type="document", original_filename=filename, mime_type=mime))
+
+    def test_upload_instructions_cover_formats_in_all_locales(self):
+        for language in SUPPORTED_LANGUAGES:
+            for key in ("documents.send_file", "documents.invalid_file"):
+                for extension in ("PDF", "DOC", "DOCX", "XLS", "XLSX", "TXT", "JPEG", "PNG", "WEBP"):
+                    self.assertIn(extension, t(language, key))
 
 
 class DocumentServiceTests(unittest.IsolatedAsyncioTestCase):

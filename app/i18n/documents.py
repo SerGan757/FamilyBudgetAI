@@ -36,6 +36,23 @@ _RU["documents.upload_prompt"] = "Отправьте файл, нажмите �
 
 DOCUMENT_TEXTS = {language: dict(_EN) for language in SUPPORTED_LANGUAGES}
 DOCUMENT_TEXTS["ru"].update(_RU)
+# Keep the supported-format instructions consistent in every locale.
+_FORMATS = "PDF, DOC, DOCX, XLS, XLSX, TXT, JPEG, PNG, WEBP"
+for language, instruction in {
+    "ru": "Отправьте фото или файл: {formats}.",
+    "uk": "Надішліть фото або файл: {formats}.",
+    "de": "Sende ein Foto oder eine Datei: {formats}.",
+    "en": "Send a photo or a file: {formats}.",
+    "be": "Дашліце фота або файл: {formats}.",
+    "pl": "Wyślij zdjęcie lub plik: {formats}.",
+    "cs": "Pošlete fotografii nebo soubor: {formats}.",
+    "sk": "Pošlite fotografiu alebo súbor: {formats}.",
+    "ro": "Trimiteți o fotografie sau un fișier: {formats}.",
+    "bg": "Изпратете снимка или файл: {formats}.",
+    "hu": "Küldj fényképet vagy fájlt: {formats}.",
+}.items():
+    text = instruction.format(formats=_FORMATS)
+    DOCUMENT_TEXTS[language].update({"documents.send_file": f"📎 {text}", "documents.invalid_file": text})
 # Native main-menu labels; all remaining document strings have a complete English fallback.
 for language, label in {"uk":"📂 Документи","de":"📂 Dokumente","be":"📂 Дакументы","pl":"📂 Dokumenty","cs":"📂 Dokumenty","sk":"📂 Dokumenty","ro":"📂 Documente","bg":"📂 Документи","hu":"📂 Dokumentumok"}.items():
     DOCUMENT_TEXTS[language]["menu.documents"] = label

@@ -1,4 +1,5 @@
 import re
+from math import isfinite
 
 from app.data.categories import CATEGORIES
 from app.services.category_service import detect_category
@@ -136,3 +137,43 @@ def parse_message(text: str):
         )
 
     return None
+
+
+def is_financial_handoff(text: str) -> bool:
+    """Conservative, read-only recognition for leaving a saved upload.
+
+    Use the canonical single/multi/project grammars; saving and authorization
+    still belong to the normal expenses handler. In a document conversation,
+    an amount-first expense with an unknown description is ambiguous (e.g.
+    '123 abc xyz'), even though ordinary quick input accepts that format.
+    """
+    from app.services.project_service import extract_project_tag
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    has_multi = has_project = has_goal = False
+    other = CATEGORIES["other"]
+    for line in lines:
+        try:
+            transaction_text, project_tag = extract_project_tag(line)
+        except ValueError:
+            return False
+        if "#" in line and project_tag is None:
+            return False
+        parsed = parse_message(transaction_text)
+        parts = None if parsed is not None or project_tag else split_multi_expenses(line)
+        if parsed is None and parts is None:
+            return False
+        has_multi = has_multi or parts is not None
+        has_project = has_project or project_tag is not None
+        operations = [parse_message(part) for part in parts] if parts else [parsed]
+        for operation in operations:
+            if (operation is None or not isfinite(operation["amount"])
+                    or operation["amount"] <= 0 or len(operation["title"]) > 255):
+                return False
+            has_goal = has_goal or operation["type"] == "goal_contribution"
+        if (parsed is not None and parsed["type"] == "expense" and not project_tag
+                and AMOUNT_FIRST.fullmatch(normalize(transaction_text))
+                and parsed["category"] == f"{other['icon']} {other['title']}"):
+            return False
+    # The existing batch save path does not mix projects or goals with multi.
+    return bool(lines) and not (has_multi and (has_project or has_goal))

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from dataclasses import dataclass
 from math import isfinite
 
@@ -129,6 +129,10 @@ async def save_transaction_batch(
                 ).with_for_update())
                 if category is None:
                     raise ValueError("Custom category does not belong to transaction family")
+            # Share a creation time, while Undo authenticates the exact ID set.
+            batch_created_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            for transaction in transactions:
+                transaction.created_at = batch_created_at
             session.add_all(transactions)
             await session.flush()
             await touch_family_activity(family_id, session=session)

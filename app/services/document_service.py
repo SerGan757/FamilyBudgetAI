@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -15,7 +16,29 @@ DEFAULT_CATEGORIES = (
     ("medicine", "🩺"), ("work", "💼"), ("trips", "✈️"), ("other", "📁"),
 )
 ALLOWED_FILE_TYPES = {"photo", "document"}
-ALLOWED_MIME_TYPES = {"application/pdf", "image/jpeg", "image/png", "image/webp"}
+DOCUMENT_EXTENSIONS_BY_MIME = {
+    "application/pdf": {".pdf"},
+    "image/jpeg": {".jpg", ".jpeg"},
+    "image/png": {".png"},
+    "image/webp": {".webp"},
+    "application/msword": {".doc"},
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {".docx"},
+    "application/vnd.ms-excel": {".xls"},
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {".xlsx"},
+    "text/plain": {".txt"},
+}
+ALLOWED_MIME_TYPES = frozenset(DOCUMENT_EXTENSIONS_BY_MIME)
+
+
+def is_supported_document_file(filename: str | None, mime_type: str | None) -> bool:
+    """Check declared metadata only; files remain in Telegram, never executed.
+
+    Missing/generic MIME remains rejected. Require a matching extension too;
+    neither a known MIME nor a renamed file is sufficient on its own.
+    """
+    if not filename or any(ord(char) < 32 or char in "/\\:" for char in filename):
+        return False
+    return PurePosixPath(filename).suffix.lower() in DOCUMENT_EXTENSIONS_BY_MIME.get(mime_type, ())
 
 
 class DuplicateCategoryError(ValueError): pass
@@ -55,7 +78,7 @@ def validate_title(value: str) -> str:
 def _validate_document_file(data: dict) -> None:
     if data.get("file_type") not in ALLOWED_FILE_TYPES or (
         data.get("file_type") == "document"
-        and data.get("mime_type") not in ALLOWED_MIME_TYPES
+        and not is_supported_document_file(data.get("original_filename"), data.get("mime_type"))
     ):
         raise InvalidDocumentFileError
 

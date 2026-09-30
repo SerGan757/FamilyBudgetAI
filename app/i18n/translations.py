@@ -202,6 +202,20 @@ UNDO_AUTHOR_ONLY_TEXTS = {
 for _undo_language, _undo_author_text in UNDO_AUTHOR_ONLY_TEXTS.items():
     UNDO_TEXTS[_undo_language]["undo.author_only"] = _undo_author_text
 
+for _undo_texts in UNDO_TEXTS.values():
+    _undo_texts.update({
+        "undo.batch_button": "↩️ Undo operations",
+        "undo.batch_done": "↩️ Operations undone.",
+        "undo.batch_stale": "ℹ️ This batch has changed or has already been undone.",
+        "undo.batch_error": "⚠️ Could not undo operations. Please try again.",
+    })
+UNDO_TEXTS["ru"].update({
+    "undo.batch_button": "↩️ Отменить операции",
+    "undo.batch_done": "↩️ Операции отменены.",
+    "undo.batch_stale": "ℹ️ Набор операций изменён или уже отменён.",
+    "undo.batch_error": "⚠️ Не удалось отменить операции. Попробуйте ещё раз.",
+})
+
 COMPACT_CONFIRMATION_TEXTS = {
     "ru": {"quick.income_item":"Доход","quick.expense_item":"Расход","quick.unrecognized":"⚠️ Не распознано:"},
     "uk": {"quick.income_item":"Дохід","quick.expense_item":"Витрата","quick.unrecognized":"⚠️ Не розпізнано:"},
